@@ -1,0 +1,657 @@
+# SK코어타겟 MVP 개발 프롬프트 (Replit)
+
+## 🎯 프로젝트 개요
+
+당신은 10년차 풀스택 개발자입니다. SK코어타겟(SK CoreTarget)이라는 SK 통신사 유저 대상 문자광고 플랫폼의 MVP를 개발합니다.
+
+### 핵심 요구사항
+- **플랫폼명**: SK코어타겟
+- **목표**: 영세 자영업자가 최소 10만원으로 SK 통신 가입자에게 타겟 광고 발송
+- **기술스택**: Next.js 14 (App Router), Supabase, TypeScript, Tailwind CSS
+- **개발도구**: Replit
+- **개발기간**: 4주 (MVP)
+- **예산**: 1,000만원
+
+---
+
+## 🛠 기술 스택 및 환경 설정
+
+### Replit 프로젝트 초기 설정
+```bash
+# Next.js 14 프로젝트 생성
+npx create-next-app@latest sk-coretarget --typescript --tailwind --app
+
+# 필수 패키지 설치
+npm install @supabase/supabase-js @supabase/auth-helpers-nextjs
+npm install react-hook-form zod @hookform/resolvers
+npm install @tanstack/react-query axios
+npm install recharts lucide-react
+npm install @radix-ui/react-dialog @radix-ui/react-select
+npm install date-fns react-hot-toast
+```
+
+### 환경 변수 (.env.local)
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# Bizchat API (SKT 메시지 발송)
+BIZCHAT_API_URL=https://api.bizchat.com/v1
+BIZCHAT_API_TOKEN=your_bizchat_token
+
+# Payment Gateway
+PAYMENT_API_KEY=your_payment_key
+PAYMENT_SECRET_KEY=your_payment_secret
+```
+
+---
+
+## 📊 데이터베이스 스키마 (Supabase)
+
+### SQL 테이블 생성
+```sql
+-- 사용자 테이블
+CREATE TABLE users (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email VARCHAR(255) UNIQUE NOT NULL,
+  business_number VARCHAR(20),
+  company_name VARCHAR(100),
+  phone VARCHAR(20),
+  balance DECIMAL(10,0) DEFAULT 0,
+  is_verified BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 충전 내역
+CREATE TABLE transactions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id),
+  type VARCHAR(20) NOT NULL, -- 'charge', 'usage', 'refund'
+  amount DECIMAL(10,0) NOT NULL,
+  balance_after DECIMAL(10,0) NOT NULL,
+  description TEXT,
+  payment_method VARCHAR(50),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 캠페인 테이블
+CREATE TABLE campaigns (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id),
+  name VARCHAR(200) NOT NULL,
+  status VARCHAR(20) DEFAULT 'draft', -- draft, pending, approved, running, completed
+  message_type VARCHAR(10) NOT NULL, -- 'LMS', 'MMS'
+  target_count INTEGER NOT NULL,
+  sent_count INTEGER DEFAULT 0,
+  success_count INTEGER DEFAULT 0,
+  budget DECIMAL(10,0) NOT NULL,
+  cost_per_message DECIMAL(10,0) DEFAULT 50,
+  bizchat_campaign_id VARCHAR(100),
+  created_at TIMESTAMP DEFAULT NOW(),
+  scheduled_at TIMESTAMP,
+  completed_at TIMESTAMP
+);
+
+-- 메시지 템플릿
+CREATE TABLE messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  campaign_id UUID REFERENCES campaigns(id),
+  title VARCHAR(60),
+  content TEXT NOT NULL,
+  image_url TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 타겟팅 설정
+CREATE TABLE targeting (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  campaign_id UUID REFERENCES campaigns(id),
+  gender VARCHAR(10), -- 'all', 'male', 'female'
+  age_min INTEGER,
+  age_max INTEGER,
+  region VARCHAR(100),
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- 캠페인 리포트
+CREATE TABLE reports (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  campaign_id UUID REFERENCES campaigns(id),
+  sent_count INTEGER DEFAULT 0,
+  success_count INTEGER DEFAULT 0,
+  failed_count INTEGER DEFAULT 0,
+  click_count INTEGER DEFAULT 0,
+  conversion_rate DECIMAL(5,2),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- RLS 정책 설정
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE campaigns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+
+-- 사용자는 자신의 데이터만 볼 수 있음
+CREATE POLICY "Users can view own data" ON users
+  FOR ALL USING (auth.uid() = id);
+
+CREATE POLICY "Users can view own campaigns" ON campaigns
+  FOR ALL USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can view own transactions" ON transactions
+  FOR ALL USING (auth.uid() = user_id);
+```
+
+---
+
+## 🏗 프로젝트 구조
+
+```
+sk-coretarget/
+├── app/
+│   ├── (auth)/
+│   │   ├── login/
+│   │   │   └── page.tsx
+│   │   ├── signup/
+│   │   │   └── page.tsx
+│   │   └── layout.tsx
+│   ├── (dashboard)/
+│   │   ├── dashboard/
+│   │   │   └── page.tsx
+│   │   ├── campaigns/
+│   │   │   ├── page.tsx
+│   │   │   ├── new/
+│   │   │   │   └── page.tsx
+│   │   │   └── [id]/
+│   │   │       └── page.tsx
+│   │   ├── billing/
+│   │   │   └── page.tsx
+│   │   ├── reports/
+│   │   │   └── page.tsx
+│   │   └── layout.tsx
+│   ├── api/
+│   │   ├── auth/
+│   │   │   └── [...route].ts
+│   │   ├── campaigns/
+│   │   │   ├── route.ts
+│   │   │   └── [id]/
+│   │   │       └── route.ts
+│   │   ├── bizchat/
+│   │   │   ├── send/
+│   │   │   │   └── route.ts
+│   │   │   └── targeting/
+│   │   │       └── route.ts
+│   │   └── payment/
+│   │       ├── charge/
+│   │       │   └── route.ts
+│   │       └── webhook/
+│   │           └── route.ts
+│   ├── layout.tsx
+│   └── page.tsx
+├── components/
+│   ├── ui/
+│   │   ├── button.tsx
+│   │   ├── input.tsx
+│   │   ├── card.tsx
+│   │   ├── dialog.tsx
+│   │   └── toast.tsx
+│   ├── auth/
+│   │   ├── login-form.tsx
+│   │   ├── signup-form.tsx
+│   │   └── auth-guard.tsx
+│   ├── campaign/
+│   │   ├── campaign-form.tsx
+│   │   ├── campaign-list.tsx
+│   │   ├── message-editor.tsx
+│   │   └── targeting-form.tsx
+│   ├── billing/
+│   │   ├── balance-card.tsx
+│   │   ├── charge-modal.tsx
+│   │   └── transaction-list.tsx
+│   └── dashboard/
+│       ├── stats-card.tsx
+│       ├── recent-campaigns.tsx
+│       └── chart.tsx
+├── lib/
+│   ├── supabase/
+│   │   ├── client.ts
+│   │   ├── server.ts
+│   │   └── middleware.ts
+│   ├── bizchat/
+│   │   ├── client.ts
+│   │   └── types.ts
+│   ├── utils.ts
+│   └── constants.ts
+├── hooks/
+│   ├── use-auth.ts
+│   ├── use-campaigns.ts
+│   ├── use-billing.ts
+│   └── use-toast.ts
+└── types/
+    ├── database.ts
+    ├── campaign.ts
+    └── bizchat.ts
+```
+
+---
+
+## 💻 핵심 코드 구현 가이드
+
+### 1. Supabase 클라이언트 설정 (lib/supabase/client.ts)
+```typescript
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { Database } from '@/types/database'
+
+export const supabase = createClientComponentClient<Database>()
+```
+
+### 2. 인증 Hook (hooks/use-auth.ts)
+```typescript
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase/client'
+import { User } from '@supabase/supabase-js'
+
+export function useAuth() {
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // 현재 세션 확인
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setLoading(false)
+    })
+
+    // 인증 상태 변경 리스너
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  return { user, loading }
+}
+```
+
+### 3. 캠페인 생성 API (app/api/campaigns/route.ts)
+```typescript
+import { NextResponse } from 'next/server'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
+
+export async function POST(request: Request) {
+  const supabase = createServerComponentClient({ cookies })
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const body = await request.json()
+  
+  // 잔액 확인
+  const { data: userData } = await supabase
+    .from('users')
+    .select('balance')
+    .eq('id', user.id)
+    .single()
+
+  if (!userData || userData.balance < body.budget) {
+    return NextResponse.json({ error: '잔액이 부족합니다' }, { status: 400 })
+  }
+
+  // 캠페인 생성
+  const { data: campaign, error } = await supabase
+    .from('campaigns')
+    .insert({
+      user_id: user.id,
+      name: body.name,
+      message_type: body.message_type,
+      target_count: body.target_count,
+      budget: body.budget,
+      status: 'draft'
+    })
+    .select()
+    .single()
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ campaign })
+}
+```
+
+### 4. Bizchat API 연동 (lib/bizchat/client.ts)
+```typescript
+import axios from 'axios'
+
+const bizchatAPI = axios.create({
+  baseURL: process.env.BIZCHAT_API_URL,
+  headers: {
+    'Authorization': `Bearer ${process.env.BIZCHAT_API_TOKEN}`,
+    'Content-Type': 'application/json'
+  }
+})
+
+export const bizchatService = {
+  // 캠페인 생성
+  async createCampaign(data: any) {
+    const response = await bizchatAPI.post('/cmpn/create', data)
+    return response.data
+  },
+
+  // 타겟팅 모수 확인
+  async checkTargeting(query: any) {
+    const response = await bizchatAPI.post('/ats/mosu', query)
+    return response.data
+  },
+
+  // 테스트 발송
+  async sendTest(campaignId: string, phones: string[]) {
+    const response = await bizchatAPI.post('/cmpn/test/send', {
+      campaignId,
+      phones
+    })
+    return response.data
+  },
+
+  // 캠페인 승인 요청
+  async requestApproval(campaignId: string) {
+    const response = await bizchatAPI.post('/cmpn/appr/req', {
+      campaignId
+    })
+    return response.data
+  }
+}
+```
+
+---
+
+## 🎨 UI 컴포넌트 예제
+
+### 캠페인 생성 폼 (components/campaign/campaign-form.tsx)
+```typescript
+'use client'
+
+import { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import * as z from 'zod'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Select } from '@/components/ui/select'
+import { toast } from 'react-hot-toast'
+
+const campaignSchema = z.object({
+  name: z.string().min(1, '캠페인명을 입력하세요'),
+  message_type: z.enum(['LMS', 'MMS']),
+  title: z.string().max(60, '제목은 60자 이내로 입력하세요'),
+  content: z.string().min(1, '내용을 입력하세요').max(2000),
+  target_count: z.number().min(100, '최소 100명 이상'),
+  budget: z.number().min(10000, '최소 1만원 이상')
+})
+
+export function CampaignForm() {
+  const [loading, setLoading] = useState(false)
+  
+  const form = useForm({
+    resolver: zodResolver(campaignSchema),
+    defaultValues: {
+      name: '',
+      message_type: 'LMS',
+      title: '',
+      content: '',
+      target_count: 1000,
+      budget: 100000
+    }
+  })
+
+  const onSubmit = async (data: z.infer<typeof campaignSchema>) => {
+    setLoading(true)
+    try {
+      const response = await fetch('/api/campaigns', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      })
+
+      if (!response.ok) throw new Error('캠페인 생성 실패')
+
+      toast.success('캠페인이 생성되었습니다')
+      // 캠페인 목록으로 이동
+    } catch (error) {
+      toast.error('캠페인 생성 중 오류가 발생했습니다')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <div>
+        <label className="text-sm font-medium">캠페인명</label>
+        <Input {...form.register('name')} placeholder="2024년 연말 프로모션" />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">메시지 유형</label>
+        <Select {...form.register('message_type')}>
+          <option value="LMS">LMS (장문)</option>
+          <option value="MMS">MMS (이미지)</option>
+        </Select>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">제목</label>
+        <Input {...form.register('title')} placeholder="광고 제목 (최대 60자)" />
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">내용</label>
+        <Textarea 
+          {...form.register('content')} 
+          rows={10}
+          placeholder="광고 내용을 입력하세요"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          {form.watch('content').length} / 2000자
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm font-medium">발송 대상 수</label>
+          <Input 
+            type="number" 
+            {...form.register('target_count', { valueAsNumber: true })} 
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium">예산 (원)</label>
+          <Input 
+            type="number" 
+            {...form.register('budget', { valueAsNumber: true })}
+            step="10000"
+          />
+        </div>
+      </div>
+
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <p className="text-sm text-gray-600">
+          예상 비용: {form.watch('target_count') * 50}원
+        </p>
+      </div>
+
+      <Button type="submit" disabled={loading} className="w-full">
+        {loading ? '생성 중...' : '캠페인 생성'}
+      </Button>
+    </form>
+  )
+}
+```
+
+---
+
+## 📱 MVP 핵심 기능 구현 순서
+
+### Week 1-2: 기본 인프라
+1. **Replit 프로젝트 설정**
+   - Next.js 14 + TypeScript 환경 구성
+   - Supabase 프로젝트 연결
+   - Tailwind CSS 설정
+
+2. **인증 시스템**
+   - 회원가입 (이메일/비밀번호)
+   - 로그인/로그아웃
+   - 사업자번호 인증 (간단 검증)
+   - Protected Route 설정
+
+3. **충전금 시스템**
+   - 잔액 조회
+   - 충전 페이지 (최소 10만원)
+   - 카드 결제 연동 (토스페이먼츠 or 아임포트)
+   - 거래 내역 조회
+
+### Week 3-4: 핵심 기능
+1. **캠페인 관리**
+   - 캠페인 생성 폼
+   - LMS/MMS 메시지 작성
+   - 기본 타겟팅 (성별/연령/지역)
+   - 캠페인 목록/상세 조회
+
+2. **Bizchat API 연동**
+   - API 클라이언트 구성
+   - 캠페인 생성 API 연결
+   - 테스트 발송 기능
+   - 승인 요청 프로세스
+
+3. **기본 리포트**
+   - 발송 현황 대시보드
+   - 성공/실패 통계
+   - 캠페인별 상세 리포트
+
+---
+
+## 🚀 Replit 배포 설정
+
+### 1. 환경 변수 설정
+Replit Secrets에서 모든 환경 변수 설정
+
+### 2. 빌드 명령어 (.replit)
+```toml
+run = "npm run dev"
+entrypoint = "app/page.tsx"
+
+[nix]
+channel = "stable-22_11"
+
+[deployment]
+run = ["sh", "-c", "npm run build && npm run start"]
+deploymentTarget = "cloudrun"
+```
+
+### 3. package.json scripts
+```json
+{
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "lint": "next lint"
+  }
+}
+```
+
+---
+
+## 🔑 보안 고려사항
+
+1. **API Route 보호**
+   - 모든 API에 인증 미들웨어 적용
+   - Rate Limiting 구현
+   - Input Validation
+
+2. **결제 보안**
+   - PG사 웹훅 서명 검증
+   - 결제 금액 서버 검증
+   - 중복 결제 방지
+
+3. **데이터 보호**
+   - Supabase RLS 정책 설정
+   - 개인정보 암호화
+   - HTTPS 강제
+
+---
+
+## 📝 개발 시 주의사항
+
+1. **Replit 제한사항**
+   - 무료 플랜: Always On 불가 (자동 슬립)
+   - 저장 공간 제한
+   - 동시 접속자 제한
+
+2. **성능 최적화**
+   - Image 최적화 (next/image 사용)
+   - API Route 캐싱
+   - Database 인덱싱
+
+3. **에러 처리**
+   - 모든 API 호출에 try-catch
+   - 사용자 친화적 에러 메시지
+   - 에러 로깅 (Sentry 연동 권장)
+
+---
+
+## 🎯 MVP 완성 기준
+
+### 필수 기능 체크리스트
+- [ ] 회원가입/로그인 가능
+- [ ] 사업자 인증 완료
+- [ ] 10만원 단위 충전 가능
+- [ ] 캠페인 생성 가능
+- [ ] LMS/MMS 메시지 작성
+- [ ] 기본 타겟팅 설정 (성별/연령/지역)
+- [ ] 테스트 발송 가능
+- [ ] Bizchat API 연동 완료
+- [ ] 발송 현황 확인 가능
+- [ ] 기본 리포트 조회 가능
+
+### 성능 목표
+- 페이지 로드: 3초 이내
+- API 응답: 1초 이내  
+- 동시 사용자: 100명
+
+---
+
+## 💬 추가 프롬프트 예시
+
+### 특정 기능 구현 요청
+```
+"Supabase를 사용하여 사용자 잔액 충전 기능을 구현해주세요. 
+토스페이먼츠 결제 API를 연동하고, 최소 충전 금액은 10만원으로 설정합니다.
+결제 완료 후 transactions 테이블에 기록하고 users 테이블의 balance를 업데이트해주세요."
+```
+
+### 디버깅 요청
+```
+"캠페인 생성 시 'Bizchat API 연동 실패' 오류가 발생합니다.
+API 토큰과 엔드포인트를 확인했는데 문제가 없습니다.
+CORS 문제인지 확인하고 해결 방법을 제시해주세요."
+```
+
+### 최적화 요청
+```
+"현재 대시보드 페이지 로딩이 5초 이상 걸립니다.
+React Query를 사용하여 데이터 페칭을 최적화하고,
+서버 컴포넌트와 클라이언트 컴포넌트를 적절히 분리해주세요."
+```
+
+---
+
+이 프롬프트를 Replit에서 사용하시면 SK코어타겟 MVP를 체계적으로 개발할 수 있습니다.
+필요에 따라 각 섹션을 복사하여 단계별로 진행하시면 됩니다.
