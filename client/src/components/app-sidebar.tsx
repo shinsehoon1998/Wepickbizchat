@@ -107,12 +107,11 @@ export function AppSidebar() {
         >
           <img src={logoImage} alt="wepick x SKT 로고" className="h-9 w-auto" />
           <div className="flex flex-col">
-            <span className="font-bold text-sm text-sidebar-foreground">비즈챗</span>
+            <span className="font-bold text-sm text-sidebar-foreground">wepickbizchat</span>
             <span className="text-tiny text-muted-foreground">광고관리</span>
           </div>
         </button>
       </SidebarHeader>
-
       <SidebarContent className="custom-scrollbar">
         <SidebarGroup>
           <SidebarGroupLabel className="text-muted-foreground">홈</SidebarGroupLabel>
@@ -219,7 +218,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-
       <SidebarFooter className="border-t border-sidebar-border">
         <SidebarMenu>
           <SidebarMenuItem>
