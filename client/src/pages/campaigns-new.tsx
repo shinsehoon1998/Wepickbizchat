@@ -45,11 +45,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { Template } from "@shared/schema";
+import type { Template, SenderNumber } from "@shared/schema";
 
 const campaignSchema = z.object({
   name: z.string().min(1, "캠페인 이름을 입력해주세요").max(200, "캠페인 이름은 200자 이내로 입력해주세요"),
   templateId: z.string().min(1, "템플릿을 선택해주세요"),
+  sndNum: z.string().min(1, "발신번호를 선택해주세요"),
   gender: z.enum(["all", "male", "female"]).default("all"),
   ageMin: z.number().min(10).max(100).default(20),
   ageMax: z.number().min(10).max(100).default(60),
@@ -89,9 +90,16 @@ export default function CampaignsNew() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
+  const [uploadedImageId, setUploadedImageId] = useState<string | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   const { data: approvedTemplates, isLoading: templatesLoading } = useQuery<Template[]>({
     queryKey: ["/api/templates/approved"],
+  });
+
+  const { data: senderNumbers, isLoading: senderNumbersLoading } = useQuery<SenderNumber[]>({
+    queryKey: ["/api/sender-numbers"],
   });
 
   const form = useForm<CampaignFormData>({
@@ -99,6 +107,7 @@ export default function CampaignsNew() {
     defaultValues: {
       name: "",
       templateId: "",
+      sndNum: "",
       gender: "all",
       ageMin: 20,
       ageMax: 60,
@@ -155,6 +164,44 @@ export default function CampaignsNew() {
   const estimatedCost = watchTargetCount * costPerMessage;
   const userBalance = parseFloat(user?.balance as string || "0");
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('fileType', 'image');
+    
+    try {
+      const response = await fetch('/api/files/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        throw new Error('업로드 실패');
+      }
+      
+      const data = await response.json();
+      setUploadedImageId(data.id);
+      setUploadedImageUrl(URL.createObjectURL(file));
+      toast({ 
+        title: "이미지 업로드 완료",
+        description: "이미지가 성공적으로 업로드되었어요"
+      });
+    } catch (error) {
+      toast({ 
+        title: "이미지 업로드 실패", 
+        description: "이미지 업로드 중 오류가 발생했어요. 다시 시도해주세요.",
+        variant: "destructive" 
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const createCampaignMutation = useMutation({
     mutationFn: async (data: CampaignFormData) => {
       const template = approvedTemplates?.find(t => t.id === data.templateId);
@@ -164,6 +211,7 @@ export default function CampaignsNew() {
         name: data.name,
         templateId: data.templateId,
         messageType: template.messageType,
+        sndNum: data.sndNum,
         gender: data.gender,
         ageMin: data.ageMin,
         ageMax: data.ageMax,
@@ -195,7 +243,7 @@ export default function CampaignsNew() {
 
   const nextStep = async () => {
     if (currentStep === 1) {
-      const isValid = await form.trigger(["name", "templateId"]);
+      const isValid = await form.trigger(["name", "templateId", "sndNum"]);
       if (!isValid) return;
     }
     if (currentStep < 3) setCurrentStep(currentStep + 1);
@@ -372,6 +420,95 @@ export default function CampaignsNew() {
                   )}
                 </CardContent>
               </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>발신번호 선택</CardTitle>
+                  <CardDescription>
+                    캠페인 발송에 사용할 발신번호를 선택해주세요
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {senderNumbersLoading ? (
+                    <Skeleton className="h-10 w-full" />
+                  ) : (
+                    <FormField
+                      control={form.control}
+                      name="sndNum"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>발신번호</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger data-testid="select-sender-number">
+                                <SelectValue placeholder="발신번호를 선택하세요" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {senderNumbers?.map((num) => (
+                                <SelectItem key={num.id} value={num.code}>
+                                  {num.name} ({num.phoneNumber})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>캠페인 발송에 사용될 번호예요</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+
+              {selectedTemplate && (selectedTemplate.messageType === "MMS" || selectedTemplate.messageType === "RCS") && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>이미지 업로드</CardTitle>
+                    <CardDescription>
+                      {selectedTemplate.messageType} 메시지에 포함될 이미지를 업로드해주세요 (선택사항)
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label htmlFor="image-upload">이미지 파일</Label>
+                      <Input
+                        id="image-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        disabled={uploading}
+                        className="mt-2"
+                        data-testid="input-upload-image"
+                      />
+                      <p className="text-tiny text-muted-foreground mt-2">
+                        JPG, PNG 형식 지원 (최대 10MB)
+                      </p>
+                    </div>
+                    
+                    {uploading && (
+                      <div className="flex items-center gap-2 text-small text-muted-foreground">
+                        <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full" />
+                        <span>이미지 업로드 중...</span>
+                      </div>
+                    )}
+                    
+                    {uploadedImageUrl && (
+                      <div className="space-y-2">
+                        <Label>미리보기</Label>
+                        <div className="rounded-lg overflow-hidden bg-muted max-w-xs">
+                          <img 
+                            src={uploadedImageUrl} 
+                            alt="업로드된 이미지" 
+                            className="w-full h-auto"
+                            data-testid="img-preview"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {selectedTemplate && (
                 <Card className="bg-accent/50 border-accent">

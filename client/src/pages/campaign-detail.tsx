@@ -339,7 +339,7 @@ export default function CampaignDetail() {
               <div>
                 <p className="text-small text-muted-foreground">예상 수신자</p>
                 <p className="text-h3 font-bold" data-testid="text-recipients">
-                  {targeting?.estimatedReach ? formatNumber(targeting.estimatedReach) : "-"}
+                  {formatNumber(campaign.targetCount)}
                 </p>
               </div>
             </div>
@@ -464,9 +464,9 @@ export default function CampaignDetail() {
                       )}
                     </div>
                     <div>
-                      <p className="text-small text-muted-foreground mb-1">예상 도달</p>
+                      <p className="text-small text-muted-foreground mb-1">타겟 수신자</p>
                       <p className="text-h2 font-bold text-primary" data-testid="text-estimated-reach">
-                        {targeting.estimatedReach ? formatNumber(targeting.estimatedReach) : "-"}명
+                        {formatNumber(campaign.targetCount)}명
                       </p>
                     </div>
                   </div>
@@ -510,19 +510,6 @@ export default function CampaignDetail() {
                         {message.content?.length || 0} / 2000자
                       </p>
                     </div>
-                    {message.callbackUrl && (
-                      <div>
-                        <p className="text-small text-muted-foreground mb-1">링크 URL</p>
-                        <a 
-                          href={message.callbackUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline break-all"
-                        >
-                          {message.callbackUrl}
-                        </a>
-                      </div>
-                    )}
                   </div>
                   <div className="flex justify-center">
                     <div className="w-64 h-[480px] bg-gray-900 rounded-[2rem] p-3 shadow-xl">
@@ -584,9 +571,9 @@ export default function CampaignDetail() {
                       <p className="text-h3 font-bold">{targeting.ageMin || 0}~{targeting.ageMax || 100}세</p>
                     </div>
                     <div className="p-4 bg-muted rounded-lg">
-                      <p className="text-small text-muted-foreground mb-1">예상 도달</p>
+                      <p className="text-small text-muted-foreground mb-1">타겟 수신자</p>
                       <p className="text-h3 font-bold text-primary">
-                        {targeting.estimatedReach ? formatNumber(targeting.estimatedReach) : "-"}명
+                        {formatNumber(campaign.targetCount)}명
                       </p>
                     </div>
                   </div>
@@ -602,16 +589,6 @@ export default function CampaignDetail() {
                     </div>
                   )}
 
-                  {targeting.interests && targeting.interests.length > 0 && (
-                    <div>
-                      <p className="text-small text-muted-foreground mb-2">관심사</p>
-                      <div className="flex flex-wrap gap-2">
-                        {targeting.interests.map((interest, idx) => (
-                          <Badge key={idx} variant="secondary">{interest}</Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               ) : (
                 <EmptyState
@@ -638,34 +615,49 @@ export default function CampaignDetail() {
             <CardContent>
               {sentCount > 0 ? (
                 <div className="space-y-6">
-                  <div className="grid gap-4 md:grid-cols-4">
-                    <div className="text-center p-4 bg-muted rounded-lg">
+                  <div className="grid gap-4 md:grid-cols-5">
+                    <div className="text-center p-4 bg-muted rounded-lg" data-testid="stat-total-sent">
                       <p className="text-3xl font-bold text-primary">{formatNumber(sentCount)}</p>
                       <p className="text-small text-muted-foreground">총 발송</p>
                     </div>
-                    <div className="text-center p-4 bg-muted rounded-lg">
-                      <p className="text-3xl font-bold text-success">{formatNumber(successCount)}</p>
-                      <p className="text-small text-muted-foreground">성공</p>
+                    <div className="text-center p-4 bg-muted rounded-lg" data-testid="stat-delivered">
+                      <p className="text-3xl font-bold text-success">{formatNumber(campaign.report?.deliveredCount || 0)}</p>
+                      <p className="text-small text-muted-foreground">수신 완료</p>
                     </div>
-                    <div className="text-center p-4 bg-muted rounded-lg">
-                      <p className="text-3xl font-bold">{successRate}%</p>
-                      <p className="text-small text-muted-foreground">성공률</p>
+                    <div className="text-center p-4 bg-muted rounded-lg" data-testid="stat-failed">
+                      <p className="text-3xl font-bold text-destructive">{formatNumber(campaign.report?.failedCount || 0)}</p>
+                      <p className="text-small text-muted-foreground">실패</p>
                     </div>
-                    <div className="text-center p-4 bg-muted rounded-lg">
-                      <p className="text-3xl font-bold text-chart-5">
-                        {campaign.report?.clickCount || 0}
-                      </p>
+                    <div className="text-center p-4 bg-muted rounded-lg" data-testid="stat-clicks">
+                      <p className="text-3xl font-bold text-chart-5">{formatNumber(campaign.report?.clickCount || 0)}</p>
                       <p className="text-small text-muted-foreground">클릭</p>
+                    </div>
+                    <div className="text-center p-4 bg-muted rounded-lg" data-testid="stat-optout">
+                      <p className="text-3xl font-bold text-muted-foreground">{formatNumber(campaign.report?.optOutCount || 0)}</p>
+                      <p className="text-small text-muted-foreground">수신거부</p>
                     </div>
                   </div>
 
                   <div className="space-y-4">
                     <div>
                       <div className="flex justify-between text-small mb-2">
+                        <span>수신 완료율</span>
+                        <span className="font-medium">
+                          {sentCount > 0 ? (((campaign.report?.deliveredCount || 0) / sentCount) * 100).toFixed(1) : 0}%
+                        </span>
+                      </div>
+                      <Progress 
+                        value={sentCount > 0 ? ((campaign.report?.deliveredCount || 0) / sentCount) * 100 : 0} 
+                        className="h-2" 
+                        data-testid="progress-delivery-rate"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-small mb-2">
                         <span>발송 성공률</span>
                         <span className="font-medium">{successRate}%</span>
                       </div>
-                      <Progress value={successRate} className="h-2" />
+                      <Progress value={successRate} className="h-2" data-testid="progress-success-rate" />
                     </div>
                     {campaign.report?.clickCount && successCount > 0 && (
                       <div>
@@ -678,6 +670,7 @@ export default function CampaignDetail() {
                         <Progress 
                           value={(campaign.report.clickCount / successCount) * 100} 
                           className="h-2" 
+                          data-testid="progress-ctr"
                         />
                       </div>
                     )}

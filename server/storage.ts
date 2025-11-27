@@ -55,7 +55,7 @@ export interface IStorage {
   getCampaigns(userId: string): Promise<Campaign[]>;
   getCampaign(id: string): Promise<Campaign | undefined>;
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
-  updateCampaign(id: string, campaign: Partial<InsertCampaign>): Promise<Campaign | undefined>;
+  updateCampaign(id: string, campaign: Partial<Campaign>): Promise<Campaign | undefined>;
   deleteCampaign(id: string): Promise<boolean>;
   
   getMessage(campaignId: string): Promise<Message | undefined>;
@@ -248,7 +248,7 @@ export class DatabaseStorage implements IStorage {
     return campaign;
   }
 
-  async updateCampaign(id: string, campaignData: Partial<InsertCampaign>): Promise<Campaign | undefined> {
+  async updateCampaign(id: string, campaignData: Partial<Campaign>): Promise<Campaign | undefined> {
     const [campaign] = await db
       .update(campaigns)
       .set({ ...campaignData, updatedAt: new Date() })
