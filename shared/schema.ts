@@ -41,12 +41,40 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Campaigns table
-export const campaigns = pgTable("campaigns", {
+// Message Templates table (검수용 템플릿)
+export const templates = pgTable("templates", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
   name: varchar("name", { length: 200 }).notNull(),
-  status: varchar("status", { length: 20 }).default("draft").notNull(), // draft, pending, approved, running, completed, rejected, cancelled
+  messageType: varchar("message_type", { length: 10 }).notNull(), // LMS, MMS, RCS
+  title: varchar("title", { length: 60 }),
+  content: text("content").notNull(),
+  imageUrl: text("image_url"),
+  status: varchar("status", { length: 20 }).default("draft").notNull(), // draft, pending, approved, rejected
+  rejectionReason: text("rejection_reason"),
+  submittedAt: timestamp("submitted_at"),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Campaigns table
+// Status codes based on state diagram:
+// 10: 승인요청 (approval_requested)
+// 11: 승인완료 (approved)
+// 17: 반려 (rejected)
+// 20: 발송준비 (send_ready)
+// 25: 취소 (cancelled)
+// 30: 진행중 (running)
+// 35: 캠페인중단 (stopped)
+// 40: 종료 (completed)
+export const campaigns = pgTable("campaigns", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  templateId: varchar("template_id").references(() => templates.id),
+  name: varchar("name", { length: 200 }).notNull(),
+  statusCode: integer("status_code").default(10).notNull(), // 10, 11, 17, 20, 25, 30, 35, 40
+  status: varchar("status", { length: 20 }).default("approval_requested").notNull(),
   messageType: varchar("message_type", { length: 10 }).notNull(), // LMS, MMS, RCS
   targetCount: integer("target_count").default(0).notNull(),
   sentCount: integer("sent_count").default(0),
@@ -54,13 +82,15 @@ export const campaigns = pgTable("campaigns", {
   budget: decimal("budget", { precision: 12, scale: 0 }).notNull(),
   costPerMessage: decimal("cost_per_message", { precision: 10, scale: 0 }).default("50"),
   bizchatCampaignId: varchar("bizchat_campaign_id", { length: 100 }),
+  rejectionReason: text("rejection_reason"),
+  testSentAt: timestamp("test_sent_at"),
   scheduledAt: timestamp("scheduled_at"),
   completedAt: timestamp("completed_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Messages table
+// Messages table (캠페인에 연결된 메시지 - 템플릿 복사본)
 export const messages = pgTable("messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   campaignId: varchar("campaign_id").references(() => campaigns.id).notNull(),
@@ -110,13 +140,26 @@ export const reports = pgTable("reports", {
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   campaigns: many(campaigns),
+  templates: many(templates),
   transactions: many(transactions),
+}));
+
+export const templatesRelations = relations(templates, ({ one, many }) => ({
+  user: one(users, {
+    fields: [templates.userId],
+    references: [users.id],
+  }),
+  campaigns: many(campaigns),
 }));
 
 export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
   user: one(users, {
     fields: [campaigns.userId],
     references: [users.id],
+  }),
+  template: one(templates, {
+    fields: [campaigns.templateId],
+    references: [templates.id],
   }),
   messages: many(messages),
   targeting: one(targeting),
@@ -158,6 +201,14 @@ export const insertUserSchema = createInsertSchema(users).omit({
   updatedAt: true,
 });
 
+export const insertTemplateSchema = createInsertSchema(templates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  submittedAt: true,
+  reviewedAt: true,
+});
+
 export const insertCampaignSchema = createInsertSchema(campaigns).omit({
   id: true,
   createdAt: true,
@@ -165,6 +216,7 @@ export const insertCampaignSchema = createInsertSchema(campaigns).omit({
   sentCount: true,
   successCount: true,
   completedAt: true,
+  testSentAt: true,
 });
 
 export const insertMessageSchema = createInsertSchema(messages).omit({
@@ -193,6 +245,9 @@ export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 
+export type Template = typeof templates.$inferSelect;
+export type InsertTemplate = z.infer<typeof insertTemplateSchema>;
+
 export type Campaign = typeof campaigns.$inferSelect;
 export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
 
@@ -210,7 +265,28 @@ export type InsertReport = z.infer<typeof insertReportSchema>;
 
 // Campaign with related data
 export type CampaignWithDetails = Campaign & {
+  template?: Template;
   messages?: Message[];
   targeting?: Targeting;
   reports?: Report[];
 };
+
+// Campaign status constants
+export const CAMPAIGN_STATUS = {
+  APPROVAL_REQUESTED: { code: 10, status: 'approval_requested', label: '승인요청' },
+  APPROVED: { code: 11, status: 'approved', label: '승인완료' },
+  REJECTED: { code: 17, status: 'rejected', label: '반려' },
+  SEND_READY: { code: 20, status: 'send_ready', label: '발송준비' },
+  CANCELLED: { code: 25, status: 'cancelled', label: '취소' },
+  RUNNING: { code: 30, status: 'running', label: '진행중' },
+  STOPPED: { code: 35, status: 'stopped', label: '캠페인중단' },
+  COMPLETED: { code: 40, status: 'completed', label: '종료' },
+} as const;
+
+// Template status constants
+export const TEMPLATE_STATUS = {
+  DRAFT: { status: 'draft', label: '작성중' },
+  PENDING: { status: 'pending', label: '검수요청' },
+  APPROVED: { status: 'approved', label: '승인됨' },
+  REJECTED: { status: 'rejected', label: '반려됨' },
+} as const;

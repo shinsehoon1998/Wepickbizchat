@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCampaignSchema, insertMessageSchema, insertTargetingSchema } from "@shared/schema";
+import { insertCampaignSchema, insertMessageSchema, insertTargetingSchema, insertTemplateSchema, CAMPAIGN_STATUS } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
@@ -34,6 +34,229 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
       res.status(500).json({ error: "Failed to fetch dashboard stats" });
+    }
+  });
+
+  // Template routes
+  app.get("/api/templates", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const templates = await storage.getTemplates(userId);
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
+      res.status(500).json({ error: "Failed to fetch templates" });
+    }
+  });
+
+  app.get("/api/templates/approved", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const templates = await storage.getApprovedTemplates(userId);
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching approved templates:", error);
+      res.status(500).json({ error: "Failed to fetch approved templates" });
+    }
+  });
+
+  app.get("/api/templates/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const template = await storage.getTemplate(req.params.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      console.error("Error fetching template:", error);
+      res.status(500).json({ error: "Failed to fetch template" });
+    }
+  });
+
+  const createTemplateSchema = z.object({
+    name: z.string().min(1).max(200),
+    messageType: z.enum(["LMS", "MMS", "RCS"]),
+    title: z.string().max(60).optional(),
+    content: z.string().min(1).max(2000),
+    imageUrl: z.string().optional(),
+  });
+
+  app.post("/api/templates", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const data = createTemplateSchema.parse(req.body);
+      
+      const template = await storage.createTemplate({
+        userId,
+        name: data.name,
+        messageType: data.messageType,
+        title: data.title,
+        content: data.content,
+        imageUrl: data.imageUrl,
+        status: "draft",
+      });
+      
+      res.status(201).json(template);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid template data", details: error.errors });
+      }
+      console.error("Error creating template:", error);
+      res.status(500).json({ error: "Failed to create template" });
+    }
+  });
+
+  app.patch("/api/templates/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const template = await storage.getTemplate(req.params.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      if (template.status !== "draft" && template.status !== "rejected") {
+        return res.status(400).json({ error: "Only draft or rejected templates can be edited" });
+      }
+      
+      const updateSchema = createTemplateSchema.partial();
+      const data = updateSchema.parse(req.body);
+      
+      const updatedTemplate = await storage.updateTemplate(req.params.id, data);
+      res.json(updatedTemplate);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid template data", details: error.errors });
+      }
+      console.error("Error updating template:", error);
+      res.status(500).json({ error: "Failed to update template" });
+    }
+  });
+
+  app.delete("/api/templates/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const template = await storage.getTemplate(req.params.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      if (template.status === "pending") {
+        return res.status(400).json({ error: "Cannot delete template under review" });
+      }
+      
+      await storage.deleteTemplate(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting template:", error);
+      res.status(500).json({ error: "Failed to delete template" });
+    }
+  });
+
+  // Template approval workflow
+  app.post("/api/templates/:id/submit", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const template = await storage.getTemplate(req.params.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      if (template.status !== "draft" && template.status !== "rejected") {
+        return res.status(400).json({ error: "Only draft or rejected templates can be submitted for review" });
+      }
+      
+      const updatedTemplate = await storage.updateTemplate(req.params.id, {
+        status: "pending",
+        submittedAt: new Date(),
+      } as any);
+      
+      res.json(updatedTemplate);
+    } catch (error) {
+      console.error("Error submitting template:", error);
+      res.status(500).json({ error: "Failed to submit template for review" });
+    }
+  });
+
+  // Simulate template approval (in production, this would be an admin action)
+  app.post("/api/templates/:id/approve", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const template = await storage.getTemplate(req.params.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      if (template.status !== "pending") {
+        return res.status(400).json({ error: "Only pending templates can be approved" });
+      }
+      
+      const updatedTemplate = await storage.updateTemplate(req.params.id, {
+        status: "approved",
+        reviewedAt: new Date(),
+      } as any);
+      
+      res.json(updatedTemplate);
+    } catch (error) {
+      console.error("Error approving template:", error);
+      res.status(500).json({ error: "Failed to approve template" });
+    }
+  });
+
+  app.post("/api/templates/:id/reject", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { reason } = req.body;
+      const template = await storage.getTemplate(req.params.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      if (template.status !== "pending") {
+        return res.status(400).json({ error: "Only pending templates can be rejected" });
+      }
+      
+      const updatedTemplate = await storage.updateTemplate(req.params.id, {
+        status: "rejected",
+        rejectionReason: reason || "검수 기준에 부합하지 않습니다.",
+        reviewedAt: new Date(),
+      } as any);
+      
+      res.json(updatedTemplate);
+    } catch (error) {
+      console.error("Error rejecting template:", error);
+      res.status(500).json({ error: "Failed to reject template" });
     }
   });
 

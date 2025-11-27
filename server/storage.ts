@@ -5,6 +5,7 @@ import {
   targeting,
   transactions,
   reports,
+  templates,
   type User,
   type UpsertUser,
   type Campaign,
@@ -17,6 +18,8 @@ import {
   type InsertTransaction,
   type Report,
   type InsertReport,
+  type Template,
+  type InsertTemplate,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -34,6 +37,14 @@ export interface IStorage {
   updateUserBalance(userId: string, amount: string): Promise<User | undefined>;
   updateUserStripeCustomerId(userId: string, stripeCustomerId: string): Promise<User | undefined>;
   creditBalanceAtomically(userId: string, amount: number, stripeSessionId: string): Promise<CreditBalanceResult>;
+  
+  // Templates
+  getTemplates(userId: string): Promise<Template[]>;
+  getTemplate(id: string): Promise<Template | undefined>;
+  getApprovedTemplates(userId: string): Promise<Template[]>;
+  createTemplate(template: InsertTemplate): Promise<Template>;
+  updateTemplate(id: string, template: Partial<InsertTemplate>): Promise<Template | undefined>;
+  deleteTemplate(id: string): Promise<boolean>;
   
   getCampaigns(userId: string): Promise<Campaign[]>;
   getCampaign(id: string): Promise<Campaign | undefined>;
@@ -158,6 +169,47 @@ export class DatabaseStorage implements IStorage {
       }
       return { success: false, error: error?.message || "Unknown error" };
     }
+  }
+
+  // Template methods
+  async getTemplates(userId: string): Promise<Template[]> {
+    return db
+      .select()
+      .from(templates)
+      .where(eq(templates.userId, userId))
+      .orderBy(desc(templates.createdAt));
+  }
+
+  async getTemplate(id: string): Promise<Template | undefined> {
+    const [template] = await db.select().from(templates).where(eq(templates.id, id));
+    return template || undefined;
+  }
+
+  async getApprovedTemplates(userId: string): Promise<Template[]> {
+    return db
+      .select()
+      .from(templates)
+      .where(and(eq(templates.userId, userId), eq(templates.status, 'approved')))
+      .orderBy(desc(templates.createdAt));
+  }
+
+  async createTemplate(templateData: InsertTemplate): Promise<Template> {
+    const [template] = await db.insert(templates).values(templateData).returning();
+    return template;
+  }
+
+  async updateTemplate(id: string, templateData: Partial<InsertTemplate>): Promise<Template | undefined> {
+    const [template] = await db
+      .update(templates)
+      .set({ ...templateData, updatedAt: new Date() })
+      .where(eq(templates.id, id))
+      .returning();
+    return template || undefined;
+  }
+
+  async deleteTemplate(id: string): Promise<boolean> {
+    await db.delete(templates).where(eq(templates.id, id));
+    return true;
   }
 
   async getCampaigns(userId: string): Promise<Campaign[]> {
