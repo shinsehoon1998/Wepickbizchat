@@ -5,6 +5,9 @@ import { insertCampaignSchema, insertMessageSchema, insertTargetingSchema, inser
 import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
+import multer from "multer";
+import { promises as fs } from "fs";
+import path from "path";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -781,6 +784,127 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error fetching sender numbers:", error);
       res.status(500).json({ error: "Failed to fetch sender numbers" });
+    }
+  });
+
+  // File Upload routes
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024,
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      const allowedDocTypes = ['text/csv', 'text/plain', 'application/vnd.ms-excel'];
+      
+      if (allowedImageTypes.includes(file.mimetype) || allowedDocTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('지원하지 않는 파일 형식입니다'));
+      }
+    },
+  });
+
+  app.post("/api/files/upload", isAuthenticated, upload.single('file'), async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const file = req.file;
+      const fileType = req.body.fileType || 'image';
+      
+      if (!file) {
+        return res.status(400).json({ error: "파일이 없습니다" });
+      }
+      
+      const privateDir = process.env.PRIVATE_OBJECT_DIR;
+      const publicPaths = process.env.PUBLIC_OBJECT_SEARCH_PATHS?.split(',') || [];
+      const publicDir = publicPaths[0];
+      
+      if (!privateDir || !publicDir) {
+        return res.status(500).json({ error: "Object Storage가 설정되지 않았습니다" });
+      }
+      
+      const ext = path.extname(file.originalname);
+      const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
+      
+      const isImage = fileType === 'image';
+      const targetDir = isImage ? publicDir : privateDir;
+      const storagePath = path.join(targetDir, filename);
+      
+      await fs.mkdir(path.dirname(storagePath), { recursive: true });
+      await fs.writeFile(storagePath, file.buffer);
+      
+      const fileRecord = await storage.createFile({
+        userId,
+        fileType,
+        originalName: file.originalname,
+        storagePath,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+      });
+      
+      res.json(fileRecord);
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      res.status(500).json({ error: "파일 업로드에 실패했습니다" });
+    }
+  });
+
+  app.get("/api/files", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const files = await storage.getFiles(userId);
+      res.json(files);
+    } catch (error) {
+      console.error("Error fetching files:", error);
+      res.status(500).json({ error: "Failed to fetch files" });
+    }
+  });
+
+  app.get("/api/files/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const file = await storage.getFile(req.params.id);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      if (file.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      res.json(file);
+    } catch (error) {
+      console.error("Error fetching file:", error);
+      res.status(500).json({ error: "Failed to fetch file" });
+    }
+  });
+
+  app.delete("/api/files/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const file = await storage.getFile(req.params.id);
+      
+      if (!file) {
+        return res.status(404).json({ error: "File not found" });
+      }
+      
+      if (file.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      try {
+        await fs.unlink(file.storagePath);
+      } catch (fsError) {
+        console.warn("Failed to delete file from storage:", fsError);
+      }
+      
+      await storage.deleteFile(file.id);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      res.status(500).json({ error: "Failed to delete file" });
     }
   });
 
