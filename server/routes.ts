@@ -757,6 +757,33 @@ export async function registerRoutes(
     }
   });
 
+  // Sender Numbers routes
+  app.get("/api/sender-numbers", isAuthenticated, async (req, res) => {
+    try {
+      const numbers = await storage.getSenderNumbers();
+      
+      if (numbers.length === 0) {
+        const mockNumbers = [
+          { code: "001001", name: "WePick 대표번호", phoneNumber: "02-1234-5678" },
+          { code: "001002", name: "SKT 비즈챗", phoneNumber: "1588-0000" },
+          { code: "001003", name: "마케팅팀", phoneNumber: "02-9876-5432" },
+        ];
+        
+        for (const num of mockNumbers) {
+          await storage.createSenderNumber(num);
+        }
+        
+        const newNumbers = await storage.getSenderNumbers();
+        return res.json(newNumbers);
+      }
+      
+      res.json(numbers);
+    } catch (error) {
+      console.error("Error fetching sender numbers:", error);
+      res.status(500).json({ error: "Failed to fetch sender numbers" });
+    }
+  });
+
   app.get("/api/stripe/config", async (req, res) => {
     try {
       const publishableKey = await getStripePublishableKey();

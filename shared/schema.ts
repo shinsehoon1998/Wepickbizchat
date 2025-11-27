@@ -58,8 +58,31 @@ export const templates = pgTable("templates", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Sender Numbers table (발신번호 코드 관리)
+export const senderNumbers = pgTable("sender_numbers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: varchar("code", { length: 20 }).notNull().unique(), // 001001 등
+  name: varchar("name", { length: 100 }).notNull(),
+  phoneNumber: varchar("phone_number", { length: 20 }).notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Files table (업로드된 파일 관리)
+export const files = pgTable("files", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  fileType: varchar("file_type", { length: 20 }).notNull(), // image, mdn, coupon
+  originalName: varchar("original_name", { length: 255 }).notNull(),
+  storagePath: text("storage_path").notNull(),
+  fileSize: integer("file_size"),
+  mimeType: varchar("mime_type", { length: 100 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Campaigns table
 // Status codes based on state diagram:
+// 5: 임시저장 (draft)
 // 10: 승인요청 (approval_requested)
 // 11: 승인완료 (approved)
 // 17: 반려 (rejected)
@@ -72,16 +95,43 @@ export const campaigns = pgTable("campaigns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
   templateId: varchar("template_id").references(() => templates.id),
+  
+  // 기본 정보
   name: varchar("name", { length: 200 }).notNull(),
-  statusCode: integer("status_code").default(5).notNull(), // 5=draft, 10=approval_requested, 11=approved, 17=rejected, 20=send_ready, 25=cancelled, 30=running, 35=stopped, 40=completed
+  tgtCompanyName: varchar("tgt_company_name", { length: 100 }), // 고객사명
+  statusCode: integer("status_code").default(5).notNull(), // 5=draft, 10=approval_requested, etc
   status: varchar("status", { length: 20 }).default("draft").notNull(),
   messageType: varchar("message_type", { length: 10 }).notNull(), // LMS, MMS, RCS
+  
+  // BizChat API 필수 필드
+  rcvType: integer("rcv_type").default(0), // 0=ATS, 1=Maptics실시간, 2=Maptics모아서, 10=직접지정
+  billingType: integer("billing_type").default(0), // 0=LMS, 1=RCS MMS, 2=MMS, 3=RCS LMS
+  rcsType: integer("rcs_type"), // 0=스탠다드, 1=LMS, 2=슬라이드, 3=이미지강조A, 4=이미지강조B, 5=상품소개세로
+  sndNum: varchar("snd_num", { length: 20 }), // 발신번호 코드
+  sndGoalCnt: integer("snd_goal_cnt"), // 발송 목표 건수
+  sndMosu: integer("snd_mosu"), // ATS 발송 모수
+  sndMosuQuery: text("snd_mosu_query"), // ATS 발송 모수 쿼리
+  sndMosuDesc: text("snd_mosu_desc"), // ATS 발송 모수 설명
+  settleCnt: integer("settle_cnt").default(0), // 정산 건수
+  mdnFileId: varchar("mdn_file_id", { length: 50 }), // MDN 파일 ID
+  
+  // 발송 일정
+  atsSndStartDate: timestamp("ats_snd_start_date"), // ATS 발송 시작 일시
+  
+  // 통계
   targetCount: integer("target_count").default(0).notNull(),
   sentCount: integer("sent_count").default(0),
   successCount: integer("success_count").default(0),
+  clickCount: integer("click_count").default(0),
+  
+  // 예산
   budget: decimal("budget", { precision: 12, scale: 0 }).notNull(),
   costPerMessage: decimal("cost_per_message", { precision: 10, scale: 0 }).default("50"),
+  
+  // BizChat 연동
   bizchatCampaignId: varchar("bizchat_campaign_id", { length: 100 }),
+  
+  // 기타
   rejectionReason: text("rejection_reason"),
   testSentAt: timestamp("test_sent_at"),
   scheduledAt: timestamp("scheduled_at"),
@@ -142,6 +192,16 @@ export const usersRelations = relations(users, ({ many }) => ({
   campaigns: many(campaigns),
   templates: many(templates),
   transactions: many(transactions),
+  files: many(files),
+}));
+
+export const senderNumbersRelations = relations(senderNumbers, ({ many }) => ({}));
+
+export const filesRelations = relations(files, ({ one }) => ({
+  user: one(users, {
+    fields: [files.userId],
+    references: [users.id],
+  }),
 }));
 
 export const templatesRelations = relations(templates, ({ one, many }) => ({
@@ -215,8 +275,20 @@ export const insertCampaignSchema = createInsertSchema(campaigns).omit({
   updatedAt: true,
   sentCount: true,
   successCount: true,
+  clickCount: true,
+  settleCnt: true,
   completedAt: true,
   testSentAt: true,
+});
+
+export const insertSenderNumberSchema = createInsertSchema(senderNumbers).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertFileSchema = createInsertSchema(files).omit({
+  id: true,
+  createdAt: true,
 });
 
 export const insertMessageSchema = createInsertSchema(messages).omit({
@@ -262,6 +334,12 @@ export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 
 export type Report = typeof reports.$inferSelect;
 export type InsertReport = z.infer<typeof insertReportSchema>;
+
+export type SenderNumber = typeof senderNumbers.$inferSelect;
+export type InsertSenderNumber = z.infer<typeof insertSenderNumberSchema>;
+
+export type File = typeof files.$inferSelect;
+export type InsertFile = z.infer<typeof insertFileSchema>;
 
 // Campaign with related data
 export type CampaignWithDetails = Campaign & {

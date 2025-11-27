@@ -6,6 +6,8 @@ import {
   transactions,
   reports,
   templates,
+  senderNumbers,
+  files,
   type User,
   type UpsertUser,
   type Campaign,
@@ -20,6 +22,10 @@ import {
   type InsertReport,
   type Template,
   type InsertTemplate,
+  type SenderNumber,
+  type InsertSenderNumber,
+  type File,
+  type InsertFile,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -75,6 +81,18 @@ export interface IStorage {
     totalClicks: number;
     successRate: number;
   }>;
+  
+  // Sender Numbers
+  getSenderNumbers(): Promise<SenderNumber[]>;
+  getSenderNumber(id: string): Promise<SenderNumber | undefined>;
+  createSenderNumber(senderNumber: InsertSenderNumber): Promise<SenderNumber>;
+  updateSenderNumber(id: string, senderNumber: Partial<InsertSenderNumber>): Promise<SenderNumber | undefined>;
+  
+  // Files
+  getFiles(userId: string): Promise<File[]>;
+  getFile(id: string): Promise<File | undefined>;
+  createFile(file: InsertFile): Promise<File>;
+  deleteFile(id: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -346,6 +364,58 @@ export class DatabaseStorage implements IStorage {
       totalClicks,
       successRate,
     };
+  }
+
+  async getSenderNumbers(): Promise<SenderNumber[]> {
+    const numbers = await db
+      .select()
+      .from(senderNumbers)
+      .where(eq(senderNumbers.isActive, true))
+      .orderBy(senderNumbers.code);
+    return numbers;
+  }
+
+  async getSenderNumber(id: string): Promise<SenderNumber | undefined> {
+    const [number] = await db.select().from(senderNumbers).where(eq(senderNumbers.id, id));
+    return number || undefined;
+  }
+
+  async createSenderNumber(numberData: InsertSenderNumber): Promise<SenderNumber> {
+    const [number] = await db.insert(senderNumbers).values(numberData).returning();
+    return number;
+  }
+
+  async updateSenderNumber(id: string, numberData: Partial<InsertSenderNumber>): Promise<SenderNumber | undefined> {
+    const [number] = await db
+      .update(senderNumbers)
+      .set(numberData)
+      .where(eq(senderNumbers.id, id))
+      .returning();
+    return number || undefined;
+  }
+
+  async getFiles(userId: string): Promise<File[]> {
+    const userFiles = await db
+      .select()
+      .from(files)
+      .where(eq(files.userId, userId))
+      .orderBy(desc(files.createdAt));
+    return userFiles;
+  }
+
+  async getFile(id: string): Promise<File | undefined> {
+    const [file] = await db.select().from(files).where(eq(files.id, id));
+    return file || undefined;
+  }
+
+  async createFile(fileData: InsertFile): Promise<File> {
+    const [file] = await db.insert(files).values(fileData).returning();
+    return file;
+  }
+
+  async deleteFile(id: string): Promise<boolean> {
+    const result = await db.delete(files).where(eq(files.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
   }
 }
 
