@@ -348,8 +348,8 @@ export async function registerRoutes(
         name: data.name,
         templateId: data.templateId,
         messageType: data.messageType,
-        statusCode: CAMPAIGN_STATUS.APPROVAL_REQUESTED,
-        status: "draft",
+        statusCode: CAMPAIGN_STATUS.DRAFT.code,
+        status: CAMPAIGN_STATUS.DRAFT.status,
         targetCount: data.targetCount,
         budget: data.budget.toString(),
       });
@@ -413,7 +413,7 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      if (campaign.status !== "draft") {
+      if (campaign.statusCode !== CAMPAIGN_STATUS.DRAFT.code) {
         return res.status(400).json({ error: "Only draft campaigns can be deleted" });
       }
       
@@ -547,14 +547,15 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      if (campaign.status !== "draft") {
+      if (campaign.statusCode !== CAMPAIGN_STATUS.DRAFT.code) {
         return res.status(400).json({ error: "Only draft campaigns can be submitted" });
       }
       
       const bizchatCampaignId = `BZ${Date.now()}${Math.random().toString(36).substring(7).toUpperCase()}`;
       
       const updatedCampaign = await storage.updateCampaign(req.params.id, {
-        status: "pending",
+        statusCode: CAMPAIGN_STATUS.APPROVAL_REQUESTED.code,
+        status: CAMPAIGN_STATUS.APPROVAL_REQUESTED.status,
         bizchatCampaignId,
       });
       
@@ -578,16 +579,20 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      if (campaign.status === "approved" || campaign.status === "running" || campaign.status === "completed") {
+      const statusCode = campaign.statusCode;
+      if (statusCode === CAMPAIGN_STATUS.APPROVED.code || 
+          statusCode === CAMPAIGN_STATUS.RUNNING.code || 
+          statusCode === CAMPAIGN_STATUS.COMPLETED.code) {
         return res.json(campaign);
       }
       
-      if (campaign.status !== "pending") {
+      if (statusCode !== CAMPAIGN_STATUS.APPROVAL_REQUESTED.code) {
         return res.status(400).json({ error: "Only pending campaigns can be approved" });
       }
       
       const updatedCampaign = await storage.updateCampaign(req.params.id, {
-        status: "approved",
+        statusCode: CAMPAIGN_STATUS.APPROVED.code,
+        status: CAMPAIGN_STATUS.APPROVED.status,
       });
       
       res.json(updatedCampaign);
@@ -611,11 +616,12 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      if (campaign.status === "running" || campaign.status === "completed") {
+      const statusCode = campaign.statusCode;
+      if (statusCode === CAMPAIGN_STATUS.RUNNING.code || statusCode === CAMPAIGN_STATUS.COMPLETED.code) {
         return res.json(campaign);
       }
       
-      if (campaign.status !== "approved") {
+      if (statusCode !== CAMPAIGN_STATUS.APPROVED.code) {
         return res.status(400).json({ error: "Only approved campaigns can be started" });
       }
       
@@ -630,7 +636,8 @@ export async function registerRoutes(
       const successCount = Math.floor(sentCount * (0.85 + Math.random() * 0.12));
       
       const updatedCampaign = await storage.updateCampaign(req.params.id, {
-        status: "running",
+        statusCode: CAMPAIGN_STATUS.RUNNING.code,
+        status: CAMPAIGN_STATUS.RUNNING.status,
         sentCount,
         successCount,
         scheduledAt: new Date(),
@@ -658,9 +665,10 @@ export async function registerRoutes(
       setTimeout(async () => {
         try {
           const currentCampaign = await storage.getCampaign(req.params.id);
-          if (currentCampaign?.status === "running") {
+          if (currentCampaign?.statusCode === CAMPAIGN_STATUS.RUNNING.code) {
             await storage.updateCampaign(req.params.id, {
-              status: "completed",
+              statusCode: CAMPAIGN_STATUS.COMPLETED.code,
+              status: CAMPAIGN_STATUS.COMPLETED.status,
               completedAt: new Date(),
             });
           }

@@ -11,7 +11,7 @@ import {
   Trash2
 } from "lucide-react";
 import { useState } from "react";
-import { formatCurrency, formatNumber, formatDateTime, getMessageTypeLabel } from "@/lib/authUtils";
+import { formatCurrency, formatNumber, formatDateTime, getMessageTypeLabel, CAMPAIGN_STATUS } from "@/lib/authUtils";
 import { CampaignStatusBadge } from "@/components/campaign-status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ export default function Campaigns() {
 
   const filteredCampaigns = campaigns?.filter((campaign) => {
     const matchesSearch = campaign.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || campaign.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || campaign.statusCode?.toString() === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -86,12 +86,14 @@ export default function Campaigns() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value="draft">초안</SelectItem>
-                  <SelectItem value="pending">승인 대기</SelectItem>
-                  <SelectItem value="approved">승인 완료</SelectItem>
-                  <SelectItem value="running">발송 중</SelectItem>
-                  <SelectItem value="completed">완료</SelectItem>
-                  <SelectItem value="rejected">반려</SelectItem>
+                  <SelectItem value={CAMPAIGN_STATUS.DRAFT.toString()}>초안</SelectItem>
+                  <SelectItem value={CAMPAIGN_STATUS.APPROVAL_REQUESTED.toString()}>검수 중</SelectItem>
+                  <SelectItem value={CAMPAIGN_STATUS.APPROVED.toString()}>발송 대기</SelectItem>
+                  <SelectItem value={CAMPAIGN_STATUS.SEND_PREPARATION.toString()}>발송 준비중</SelectItem>
+                  <SelectItem value={CAMPAIGN_STATUS.IN_PROGRESS.toString()}>발송 중</SelectItem>
+                  <SelectItem value={CAMPAIGN_STATUS.COMPLETED.toString()}>완료</SelectItem>
+                  <SelectItem value={CAMPAIGN_STATUS.REJECTED.toString()}>반려</SelectItem>
+                  <SelectItem value={CAMPAIGN_STATUS.CANCELLED.toString()}>취소</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -130,7 +132,7 @@ export default function Campaigns() {
                       >
                         {campaign.name}
                       </Link>
-                      <CampaignStatusBadge status={campaign.status} />
+                      <CampaignStatusBadge statusCode={campaign.statusCode} />
                     </div>
                     <div className="flex items-center gap-4 text-small text-muted-foreground">
                       <span>{getMessageTypeLabel(campaign.messageType)}</span>
@@ -140,7 +142,7 @@ export default function Campaigns() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {campaign.status === 'running' && (
+                    {campaign.statusCode === CAMPAIGN_STATUS.IN_PROGRESS && (
                       <div className="text-small text-right mr-4">
                         <span className="text-muted-foreground">발송</span>{' '}
                         <span className="font-medium">{formatNumber(campaign.sentCount || 0)}</span>
@@ -164,7 +166,7 @@ export default function Campaigns() {
                             <span>상세 보기</span>
                           </Link>
                         </DropdownMenuItem>
-                        {campaign.status === 'draft' && (
+                        {campaign.statusCode === CAMPAIGN_STATUS.DRAFT && (
                           <>
                             <DropdownMenuItem asChild>
                               <Link href={`/campaigns/${campaign.id}/edit`} className="flex items-center gap-2">

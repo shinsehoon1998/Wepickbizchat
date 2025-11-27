@@ -1,12 +1,25 @@
 import { Badge } from "@/components/ui/badge";
-import { getStatusLabel } from "@/lib/authUtils";
+import { getStatusCodeLabel, getStatusCodeStyles, getStatusLabel } from "@/lib/authUtils";
 
 interface CampaignStatusBadgeProps {
-  status: string;
+  status?: string;
+  statusCode?: number;
   className?: string;
 }
 
-export function CampaignStatusBadge({ status, className }: CampaignStatusBadgeProps) {
+export function CampaignStatusBadge({ status, statusCode, className }: CampaignStatusBadgeProps) {
+  if (statusCode !== undefined) {
+    return (
+      <Badge 
+        variant="outline" 
+        className={`${getStatusCodeStyles(statusCode)} ${className || ''}`}
+        data-testid={`badge-status-${statusCode}`}
+      >
+        {getStatusCodeLabel(statusCode)}
+      </Badge>
+    );
+  }
+
   const getStatusStyles = (status: string) => {
     switch (status) {
       case 'draft':
@@ -31,10 +44,10 @@ export function CampaignStatusBadge({ status, className }: CampaignStatusBadgePr
   return (
     <Badge 
       variant="outline" 
-      className={`${getStatusStyles(status)} ${className || ''}`}
-      data-testid={`badge-status-${status}`}
+      className={`${getStatusStyles(status || 'draft')} ${className || ''}`}
+      data-testid={`badge-status-${status || 'draft'}`}
     >
-      {getStatusLabel(status)}
+      {getStatusLabel(status || 'draft')}
     </Badge>
   );
 }

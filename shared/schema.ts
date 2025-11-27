@@ -73,8 +73,8 @@ export const campaigns = pgTable("campaigns", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   templateId: varchar("template_id").references(() => templates.id),
   name: varchar("name", { length: 200 }).notNull(),
-  statusCode: integer("status_code").default(10).notNull(), // 10, 11, 17, 20, 25, 30, 35, 40
-  status: varchar("status", { length: 20 }).default("approval_requested").notNull(),
+  statusCode: integer("status_code").default(5).notNull(), // 5=draft, 10=approval_requested, 11=approved, 17=rejected, 20=send_ready, 25=cancelled, 30=running, 35=stopped, 40=completed
+  status: varchar("status", { length: 20 }).default("draft").notNull(),
   messageType: varchar("message_type", { length: 10 }).notNull(), // LMS, MMS, RCS
   targetCount: integer("target_count").default(0).notNull(),
   sentCount: integer("sent_count").default(0),
@@ -273,14 +273,15 @@ export type CampaignWithDetails = Campaign & {
 
 // Campaign status constants
 export const CAMPAIGN_STATUS = {
-  APPROVAL_REQUESTED: { code: 10, status: 'approval_requested', label: '승인요청' },
-  APPROVED: { code: 11, status: 'approved', label: '승인완료' },
+  DRAFT: { code: 5, status: 'draft', label: '초안' },
+  APPROVAL_REQUESTED: { code: 10, status: 'approval_requested', label: '검수 중' },
+  APPROVED: { code: 11, status: 'approved', label: '발송 대기' },
   REJECTED: { code: 17, status: 'rejected', label: '반려' },
-  SEND_READY: { code: 20, status: 'send_ready', label: '발송준비' },
+  SEND_READY: { code: 20, status: 'send_ready', label: '발송 준비중' },
   CANCELLED: { code: 25, status: 'cancelled', label: '취소' },
-  RUNNING: { code: 30, status: 'running', label: '진행중' },
-  STOPPED: { code: 35, status: 'stopped', label: '캠페인중단' },
-  COMPLETED: { code: 40, status: 'completed', label: '종료' },
+  RUNNING: { code: 30, status: 'running', label: '발송 중' },
+  STOPPED: { code: 35, status: 'stopped', label: '발송 중단' },
+  COMPLETED: { code: 40, status: 'completed', label: '발송 완료' },
 } as const;
 
 // Template status constants
