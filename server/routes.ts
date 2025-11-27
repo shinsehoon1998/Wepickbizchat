@@ -302,9 +302,8 @@ export async function registerRoutes(
 
   const createCampaignSchema = z.object({
     name: z.string().min(1).max(200),
+    templateId: z.string().min(1),
     messageType: z.enum(["LMS", "MMS", "RCS"]),
-    title: z.string().max(60).optional(),
-    content: z.string().min(1).max(2000),
     gender: z.enum(["all", "male", "female"]).default("all"),
     ageMin: z.number().min(10).max(100).default(20),
     ageMax: z.number().min(10).max(100).default(60),
@@ -324,6 +323,19 @@ export async function registerRoutes(
       
       const data = createCampaignSchema.parse(req.body);
       
+      const template = await storage.getTemplate(data.templateId);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied to template" });
+      }
+      
+      if (template.status !== "approved") {
+        return res.status(400).json({ error: "Template must be approved before creating campaign" });
+      }
+      
       const userBalance = parseFloat(user.balance as string || "0");
       const estimatedCost = data.targetCount * 50;
       
@@ -334,16 +346,19 @@ export async function registerRoutes(
       const campaign = await storage.createCampaign({
         userId,
         name: data.name,
+        templateId: data.templateId,
         messageType: data.messageType,
+        statusCode: CAMPAIGN_STATUS.APPROVAL_REQUESTED,
+        status: "draft",
         targetCount: data.targetCount,
         budget: data.budget.toString(),
-        status: "draft",
       });
       
       await storage.createMessage({
         campaignId: campaign.id,
-        title: data.title || null,
-        content: data.content,
+        title: template.title || null,
+        content: template.content,
+        imageUrl: template.imageUrl,
       });
       
       await storage.createTargeting({

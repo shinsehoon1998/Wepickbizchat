@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,29 +7,27 @@ import { z } from "zod";
 import {
   ArrowLeft,
   ArrowRight,
+  FileText,
+  Users,
+  CheckCircle2,
+  AlertCircle,
   MessageSquare,
   Image,
-  Sparkles,
-  Users,
-  MapPin,
-  Calendar,
-  CheckCircle2,
-  Upload,
-  Trash2,
-  Eye,
+  Smartphone,
+  FilePlus,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { formatCurrency, formatNumber } from "@/lib/authUtils";
+import { formatCurrency, formatNumber, getMessageTypeLabel } from "@/lib/authUtils";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Form,
   FormControl,
@@ -47,12 +45,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import type { Template } from "@shared/schema";
 
 const campaignSchema = z.object({
   name: z.string().min(1, "캠페인 이름을 입력해주세요").max(200, "캠페인 이름은 200자 이내로 입력해주세요"),
-  messageType: z.enum(["LMS", "MMS", "RCS"], { required_error: "메시지 유형을 선택해주세요" }),
-  title: z.string().max(60, "제목은 60자 이내로 입력해주세요").optional(),
-  content: z.string().min(1, "메시지 내용을 입력해주세요").max(2000, "메시지 내용은 2000자 이내로 입력해주세요"),
+  templateId: z.string().min(1, "템플릿을 선택해주세요"),
   gender: z.enum(["all", "male", "female"]).default("all"),
   ageMin: z.number().min(10).max(100).default(20),
   ageMax: z.number().min(10).max(100).default(60),
@@ -64,10 +61,9 @@ const campaignSchema = z.object({
 type CampaignFormData = z.infer<typeof campaignSchema>;
 
 const steps = [
-  { id: 1, title: "캠페인 정보", icon: MessageSquare },
-  { id: 2, title: "메시지 작성", icon: Sparkles },
-  { id: 3, title: "타겟 설정", icon: Users },
-  { id: 4, title: "예산 및 확인", icon: CheckCircle2 },
+  { id: 1, title: "템플릿 선택", icon: FileText },
+  { id: 2, title: "타겟 설정", icon: Users },
+  { id: 3, title: "예산 및 확인", icon: CheckCircle2 },
 ];
 
 const regions = [
@@ -75,27 +71,34 @@ const regions = [
   "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주"
 ];
 
-const messageTypeOptions = [
-  { value: "LMS", label: "장문 문자 (LMS)", description: "텍스트만 최대 2,000자", icon: MessageSquare },
-  { value: "MMS", label: "이미지 문자 (MMS)", description: "이미지 + 텍스트", icon: Image },
-  { value: "RCS", label: "RCS 메시지", description: "리치 미디어 지원", icon: Sparkles },
-];
+function getMessageTypeIcon(type: string) {
+  switch (type) {
+    case "LMS":
+      return MessageSquare;
+    case "MMS":
+      return Image;
+    case "RCS":
+      return Smartphone;
+    default:
+      return MessageSquare;
+  }
+}
 
 export default function CampaignsNew() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  const { data: approvedTemplates, isLoading: templatesLoading } = useQuery<Template[]>({
+    queryKey: ["/api/templates/approved"],
+  });
 
   const form = useForm<CampaignFormData>({
     resolver: zodResolver(campaignSchema),
     defaultValues: {
       name: "",
-      messageType: "LMS",
-      title: "",
-      content: "",
+      templateId: "",
       gender: "all",
       ageMin: 20,
       ageMax: 60,
@@ -105,8 +108,9 @@ export default function CampaignsNew() {
     },
   });
 
-  const watchMessageType = form.watch("messageType");
-  const watchContent = form.watch("content");
+  const selectedTemplateId = form.watch("templateId");
+  const selectedTemplate = approvedTemplates?.find(t => t.id === selectedTemplateId);
+  
   const watchTargetCount = form.watch("targetCount");
   const watchBudget = form.watch("budget");
   const watchGender = form.watch("gender");
@@ -142,7 +146,7 @@ export default function CampaignsNew() {
       }
     };
     
-    if (currentStep === 3) {
+    if (currentStep === 2) {
       fetchEstimate();
     }
   }, [currentStep, watchGender, watchAgeMin, watchAgeMax, watchRegions]);
@@ -153,7 +157,22 @@ export default function CampaignsNew() {
 
   const createCampaignMutation = useMutation({
     mutationFn: async (data: CampaignFormData) => {
-      const response = await apiRequest("POST", "/api/campaigns", data);
+      const template = approvedTemplates?.find(t => t.id === data.templateId);
+      if (!template) throw new Error("템플릿을 찾을 수 없습니다");
+
+      const campaignData = {
+        name: data.name,
+        templateId: data.templateId,
+        messageType: template.messageType,
+        gender: data.gender,
+        ageMin: data.ageMin,
+        ageMax: data.ageMax,
+        regions: data.regions,
+        targetCount: data.targetCount,
+        budget: data.budget,
+      };
+
+      const response = await apiRequest("POST", "/api/campaigns", campaignData);
       return response.json();
     },
     onSuccess: () => {
@@ -161,7 +180,7 @@ export default function CampaignsNew() {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({
         title: "캠페인 생성 완료",
-        description: "캠페인이 성공적으로 생성되었어요. 검토 후 승인을 요청해주세요.",
+        description: "캠페인이 성공적으로 생성되었어요. 발송 준비를 완료해주세요.",
       });
       navigate("/campaigns");
     },
@@ -174,33 +193,12 @@ export default function CampaignsNew() {
     },
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 300 * 1024) {
-        toast({
-          title: "파일 크기 초과",
-          description: "이미지 파일은 300KB 이하만 업로드할 수 있어요.",
-          variant: "destructive",
-        });
-        return;
-      }
-      setImageFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  const nextStep = async () => {
+    if (currentStep === 1) {
+      const isValid = await form.trigger(["name", "templateId"]);
+      if (!isValid) return;
     }
-  };
-
-  const removeImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
-  };
-
-  const nextStep = () => {
-    if (currentStep < 4) setCurrentStep(currentStep + 1);
+    if (currentStep < 3) setCurrentStep(currentStep + 1);
   };
 
   const prevStep = () => {
@@ -225,7 +223,7 @@ export default function CampaignsNew() {
         <div>
           <h1 className="text-display font-bold">캠페인 만들기</h1>
           <p className="text-muted-foreground mt-1">
-            새로운 광고 캠페인을 만들어보세요
+            승인된 템플릿으로 새로운 광고 캠페인을 만들어보세요
           </p>
         </div>
       </div>
@@ -234,15 +232,16 @@ export default function CampaignsNew() {
         {steps.map((step, index) => (
           <div key={step.id} className="flex items-center">
             <button
-              onClick={() => setCurrentStep(step.id)}
+              onClick={() => currentStep > step.id && setCurrentStep(step.id)}
               className={cn(
                 "flex items-center gap-2 px-4 py-2 rounded-lg transition-colors",
                 currentStep === step.id
                   ? "bg-primary text-primary-foreground"
                   : currentStep > step.id
-                  ? "bg-success/10 text-success"
-                  : "bg-muted text-muted-foreground"
+                  ? "bg-success/10 text-success cursor-pointer"
+                  : "bg-muted text-muted-foreground cursor-not-allowed"
               )}
+              disabled={currentStep < step.id}
               data-testid={`button-step-${step.id}`}
             >
               <step.icon className="h-4 w-4" />
@@ -262,200 +261,164 @@ export default function CampaignsNew() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           {currentStep === 1 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>캠페인 정보</CardTitle>
-                <CardDescription>캠페인의 기본 정보를 입력해주세요</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>캠페인 이름</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="예: 2024년 연말 프로모션" 
-                          {...field} 
-                          data-testid="input-campaign-name"
-                        />
-                      </FormControl>
-                      <FormDescription>캠페인을 구분할 수 있는 이름을 입력해주세요</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="messageType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>메시지 유형</FormLabel>
-                      <FormControl>
-                        <RadioGroup
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                          className="grid grid-cols-1 md:grid-cols-3 gap-4"
-                        >
-                          {messageTypeOptions.map((option) => (
-                            <Label
-                              key={option.value}
-                              htmlFor={option.value}
-                              className={cn(
-                                "flex items-start gap-3 p-4 rounded-lg border cursor-pointer hover-elevate",
-                                field.value === option.value
-                                  ? "border-primary bg-accent"
-                                  : "border-border"
-                              )}
-                            >
-                              <RadioGroupItem value={option.value} id={option.value} className="mt-1" />
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <option.icon className="h-4 w-4 text-primary" />
-                                  <span className="font-medium">{option.label}</span>
-                                </div>
-                                <p className="text-small text-muted-foreground">{option.description}</p>
-                              </div>
-                            </Label>
-                          ))}
-                        </RadioGroup>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </CardContent>
-            </Card>
-          )}
-
-          {currentStep === 2 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>메시지 작성</CardTitle>
-                <CardDescription>고객에게 보낼 메시지를 작성해주세요</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>제목 (선택)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="광고 제목 (최대 60자)" 
-                          {...field} 
-                          data-testid="input-message-title"
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {(field.value?.length || 0)} / 60자
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="content"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>메시지 내용</FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          placeholder="광고 내용을 입력하세요..."
-                          className="min-h-[200px] resize-none"
-                          {...field} 
-                          data-testid="textarea-message-content"
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        {(field.value?.length || 0)} / 2,000자
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {watchMessageType === "MMS" && (
-                  <div className="space-y-3">
-                    <Label>이미지 첨부</Label>
-                    {imagePreview ? (
-                      <div className="relative inline-block">
-                        <img 
-                          src={imagePreview} 
-                          alt="Preview" 
-                          className="max-w-[200px] rounded-lg border"
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          className="absolute -top-2 -right-2 h-6 w-6"
-                          onClick={removeImage}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
-                        <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                        <p className="text-small text-muted-foreground mb-2">
-                          이미지를 업로드하세요
-                        </p>
-                        <p className="text-tiny text-muted-foreground mb-4">
-                          JPG, PNG, GIF (최대 300KB)
-                        </p>
-                        <Input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageChange}
-                          className="hidden"
-                          id="image-upload"
-                        />
-                        <Label htmlFor="image-upload" className="cursor-pointer">
-                          <Button type="button" variant="outline" asChild>
-                            <span>파일 선택</span>
-                          </Button>
-                        </Label>
-                      </div>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>캠페인 정보</CardTitle>
+                  <CardDescription>캠페인 이름을 입력하고 사용할 템플릿을 선택해주세요</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>캠페인 이름</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="예: 2024년 연말 프로모션" 
+                            {...field} 
+                            data-testid="input-campaign-name"
+                          />
+                        </FormControl>
+                        <FormDescription>캠페인을 구분할 수 있는 이름을 입력해주세요</FormDescription>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </div>
-                )}
+                  />
+                </CardContent>
+              </Card>
 
-                <Card className="bg-muted/50">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-small flex items-center gap-2">
-                      <Eye className="h-4 w-4" />
-                      미리보기
-                    </CardTitle>
+              <Card>
+                <CardHeader>
+                  <CardTitle>템플릿 선택</CardTitle>
+                  <CardDescription>
+                    승인된 템플릿 중에서 사용할 템플릿을 선택해주세요
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {templatesLoading ? (
+                    <div className="space-y-4">
+                      {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-24 w-full" />
+                      ))}
+                    </div>
+                  ) : approvedTemplates && approvedTemplates.length > 0 ? (
+                    <FormField
+                      control={form.control}
+                      name="templateId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <RadioGroup
+                              onValueChange={field.onChange}
+                              value={field.value}
+                              className="space-y-3"
+                            >
+                              {approvedTemplates.map((template) => {
+                                const Icon = getMessageTypeIcon(template.messageType);
+                                return (
+                                  <Label
+                                    key={template.id}
+                                    htmlFor={`template-${template.id}`}
+                                    className={cn(
+                                      "flex items-start gap-4 p-4 rounded-lg border cursor-pointer hover-elevate",
+                                      field.value === template.id
+                                        ? "border-primary bg-accent"
+                                        : "border-border"
+                                    )}
+                                    data-testid={`radio-template-${template.id}`}
+                                  >
+                                    <RadioGroupItem 
+                                      value={template.id} 
+                                      id={`template-${template.id}`} 
+                                      className="mt-1" 
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-medium">{template.name}</span>
+                                        <Badge variant="outline" className="text-tiny gap-1">
+                                          <Icon className="h-3 w-3" />
+                                          {getMessageTypeLabel(template.messageType)}
+                                        </Badge>
+                                      </div>
+                                      <p className="text-small text-muted-foreground line-clamp-2">
+                                        {template.content}
+                                      </p>
+                                    </div>
+                                  </Label>
+                                );
+                              })}
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : (
+                    <div className="text-center py-12">
+                      <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <h3 className="font-semibold mb-2">승인된 템플릿이 없어요</h3>
+                      <p className="text-small text-muted-foreground mb-4">
+                        먼저 템플릿을 만들고 검수를 받아야 캠페인을 만들 수 있어요
+                      </p>
+                      <Button asChild className="gap-2">
+                        <Link href="/templates/new">
+                          <FilePlus className="h-4 w-4" />
+                          템플릿 만들기
+                        </Link>
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {selectedTemplate && (
+                <Card className="bg-accent/50 border-accent">
+                  <CardHeader>
+                    <CardTitle className="text-h3">선택한 템플릿 미리보기</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="bg-card rounded-lg p-4 border max-w-[280px]">
-                      {form.watch("title") && (
-                        <p className="font-medium mb-2">{form.watch("title")}</p>
+                    <div className="bg-background rounded-xl p-4 shadow-sm max-w-[320px] space-y-3">
+                      <div className="flex items-center gap-2 text-small text-muted-foreground">
+                        {(() => {
+                          const Icon = getMessageTypeIcon(selectedTemplate.messageType);
+                          return <Icon className="h-4 w-4" />;
+                        })()}
+                        <span>{getMessageTypeLabel(selectedTemplate.messageType)}</span>
+                      </div>
+                      
+                      {selectedTemplate.title && (
+                        <div className="font-semibold text-body">
+                          {selectedTemplate.title}
+                        </div>
                       )}
-                      {imagePreview && (
-                        <img 
-                          src={imagePreview} 
-                          alt="Preview" 
-                          className="w-full rounded mb-2"
-                        />
+                      
+                      {selectedTemplate.imageUrl && (
+                        <div className="rounded-lg overflow-hidden bg-muted aspect-video">
+                          <img 
+                            src={selectedTemplate.imageUrl} 
+                            alt="템플릿 이미지" 
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
                       )}
-                      <p className="text-small whitespace-pre-wrap">
-                        {watchContent || "메시지 내용이 여기에 표시됩니다..."}
-                      </p>
+                      
+                      <div className="text-small whitespace-pre-wrap">
+                        {selectedTemplate.content}
+                      </div>
+                      
+                      <div className="text-tiny text-muted-foreground pt-2 border-t">
+                        SK코어타겟 비즈챗
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           )}
 
-          {currentStep === 3 && (
+          {currentStep === 2 && (
             <Card>
               <CardHeader>
                 <CardTitle>타겟 설정</CardTitle>
@@ -579,9 +542,10 @@ export default function CampaignsNew() {
                                       return checked
                                         ? field.onChange([...field.value, region])
                                         : field.onChange(
-                                            field.value?.filter((value: string) => value !== region)
+                                            field.value?.filter((v) => v !== region)
                                           );
                                     }}
+                                    data-testid={`checkbox-region-${region}`}
                                   />
                                 </FormControl>
                                 <FormLabel className="text-small font-normal cursor-pointer">
@@ -596,68 +560,75 @@ export default function CampaignsNew() {
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="targetCount"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>발송 대상 수</FormLabel>
-                      <div className="flex items-center gap-4">
-                        <FormControl>
-                          <Input 
-                            type="number"
-                            min={100}
-                            {...field}
-                            onChange={(e) => field.onChange(parseInt(e.target.value) || 100)}
-                            className="w-32"
-                            data-testid="input-target-count"
-                          />
-                        </FormControl>
-                        <span className="text-muted-foreground">명</span>
-                      </div>
-                      <FormDescription>최소 100명 이상 설정해주세요</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <Card className="bg-accent/50 border-primary/20">
-                  <CardContent className="pt-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Users className="h-5 w-5 text-primary" />
-                      <span className="font-medium">예상 타겟 모수</span>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4 text-center">
+                <Card className="bg-muted/50">
+                  <CardContent className="py-4">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-2xl font-bold text-primary">
-                          {formatNumber(estimatedAudience.min)}
-                        </p>
-                        <p className="text-tiny text-muted-foreground">최소</p>
+                        <div className="text-small text-muted-foreground">예상 도달 가능 인원</div>
+                        <div className="text-h2 font-bold" data-testid="text-estimated-audience">
+                          {formatNumber(estimatedAudience.estimated)}명
+                        </div>
+                        <div className="text-tiny text-muted-foreground">
+                          ({formatNumber(estimatedAudience.min)} ~ {formatNumber(estimatedAudience.max)}명)
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-2xl font-bold">
-                          {formatNumber(estimatedAudience.estimated)}
-                        </p>
-                        <p className="text-tiny text-muted-foreground">예상</p>
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold text-primary">
-                          {formatNumber(estimatedAudience.max)}
-                        </p>
-                        <p className="text-tiny text-muted-foreground">최대</p>
+                      <div className="text-right">
+                        <div className="text-small text-muted-foreground">예상 도달률</div>
+                        <div className="text-h2 font-bold text-primary">
+                          {estimatedAudience.reachRate}%
+                        </div>
                       </div>
                     </div>
-                    <p className="text-tiny text-muted-foreground text-center mt-3">
-                      SK CoreTarget 기반 추정치 (예상 도달률 {estimatedAudience.reachRate}%)
-                    </p>
                   </CardContent>
                 </Card>
               </CardContent>
             </Card>
           )}
 
-          {currentStep === 4 && (
+          {currentStep === 3 && (
             <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>발송 수량</CardTitle>
+                  <CardDescription>광고를 받을 대상 수를 설정해주세요</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="targetCount"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center justify-between mb-4">
+                          <FormLabel>발송 수량</FormLabel>
+                          <div className="text-h3 font-bold" data-testid="text-target-count">
+                            {formatNumber(field.value)}명
+                          </div>
+                        </div>
+                        <FormControl>
+                          <div className="space-y-4">
+                            <input
+                              type="range"
+                              min={100}
+                              max={Math.min(estimatedAudience.estimated, 100000)}
+                              step={100}
+                              value={field.value}
+                              onChange={(e) => field.onChange(parseInt(e.target.value))}
+                              className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                              data-testid="slider-target-count"
+                            />
+                            <div className="flex justify-between text-tiny text-muted-foreground">
+                              <span>100명</span>
+                              <span>{formatNumber(Math.min(estimatedAudience.estimated, 100000))}명</span>
+                            </div>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle>예산 설정</CardTitle>
@@ -670,65 +641,67 @@ export default function CampaignsNew() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>예산</FormLabel>
-                        <div className="flex items-center gap-4">
-                          <FormControl>
-                            <Input 
+                        <FormControl>
+                          <div className="relative">
+                            <Input
                               type="number"
                               min={10000}
                               step={10000}
                               {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value) || 10000)}
-                              className="w-40"
+                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              className="pl-8"
                               data-testid="input-budget"
                             />
-                          </FormControl>
-                          <span className="text-muted-foreground">원</span>
-                        </div>
-                        <FormDescription>최소 10,000원 이상 설정해주세요</FormDescription>
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                              ₩
+                            </span>
+                          </div>
+                        </FormControl>
+                        <FormDescription>
+                          건당 {formatCurrency(costPerMessage)} × {formatNumber(watchTargetCount)}건 = {formatCurrency(estimatedCost)}
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
 
-                  <div className="rounded-lg bg-muted p-4 space-y-3">
-                    <div className="flex justify-between text-small">
-                      <span className="text-muted-foreground">예상 발송 비용</span>
-                      <span className="font-medium">{formatCurrency(estimatedCost)}</span>
-                    </div>
-                    <div className="flex justify-between text-small">
-                      <span className="text-muted-foreground">건당 비용</span>
-                      <span>{formatCurrency(costPerMessage)}</span>
-                    </div>
-                    <div className="flex justify-between text-small">
-                      <span className="text-muted-foreground">발송 대상</span>
-                      <span>{formatNumber(watchTargetCount)}명</span>
-                    </div>
-                    <hr className="border-border" />
-                    <div className="flex justify-between">
-                      <span className="font-medium">현재 잔액</span>
-                      <span className={cn(
-                        "font-bold",
-                        userBalance >= estimatedCost ? "text-success" : "text-destructive"
-                      )}>
-                        {formatCurrency(userBalance)}
-                      </span>
-                    </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Card className="bg-muted/50">
+                      <CardContent className="py-4">
+                        <div className="text-small text-muted-foreground mb-1">현재 잔액</div>
+                        <div className="text-h3 font-bold" data-testid="text-user-balance">
+                          {formatCurrency(userBalance)}
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className={cn(
+                      "bg-muted/50",
+                      watchBudget > userBalance && "border-destructive"
+                    )}>
+                      <CardContent className="py-4">
+                        <div className="text-small text-muted-foreground mb-1">예상 비용</div>
+                        <div className={cn(
+                          "text-h3 font-bold",
+                          watchBudget > userBalance && "text-destructive"
+                        )} data-testid="text-estimated-cost">
+                          {formatCurrency(estimatedCost)}
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
 
-                  {userBalance < estimatedCost && (
-                    <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4">
-                      <p className="text-small text-destructive">
-                        잔액이 부족해요. 캠페인을 발송하려면 {formatCurrency(estimatedCost - userBalance)} 이상 충전이 필요해요.
-                      </p>
-                      <Button 
-                        type="button"
-                        variant="outline" 
-                        size="sm" 
-                        className="mt-2"
-                        onClick={() => window.location.href = '/billing'}
-                      >
-                        잔액 충전하기
-                      </Button>
+                  {watchBudget > userBalance && (
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive">
+                      <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-medium">잔액이 부족해요</p>
+                        <p className="text-small">
+                          {formatCurrency(watchBudget - userBalance)}을 추가로 충전해주세요.{" "}
+                          <Link href="/billing" className="underline">
+                            충전하러 가기
+                          </Link>
+                        </p>
+                      </div>
                     </div>
                   )}
                 </CardContent>
@@ -739,54 +712,42 @@ export default function CampaignsNew() {
                   <CardTitle>캠페인 요약</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-small text-muted-foreground">캠페인 이름</p>
-                        <p className="font-medium">{form.watch("name") || "-"}</p>
-                      </div>
-                      <div>
-                        <p className="text-small text-muted-foreground">메시지 유형</p>
-                        <p className="font-medium">
-                          {messageTypeOptions.find(o => o.value === watchMessageType)?.label}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-small text-muted-foreground">메시지 미리보기</p>
-                        <div className="bg-muted rounded-lg p-3 mt-1">
-                          {form.watch("title") && (
-                            <p className="font-medium text-small mb-1">{form.watch("title")}</p>
-                          )}
-                          <p className="text-small text-muted-foreground line-clamp-3">
-                            {watchContent || "-"}
-                          </p>
-                        </div>
-                      </div>
+                  <div className="space-y-4">
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-muted-foreground">캠페인 이름</span>
+                      <span className="font-medium" data-testid="summary-campaign-name">{form.watch("name") || "-"}</span>
                     </div>
-                    <div className="space-y-4">
-                      <div>
-                        <p className="text-small text-muted-foreground">타겟 설정</p>
-                        <p className="font-medium">
-                          {form.watch("gender") === "all" ? "전체" : form.watch("gender") === "male" ? "남성" : "여성"} / {form.watch("ageMin")}세 ~ {form.watch("ageMax")}세
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-small text-muted-foreground">지역</p>
-                        <p className="font-medium">
-                          {form.watch("regions")?.length > 0 
-                            ? form.watch("regions").join(", ")
-                            : "전국"
-                          }
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-small text-muted-foreground">발송 대상</p>
-                        <p className="font-medium">{formatNumber(watchTargetCount)}명</p>
-                      </div>
-                      <div>
-                        <p className="text-small text-muted-foreground">예산</p>
-                        <p className="font-medium text-primary">{formatCurrency(watchBudget)}</p>
-                      </div>
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-muted-foreground">템플릿</span>
+                      <span className="font-medium" data-testid="summary-template">{selectedTemplate?.name || "-"}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-muted-foreground">메시지 유형</span>
+                      <span className="font-medium">{selectedTemplate ? getMessageTypeLabel(selectedTemplate.messageType) : "-"}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-muted-foreground">타겟 성별</span>
+                      <span className="font-medium">
+                        {watchGender === "all" ? "전체" : watchGender === "male" ? "남성" : "여성"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-muted-foreground">타겟 연령</span>
+                      <span className="font-medium">{watchAgeMin}세 ~ {watchAgeMax}세</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-muted-foreground">타겟 지역</span>
+                      <span className="font-medium">
+                        {watchRegions.length > 0 ? watchRegions.join(", ") : "전국"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-muted-foreground">발송 수량</span>
+                      <span className="font-medium">{formatNumber(watchTargetCount)}명</span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="text-muted-foreground">예상 비용</span>
+                      <span className="font-bold text-primary">{formatCurrency(estimatedCost)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -794,23 +755,28 @@ export default function CampaignsNew() {
             </div>
           )}
 
-          <div className="flex justify-between pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={prevStep}
-              disabled={currentStep === 1}
-              className="gap-2"
-              data-testid="button-prev-step"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              이전
-            </Button>
-            {currentStep < 4 ? (
+          <div className="flex justify-between gap-4">
+            {currentStep > 1 ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={prevStep}
+                className="gap-2"
+                data-testid="button-prev-step"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                이전
+              </Button>
+            ) : (
+              <div />
+            )}
+            
+            {currentStep < 3 ? (
               <Button
                 type="button"
                 onClick={nextStep}
                 className="gap-2"
+                disabled={currentStep === 1 && (!form.watch("name") || !form.watch("templateId"))}
                 data-testid="button-next-step"
               >
                 다음
@@ -819,11 +785,11 @@ export default function CampaignsNew() {
             ) : (
               <Button
                 type="submit"
-                disabled={createCampaignMutation.isPending || userBalance < estimatedCost}
+                disabled={createCampaignMutation.isPending || estimatedCost > userBalance}
                 className="gap-2"
                 data-testid="button-create-campaign"
               >
-                {createCampaignMutation.isPending ? "생성 중..." : "캠페인 생성"}
+                {createCampaignMutation.isPending ? "생성 중..." : "캠페인 생성하기"}
                 <CheckCircle2 className="h-4 w-4" />
               </Button>
             )}
