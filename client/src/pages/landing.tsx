@@ -113,7 +113,7 @@ export default function Landing() {
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-3">
             <img src={logoImage} alt="wepick x SKT 로고" className="h-10 w-auto" />
-            <span className="font-bold text-lg">비즈챗</span>
+            <span className="font-bold text-lg">wepickbizchat</span>
           </div>
           <div className="flex items-center gap-4">
             <Button asChild data-testid="button-login-header">
@@ -122,7 +122,6 @@ export default function Landing() {
           </div>
         </div>
       </header>
-
       <main>
         <section className="relative overflow-hidden py-20 md:py-32">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/10" />
@@ -357,7 +356,6 @@ export default function Landing() {
           </div>
         </section>
       </main>
-
       <footer className="border-t py-8">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
