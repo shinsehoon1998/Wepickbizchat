@@ -7,7 +7,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronDown, Settings, LogOut } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
@@ -20,6 +28,64 @@ import Billing from "@/pages/billing";
 import Reports from "@/pages/reports";
 import NotFound from "@/pages/not-found";
 
+function navigate(href: string) {
+  window.history.pushState({}, "", href);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
+
+function UserMenu() {
+  const { user } = useAuth();
+
+  const displayName = user?.firstName 
+    ? `${user.firstName}${user.lastName || ''}`
+    : user?.email?.split('@')[0] || '사용자';
+  const initials = displayName.slice(0, 2).toUpperCase();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors hover-elevate active-elevate-2 border border-border"
+          data-testid="button-user-menu"
+        >
+          <Avatar className="h-7 w-7">
+            <AvatarImage src={user?.profileImageUrl || undefined} alt={displayName} />
+            <AvatarFallback className="bg-primary text-primary-foreground text-tiny">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <span className="font-medium">{displayName}</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <div className="px-2 py-1.5">
+          <p className="text-sm font-medium">{displayName}</p>
+          <p className="text-xs text-muted-foreground truncate">
+            {user?.email || '이메일 없음'}
+          </p>
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem 
+          onClick={() => navigate("/settings")}
+          className="cursor-pointer"
+          data-testid="link-settings"
+        >
+          <Settings className="h-4 w-4 mr-2" />
+          <span>설정</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <a href="/api/logout" className="flex items-center gap-2 text-destructive" data-testid="link-logout">
+            <LogOut className="h-4 w-4" />
+            <span>로그아웃</span>
+          </a>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const style = {
     "--sidebar-width": "16rem",
@@ -31,8 +97,9 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
       <div className="flex h-screen w-full">
         <AppSidebar />
         <SidebarInset className="flex flex-col flex-1 overflow-hidden">
-          <header className="flex items-center h-14 px-4 border-b bg-background shrink-0">
+          <header className="flex items-center justify-between h-14 px-4 border-b bg-background shrink-0">
             <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <UserMenu />
           </header>
           <main className="flex-1 overflow-auto p-6 custom-scrollbar">
             {children}

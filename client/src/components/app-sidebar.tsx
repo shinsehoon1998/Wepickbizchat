@@ -4,9 +4,6 @@ import {
   PlusCircle,
   Wallet,
   BarChart3,
-  Settings,
-  LogOut,
-  ChevronUp,
   FileText,
   FilePlus,
 } from "lucide-react";
@@ -14,11 +11,9 @@ import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/authUtils";
 import logoImage from "@assets/위픽xSKT 로고_1764247660608.png";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -27,13 +22,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 function navigate(href: string) {
   window.history.pushState({}, "", href);
@@ -92,10 +80,6 @@ export function AppSidebar() {
   const { user } = useAuth();
 
   const balance = user?.balance ? parseFloat(user.balance as string) : 0;
-  const displayName = user?.firstName 
-    ? `${user.firstName}${user.lastName || ''}`
-    : user?.email?.split('@')[0] || '사용자';
-  const initials = displayName.slice(0, 2).toUpperCase();
 
   return (
     <Sidebar>
@@ -218,54 +202,6 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground h-auto py-3"
-                  data-testid="button-user-menu"
-                >
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.profileImageUrl || undefined} alt={displayName} />
-                    <AvatarFallback className="bg-primary text-primary-foreground text-tiny">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col items-start text-left">
-                    <span className="text-small font-medium">{displayName}</span>
-                    <span className="text-tiny text-muted-foreground truncate max-w-[140px]">
-                      {user?.email || '이메일 없음'}
-                    </span>
-                  </div>
-                  <ChevronUp className="ml-auto h-4 w-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                side="top"
-                className="w-[--radix-popper-anchor-width]"
-              >
-                <DropdownMenuItem 
-                  onClick={() => navigate("/settings")}
-                  className="cursor-pointer"
-                  data-testid="link-settings"
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  <span>설정</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <a href="/api/logout" className="flex items-center gap-2 text-destructive" data-testid="link-logout">
-                    <LogOut className="h-4 w-4" />
-                    <span>로그아웃</span>
-                  </a>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
     </Sidebar>
   );
 }
