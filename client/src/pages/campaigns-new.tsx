@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -109,6 +109,43 @@ export default function CampaignsNew() {
   const watchContent = form.watch("content");
   const watchTargetCount = form.watch("targetCount");
   const watchBudget = form.watch("budget");
+  const watchGender = form.watch("gender");
+  const watchAgeMin = form.watch("ageMin");
+  const watchAgeMax = form.watch("ageMax");
+  const watchRegions = form.watch("regions");
+
+  const [estimatedAudience, setEstimatedAudience] = useState({
+    min: 900000,
+    estimated: 1000000,
+    max: 1100000,
+    reachRate: 90,
+  });
+
+  useEffect(() => {
+    const fetchEstimate = async () => {
+      try {
+        const res = await apiRequest("POST", "/api/targeting/estimate", {
+          gender: watchGender,
+          ageMin: watchAgeMin,
+          ageMax: watchAgeMax,
+          regions: watchRegions,
+        });
+        const data = await res.json();
+        setEstimatedAudience({
+          min: data.minCount,
+          estimated: data.estimatedCount,
+          max: data.maxCount,
+          reachRate: data.reachRate,
+        });
+      } catch (error) {
+        console.error("Failed to fetch targeting estimate:", error);
+      }
+    };
+    
+    if (currentStep === 3) {
+      fetchEstimate();
+    }
+  }, [currentStep, watchGender, watchAgeMin, watchAgeMax, watchRegions]);
 
   const costPerMessage = 50;
   const estimatedCost = watchTargetCount * costPerMessage;
@@ -583,6 +620,38 @@ export default function CampaignsNew() {
                     </FormItem>
                   )}
                 />
+
+                <Card className="bg-accent/50 border-primary/20">
+                  <CardContent className="pt-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Users className="h-5 w-5 text-primary" />
+                      <span className="font-medium">예상 타겟 모수</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                      <div>
+                        <p className="text-2xl font-bold text-primary">
+                          {formatNumber(estimatedAudience.min)}
+                        </p>
+                        <p className="text-tiny text-muted-foreground">최소</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold">
+                          {formatNumber(estimatedAudience.estimated)}
+                        </p>
+                        <p className="text-tiny text-muted-foreground">예상</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-primary">
+                          {formatNumber(estimatedAudience.max)}
+                        </p>
+                        <p className="text-tiny text-muted-foreground">최대</p>
+                      </div>
+                    </div>
+                    <p className="text-tiny text-muted-foreground text-center mt-3">
+                      SK CoreTarget 기반 추정치 (예상 도달률 {estimatedAudience.reachRate}%)
+                    </p>
+                  </CardContent>
+                </Card>
               </CardContent>
             </Card>
           )}

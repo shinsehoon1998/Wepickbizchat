@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 import type { Campaign, Report } from "@shared/schema";
 
 interface CampaignWithReport extends Campaign {
@@ -79,7 +80,15 @@ export default function Reports() {
               <SelectItem value="quarter">최근 3개월</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" className="gap-2" data-testid="button-download-report">
+          <Button 
+            variant="outline" 
+            className="gap-2" 
+            data-testid="button-download-report"
+            onClick={() => {
+              window.open('/api/reports/export', '_blank');
+            }}
+            disabled={completedCampaigns.length === 0}
+          >
             <Download className="h-4 w-4" />
             내보내기
           </Button>
@@ -159,16 +168,47 @@ export default function Reports() {
 
         <Card>
           <CardHeader>
-            <CardTitle>주요 지표 추이</CardTitle>
-            <CardDescription>최근 캠페인 성과 분석</CardDescription>
+            <CardTitle>캠페인 성과 분포</CardTitle>
+            <CardDescription>발송/성공/클릭 비율</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[200px] flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <BarChart3 className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p className="text-small">차트 데이터 준비 중</p>
+            {completedCampaigns.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: '발송 성공', value: totalStats.success, fill: 'hsl(var(--success))' },
+                      { name: '발송 실패', value: totalStats.sent - totalStats.success, fill: 'hsl(var(--muted))' },
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={2}
+                    dataKey="value"
+                  >
+                    <Cell fill="hsl(var(--success))" />
+                    <Cell fill="hsl(var(--muted))" />
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number) => formatNumber(value)}
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                    }}
+                  />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p className="text-small">캠페인 데이터가 없어요</p>
+                </div>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

@@ -111,6 +111,51 @@ export default function CampaignDetail() {
     },
   });
 
+  const approveMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/campaigns/${campaignId}/approve`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      toast({
+        title: "심사 승인 완료",
+        description: "캠페인이 승인되었어요. 이제 발송을 시작할 수 있어요.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "승인 실패",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const startMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/campaigns/${campaignId}/start`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({
+        title: "발송 시작",
+        description: "캠페인 발송이 시작되었어요! 잠시 후 결과를 확인할 수 있어요.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "발송 실패",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="animate-fade-in space-y-6">
@@ -151,6 +196,8 @@ export default function CampaignDetail() {
   const canEdit = campaign.status === "draft" || campaign.status === "rejected";
   const canSubmit = campaign.status === "draft" || campaign.status === "rejected";
   const canDelete = campaign.status === "draft";
+  const canApprove = campaign.status === "pending";
+  const canStart = campaign.status === "approved";
   const budget = parseFloat(campaign.budget as string || "0");
   const sentCount = campaign.sentCount || 0;
   const successCount = campaign.successCount || 0;
@@ -199,6 +246,45 @@ export default function CampaignDetail() {
               <FileCheck className="h-4 w-4" />
               {submitMutation.isPending ? "요청 중..." : "심사 요청"}
             </Button>
+          )}
+          {canApprove && (
+            <Button
+              onClick={() => approveMutation.mutate()}
+              disabled={approveMutation.isPending}
+              className="gap-2"
+              data-testid="button-approve"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              {approveMutation.isPending ? "승인 중..." : "심사 승인 (시뮬레이션)"}
+            </Button>
+          )}
+          {canStart && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button className="gap-2" data-testid="button-start">
+                  <Send className="h-4 w-4" />
+                  발송 시작
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>캠페인을 발송할까요?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    "{campaign.name}" 캠페인을 {formatNumber(campaign.targetCount)}명에게 발송합니다.
+                    예상 비용은 {formatCurrency(campaign.targetCount * parseFloat(campaign.costPerMessage || "50"))}입니다.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>취소</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => startMutation.mutate()}
+                    disabled={startMutation.isPending}
+                  >
+                    {startMutation.isPending ? "발송 중..." : "발송 시작"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
           {canDelete && (
             <AlertDialog>

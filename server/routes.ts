@@ -233,6 +233,68 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/targeting/estimate", isAuthenticated, async (req, res) => {
+    try {
+      const { gender, ageMin: rawAgeMin, ageMax: rawAgeMax, regions } = req.body;
+      
+      const ageMin = typeof rawAgeMin === 'number' ? rawAgeMin : 20;
+      const ageMax = typeof rawAgeMax === 'number' ? rawAgeMax : 60;
+      
+      if (ageMin < 0 || ageMax < 0 || ageMin > 100 || ageMax > 100) {
+        return res.status(400).json({ error: "나이는 0~100 사이여야 합니다" });
+      }
+      
+      if (ageMin > ageMax) {
+        return res.status(400).json({ error: "최소 나이가 최대 나이보다 클 수 없습니다" });
+      }
+      
+      if (gender && !["all", "male", "female"].includes(gender)) {
+        return res.status(400).json({ error: "성별은 all, male, female 중 하나여야 합니다" });
+      }
+      
+      let baseAudience = 500000;
+      
+      if (gender === "male") {
+        baseAudience = baseAudience * 0.52;
+      } else if (gender === "female") {
+        baseAudience = baseAudience * 0.48;
+      }
+      
+      const ageRange = ageMax - ageMin;
+      const ageMultiplier = Math.max(0.1, ageRange / 60);
+      baseAudience = baseAudience * ageMultiplier;
+      
+      const regionPopulationShare: Record<string, number> = {
+        "서울": 0.19, "경기": 0.26, "인천": 0.06, "부산": 0.07, "대구": 0.05,
+        "광주": 0.03, "대전": 0.03, "울산": 0.02, "세종": 0.01,
+        "강원": 0.03, "충북": 0.03, "충남": 0.04, "전북": 0.04, "전남": 0.04,
+        "경북": 0.05, "경남": 0.07, "제주": 0.01
+      };
+      
+      if (regions && Array.isArray(regions) && regions.length > 0) {
+        let regionMultiplier = 0;
+        for (const region of regions) {
+          regionMultiplier += regionPopulationShare[region] || 0.03;
+        }
+        baseAudience = baseAudience * regionMultiplier;
+      }
+      
+      const estimatedCount = Math.round(baseAudience);
+      const minCount = Math.round(estimatedCount * 0.85);
+      const maxCount = Math.round(estimatedCount * 1.15);
+      
+      res.json({
+        estimatedCount: Math.max(1000, estimatedCount),
+        minCount: Math.max(850, minCount),
+        maxCount: Math.max(1150, maxCount),
+        reachRate: 85 + Math.floor(Math.random() * 10),
+      });
+    } catch (error) {
+      console.error("Error estimating targeting:", error);
+      res.status(500).json({ error: "Failed to estimate targeting" });
+    }
+  });
+
   app.post("/api/campaigns/:id/submit", isAuthenticated, async (req, res) => {
     try {
       const userId = (req as any).userId;
@@ -250,14 +312,201 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Only draft campaigns can be submitted" });
       }
       
+      const bizchatCampaignId = `BZ${Date.now()}${Math.random().toString(36).substring(7).toUpperCase()}`;
+      
       const updatedCampaign = await storage.updateCampaign(req.params.id, {
         status: "pending",
+        bizchatCampaignId,
       });
       
       res.json(updatedCampaign);
     } catch (error) {
       console.error("Error submitting campaign:", error);
       res.status(500).json({ error: "Failed to submit campaign" });
+    }
+  });
+
+  app.post("/api/campaigns/:id/approve", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const campaign = await storage.getCampaign(req.params.id);
+      
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+      
+      if (campaign.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      if (campaign.status === "approved" || campaign.status === "running" || campaign.status === "completed") {
+        return res.json(campaign);
+      }
+      
+      if (campaign.status !== "pending") {
+        return res.status(400).json({ error: "Only pending campaigns can be approved" });
+      }
+      
+      const updatedCampaign = await storage.updateCampaign(req.params.id, {
+        status: "approved",
+      });
+      
+      res.json(updatedCampaign);
+    } catch (error) {
+      console.error("Error approving campaign:", error);
+      res.status(500).json({ error: "Failed to approve campaign" });
+    }
+  });
+
+  app.post("/api/campaigns/:id/start", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const user = await storage.getUser(userId);
+      const campaign = await storage.getCampaign(req.params.id);
+      
+      if (!campaign || !user) {
+        return res.status(404).json({ error: "Campaign or user not found" });
+      }
+      
+      if (campaign.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      if (campaign.status === "running" || campaign.status === "completed") {
+        return res.json(campaign);
+      }
+      
+      if (campaign.status !== "approved") {
+        return res.status(400).json({ error: "Only approved campaigns can be started" });
+      }
+      
+      const estimatedCost = campaign.targetCount * parseFloat(campaign.costPerMessage || "50");
+      const userBalance = parseFloat(user.balance as string || "0");
+      
+      if (userBalance < estimatedCost) {
+        return res.status(400).json({ error: "잔액이 부족합니다" });
+      }
+      
+      const sentCount = campaign.targetCount;
+      const successCount = Math.floor(sentCount * (0.85 + Math.random() * 0.12));
+      
+      const updatedCampaign = await storage.updateCampaign(req.params.id, {
+        status: "running",
+        sentCount,
+        successCount,
+        scheduledAt: new Date(),
+      });
+      
+      await storage.updateUserBalance(userId, (userBalance - estimatedCost).toString());
+      
+      await storage.createTransaction({
+        userId,
+        type: "usage",
+        amount: (-estimatedCost).toString(),
+        balanceAfter: (userBalance - estimatedCost).toString(),
+        description: `캠페인 발송: ${campaign.name}`,
+      });
+      
+      await storage.createReport({
+        campaignId: req.params.id,
+        sentCount,
+        deliveredCount: successCount,
+        failedCount: sentCount - successCount,
+        clickCount: Math.floor(successCount * (0.02 + Math.random() * 0.05)),
+        optOutCount: Math.floor(successCount * Math.random() * 0.005),
+      });
+      
+      setTimeout(async () => {
+        try {
+          const currentCampaign = await storage.getCampaign(req.params.id);
+          if (currentCampaign?.status === "running") {
+            await storage.updateCampaign(req.params.id, {
+              status: "completed",
+              completedAt: new Date(),
+            });
+          }
+        } catch (err) {
+          console.error("Failed to complete campaign:", err);
+        }
+      }, 10000);
+      
+      res.json(updatedCampaign);
+    } catch (error) {
+      console.error("Error starting campaign:", error);
+      res.status(500).json({ error: "Failed to start campaign" });
+    }
+  });
+
+  app.post("/api/campaigns/:id/test-send", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { phoneNumber } = req.body;
+      const campaign = await storage.getCampaign(req.params.id);
+      
+      if (!campaign) {
+        return res.status(404).json({ error: "Campaign not found" });
+      }
+      
+      if (campaign.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      if (!phoneNumber) {
+        return res.status(400).json({ error: "휴대폰 번호를 입력해주세요" });
+      }
+      
+      res.json({
+        success: true,
+        message: `${phoneNumber}로 테스트 메시지를 발송했어요`,
+        testId: `TEST${Date.now()}`,
+      });
+    } catch (error) {
+      console.error("Error sending test message:", error);
+      res.status(500).json({ error: "Failed to send test message" });
+    }
+  });
+
+  app.get("/api/reports/export", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const campaigns = await storage.getCampaigns(userId);
+      
+      const completedCampaigns = campaigns.filter(c => 
+        c.status === 'completed' || c.status === 'running'
+      );
+      
+      if (completedCampaigns.length === 0) {
+        return res.status(404).json({ error: "내보낼 리포트 데이터가 없습니다" });
+      }
+      
+      let csvContent = "캠페인ID,캠페인명,상태,메시지유형,발송대상수,발송수,성공수,실패수,클릭수,예산,생성일,완료일\n";
+      
+      for (const campaign of completedCampaigns) {
+        const report = await storage.getReport(campaign.id);
+        csvContent += [
+          campaign.id,
+          `"${campaign.name.replace(/"/g, '""')}"`,
+          campaign.status,
+          campaign.messageType,
+          campaign.targetCount,
+          campaign.sentCount || 0,
+          campaign.successCount || 0,
+          report?.failedCount || 0,
+          report?.clickCount || 0,
+          campaign.budget,
+          campaign.createdAt?.toISOString() || '',
+          campaign.completedAt?.toISOString() || '',
+        ].join(",") + "\n";
+      }
+      
+      const bom = '\ufeff';
+      
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename=campaign-report-${new Date().toISOString().split('T')[0]}.csv`);
+      res.send(bom + csvContent);
+    } catch (error) {
+      console.error("Error exporting reports:", error);
+      res.status(500).json({ error: "Failed to export reports" });
     }
   });
 

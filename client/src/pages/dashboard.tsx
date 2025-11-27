@@ -15,8 +15,9 @@ import { StatsCard } from "@/components/stats-card";
 import { CampaignStatusBadge } from "@/components/campaign-status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
 import type { Campaign } from "@shared/schema";
 
 interface DashboardStats {
@@ -205,34 +206,77 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-h2 flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            이번 달 성과 요약
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 py-4">
-            <div className="text-center">
-              <p className="text-2xl font-bold">{formatNumber(stats?.totalSent || 0)}</p>
-              <p className="text-small text-muted-foreground">발송</p>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-h2 flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-primary" />
+              캠페인 성과 추이
+            </CardTitle>
+            <CardDescription>최근 7일간 발송 현황</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recentCampaigns && recentCampaigns.length > 0 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart
+                  data={[
+                    { name: '발송', value: stats?.totalSent || 0, fill: 'hsl(var(--chart-4))' },
+                    { name: '성공', value: stats?.totalSuccess || 0, fill: 'hsl(var(--success))' },
+                    { name: '클릭', value: stats?.totalClicks || 0, fill: 'hsl(var(--primary))' },
+                  ]}
+                  layout="vertical"
+                  margin={{ left: 20, right: 20 }}
+                >
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" width={40} tick={{ fontSize: 12 }} />
+                  <Tooltip 
+                    formatter={(value: number) => formatNumber(value)}
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                    }}
+                  />
+                  <Bar dataKey="value" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                <div className="text-center">
+                  <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p className="text-small">캠페인을 시작하면 성과가 표시돼요</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-h2">이번 달 성과 요약</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-6 py-4">
+              <div className="text-center p-4 bg-muted rounded-lg">
+                <p className="text-2xl font-bold">{formatNumber(stats?.totalSent || 0)}</p>
+                <p className="text-small text-muted-foreground">발송</p>
+              </div>
+              <div className="text-center p-4 bg-muted rounded-lg">
+                <p className="text-2xl font-bold text-success">{formatNumber(stats?.totalSuccess || 0)}</p>
+                <p className="text-small text-muted-foreground">성공</p>
+              </div>
+              <div className="text-center p-4 bg-muted rounded-lg">
+                <p className="text-2xl font-bold text-primary">{formatNumber(stats?.totalClicks || 0)}</p>
+                <p className="text-small text-muted-foreground">클릭</p>
+              </div>
+              <div className="text-center p-4 bg-muted rounded-lg">
+                <p className="text-2xl font-bold">{stats?.successRate || 0}%</p>
+                <p className="text-small text-muted-foreground">성공률</p>
+              </div>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-success">{formatNumber(stats?.totalSuccess || 0)}</p>
-              <p className="text-small text-muted-foreground">성공</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-primary">{formatNumber(stats?.totalClicks || 0)}</p>
-              <p className="text-small text-muted-foreground">클릭</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold">{stats?.successRate || 0}%</p>
-              <p className="text-small text-muted-foreground">성공률</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -8,7 +8,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   RefreshCw,
-  Plus
+  Plus,
+  Loader2
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency, formatDateTime } from "@/lib/authUtils";
@@ -30,12 +31,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Transaction } from "@shared/schema";
 
 const chargeAmounts = [100000, 300000, 500000, 1000000];
 
 export default function Billing() {
-  const { user } = useAuth();
+  const { user, refetchUser } = useAuth();
+  const { toast } = useToast();
   const [chargeAmount, setChargeAmount] = useState<number>(100000);
   const [customAmount, setCustomAmount] = useState<string>("");
   const [isChargeDialogOpen, setIsChargeDialogOpen] = useState(false);
@@ -43,6 +47,42 @@ export default function Billing() {
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/transactions"],
   });
+
+  const chargeMutation = useMutation({
+    mutationFn: async (data: { amount: number; paymentMethod: string }) => {
+      const res = await apiRequest("POST", "/api/transactions/charge", data);
+      return await res.json();
+    },
+    onSuccess: async (data) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      await refetchUser();
+      const chargedAmount = data.transaction?.amount 
+        ? Math.abs(parseFloat(data.transaction.amount)) 
+        : chargeAmount;
+      toast({
+        title: "충전 완료",
+        description: `${formatCurrency(chargedAmount)}이 충전되었어요!`,
+      });
+      setIsChargeDialogOpen(false);
+      setChargeAmount(100000);
+      setCustomAmount("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "충전 실패",
+        description: error.message || "잠시 후 다시 시도해주세요",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCharge = () => {
+    chargeMutation.mutate({
+      amount: chargeAmount,
+      paymentMethod: "card",
+    });
+  };
 
   const balance = parseFloat(user?.balance as string || "0");
 
@@ -175,15 +215,20 @@ export default function Billing() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setIsChargeDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setIsChargeDialogOpen(false)} disabled={chargeMutation.isPending}>
                 취소
               </Button>
               <Button 
-                disabled={chargeAmount < 10000}
+                disabled={chargeAmount < 10000 || chargeMutation.isPending}
+                onClick={handleCharge}
                 data-testid="button-confirm-charge"
               >
-                <CreditCard className="h-4 w-4 mr-2" />
-                {formatCurrency(chargeAmount)} 결제하기
+                {chargeMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CreditCard className="h-4 w-4 mr-2" />
+                )}
+                {chargeMutation.isPending ? "결제 중..." : `${formatCurrency(chargeAmount)} 결제하기`}
               </Button>
             </DialogFooter>
           </DialogContent>
