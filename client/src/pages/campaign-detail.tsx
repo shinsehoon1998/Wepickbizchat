@@ -1,0 +1,613 @@
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { Link, useRoute, useLocation } from "wouter";
+import { 
+  ArrowLeft, 
+  Send, 
+  Edit, 
+  Trash2, 
+  CheckCircle2, 
+  XCircle, 
+  Clock, 
+  Users, 
+  MessageSquare,
+  Target,
+  Wallet,
+  BarChart3,
+  AlertCircle,
+  FileCheck
+} from "lucide-react";
+import { formatCurrency, formatNumber, formatDateTime } from "@/lib/authUtils";
+import { CampaignStatusBadge } from "@/components/campaign-status-badge";
+import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import type { Campaign, Message, Targeting, Report } from "@shared/schema";
+
+interface CampaignDetail extends Campaign {
+  message?: Message;
+  targeting?: Targeting;
+  report?: Report;
+}
+
+const MESSAGE_TYPE_LABELS: Record<string, string> = {
+  lms: "LMS (장문 문자)",
+  mms: "MMS (이미지 포함)",
+  rcs: "RCS (리치 메시지)",
+};
+
+const GENDER_LABELS: Record<string, string> = {
+  all: "전체",
+  male: "남성",
+  female: "여성",
+};
+
+export default function CampaignDetail() {
+  const [, params] = useRoute("/campaigns/:id");
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const campaignId = params?.id ? parseInt(params.id) : null;
+
+  const { data: campaign, isLoading, error } = useQuery<CampaignDetail>({
+    queryKey: ["/api/campaigns", campaignId],
+    enabled: !!campaignId,
+  });
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", `/api/campaigns/${campaignId}/submit`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      toast({
+        title: "심사 요청 완료",
+        description: "캠페인이 심사 대기 상태가 되었어요. 심사는 1-2 영업일이 소요됩니다.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "심사 요청 실패",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest("DELETE", `/api/campaigns/${campaignId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      toast({
+        title: "캠페인 삭제 완료",
+        description: "캠페인이 삭제되었어요.",
+      });
+      navigate("/campaigns");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "삭제 실패",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="animate-fade-in space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-10" />
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-32" />
+          ))}
+        </div>
+        <Skeleton className="h-96" />
+      </div>
+    );
+  }
+
+  if (error || !campaign) {
+    return (
+      <div className="animate-fade-in">
+        <EmptyState
+          icon={AlertCircle}
+          title="캠페인을 찾을 수 없어요"
+          description="요청하신 캠페인이 존재하지 않거나 접근 권한이 없어요"
+          action={
+            <Button asChild>
+              <Link href="/campaigns">캠페인 목록으로</Link>
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  const canEdit = campaign.status === "draft" || campaign.status === "rejected";
+  const canSubmit = campaign.status === "draft" || campaign.status === "rejected";
+  const canDelete = campaign.status === "draft";
+  const budget = parseFloat(campaign.budget as string || "0");
+  const sentCount = campaign.sentCount || 0;
+  const successCount = campaign.successCount || 0;
+  const successRate = sentCount > 0 ? Math.round((successCount / sentCount) * 100) : 0;
+
+  const targeting = campaign.targeting;
+  const message = campaign.message;
+
+  return (
+    <div className="animate-fade-in space-y-6">
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <Button variant="ghost" size="icon" asChild data-testid="button-back">
+            <Link href="/campaigns">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-display font-bold" data-testid="text-campaign-name">
+                {campaign.name}
+              </h1>
+              <CampaignStatusBadge status={campaign.status} />
+            </div>
+            <p className="text-muted-foreground" data-testid="text-campaign-meta">
+              {MESSAGE_TYPE_LABELS[campaign.messageType]} · 생성: {formatDateTime(campaign.createdAt!)}
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {canEdit && (
+            <Button variant="outline" asChild className="gap-2" data-testid="button-edit">
+              <Link href={`/campaigns/${campaign.id}/edit`}>
+                <Edit className="h-4 w-4" />
+                수정
+              </Link>
+            </Button>
+          )}
+          {canSubmit && (
+            <Button
+              onClick={() => submitMutation.mutate()}
+              disabled={submitMutation.isPending}
+              className="gap-2"
+              data-testid="button-submit"
+            >
+              <FileCheck className="h-4 w-4" />
+              {submitMutation.isPending ? "요청 중..." : "심사 요청"}
+            </Button>
+          )}
+          {canDelete && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="gap-2" data-testid="button-delete">
+                  <Trash2 className="h-4 w-4" />
+                  삭제
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>캠페인을 삭제할까요?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    이 작업은 되돌릴 수 없어요. 캠페인 "{campaign.name}"을(를) 영구적으로 삭제합니다.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>취소</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteMutation.mutate()}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    삭제하기
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Wallet className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-small text-muted-foreground">예산</p>
+                <p className="text-h3 font-bold" data-testid="text-budget">{formatCurrency(budget)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-chart-4/10">
+                <Users className="h-5 w-5 text-chart-4" />
+              </div>
+              <div>
+                <p className="text-small text-muted-foreground">예상 수신자</p>
+                <p className="text-h3 font-bold" data-testid="text-recipients">
+                  {targeting?.estimatedReach ? formatNumber(targeting.estimatedReach) : "-"}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-success/10">
+                <Send className="h-5 w-5 text-success" />
+              </div>
+              <div>
+                <p className="text-small text-muted-foreground">발송 건수</p>
+                <p className="text-h3 font-bold" data-testid="text-sent">{formatNumber(sentCount)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-chart-5/10">
+                <CheckCircle2 className="h-5 w-5 text-chart-5" />
+              </div>
+              <div>
+                <p className="text-small text-muted-foreground">성공률</p>
+                <p className="text-h3 font-bold" data-testid="text-success-rate">{successRate}%</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList data-testid="tabs-campaign-detail">
+          <TabsTrigger value="overview" data-testid="tab-overview">개요</TabsTrigger>
+          <TabsTrigger value="message" data-testid="tab-message">메시지</TabsTrigger>
+          <TabsTrigger value="targeting" data-testid="tab-targeting">타겟팅</TabsTrigger>
+          <TabsTrigger value="report" data-testid="tab-report">성과</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-primary" />
+                캠페인 일정
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-small text-muted-foreground mb-1">발송 예정일</p>
+                  <p className="font-medium" data-testid="text-scheduled-date">
+                    {campaign.scheduledAt ? formatDateTime(campaign.scheduledAt) : "미정"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-small text-muted-foreground mb-1">발송 완료일</p>
+                  <p className="font-medium" data-testid="text-completed-date">
+                    {campaign.completedAt ? formatDateTime(campaign.completedAt) : "-"}
+                  </p>
+                </div>
+              </div>
+              {campaign.rejectionReason && (
+                <div className="p-4 bg-destructive/10 rounded-lg border border-destructive/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <XCircle className="h-4 w-4 text-destructive" />
+                    <span className="font-medium text-destructive">반려 사유</span>
+                  </div>
+                  <p className="text-small" data-testid="text-rejection-reason">{campaign.rejectionReason}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-h3">메시지 요약</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {message ? (
+                  <div className="space-y-3">
+                    {message.title && (
+                      <div>
+                        <p className="text-small text-muted-foreground mb-1">제목</p>
+                        <p className="font-medium">{message.title}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-small text-muted-foreground mb-1">내용</p>
+                      <p className="text-small whitespace-pre-wrap line-clamp-4" data-testid="text-message-preview">
+                        {message.content}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-small">메시지가 설정되지 않았어요</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-h3">타겟팅 요약</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {targeting ? (
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="secondary">
+                        {GENDER_LABELS[targeting.gender || "all"]}
+                      </Badge>
+                      <Badge variant="secondary">
+                        {targeting.ageMin || 0}~{targeting.ageMax || 100}세
+                      </Badge>
+                      {targeting.regions && targeting.regions.length > 0 && (
+                        <Badge variant="secondary">
+                          {targeting.regions.length}개 지역
+                        </Badge>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-small text-muted-foreground mb-1">예상 도달</p>
+                      <p className="text-h2 font-bold text-primary" data-testid="text-estimated-reach">
+                        {targeting.estimatedReach ? formatNumber(targeting.estimatedReach) : "-"}명
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-small">타겟팅이 설정되지 않았어요</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="message">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-primary" />
+                메시지 상세
+              </CardTitle>
+              <CardDescription>
+                {MESSAGE_TYPE_LABELS[campaign.messageType]} 형식의 메시지입니다
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {message ? (
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-4">
+                    {message.title && (
+                      <div>
+                        <p className="text-small text-muted-foreground mb-1">제목</p>
+                        <p className="font-medium text-h3">{message.title}</p>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-small text-muted-foreground mb-1">본문</p>
+                      <div className="p-4 bg-muted rounded-lg">
+                        <p className="whitespace-pre-wrap" data-testid="text-message-content">
+                          {message.content}
+                        </p>
+                      </div>
+                      <p className="text-tiny text-muted-foreground mt-2">
+                        {message.content?.length || 0} / 2000자
+                      </p>
+                    </div>
+                    {message.callbackUrl && (
+                      <div>
+                        <p className="text-small text-muted-foreground mb-1">링크 URL</p>
+                        <a 
+                          href={message.callbackUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline break-all"
+                        >
+                          {message.callbackUrl}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-center">
+                    <div className="w-64 h-[480px] bg-gray-900 rounded-[2rem] p-3 shadow-xl">
+                      <div className="w-full h-full bg-white dark:bg-gray-100 rounded-[1.5rem] overflow-hidden flex flex-col">
+                        <div className="bg-gray-200 dark:bg-gray-300 p-3 text-center text-tiny text-gray-600">
+                          메시지 미리보기
+                        </div>
+                        <div className="flex-1 p-4 overflow-auto">
+                          <div className="bg-gray-100 dark:bg-gray-200 rounded-lg p-3 text-small text-gray-800">
+                            {message.title && (
+                              <p className="font-bold mb-2">{message.title}</p>
+                            )}
+                            <p className="whitespace-pre-wrap">{message.content}</p>
+                            {message.imageUrl && (
+                              <img 
+                                src={message.imageUrl} 
+                                alt="첨부 이미지" 
+                                className="mt-3 rounded-lg max-w-full"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState
+                  icon={MessageSquare}
+                  title="메시지가 없어요"
+                  description="캠페인에 메시지가 설정되지 않았어요"
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="targeting">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Target className="h-5 w-5 text-primary" />
+                타겟팅 설정
+              </CardTitle>
+              <CardDescription>
+                SK CoreTarget 기반 정밀 타겟팅
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {targeting ? (
+                <div className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="text-small text-muted-foreground mb-1">성별</p>
+                      <p className="text-h3 font-bold">{GENDER_LABELS[targeting.gender || "all"]}</p>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="text-small text-muted-foreground mb-1">연령대</p>
+                      <p className="text-h3 font-bold">{targeting.ageMin || 0}~{targeting.ageMax || 100}세</p>
+                    </div>
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="text-small text-muted-foreground mb-1">예상 도달</p>
+                      <p className="text-h3 font-bold text-primary">
+                        {targeting.estimatedReach ? formatNumber(targeting.estimatedReach) : "-"}명
+                      </p>
+                    </div>
+                  </div>
+
+                  {targeting.regions && targeting.regions.length > 0 && (
+                    <div>
+                      <p className="text-small text-muted-foreground mb-2">지역</p>
+                      <div className="flex flex-wrap gap-2">
+                        {targeting.regions.map((region, idx) => (
+                          <Badge key={idx} variant="outline">{region}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {targeting.interests && targeting.interests.length > 0 && (
+                    <div>
+                      <p className="text-small text-muted-foreground mb-2">관심사</p>
+                      <div className="flex flex-wrap gap-2">
+                        {targeting.interests.map((interest, idx) => (
+                          <Badge key={idx} variant="secondary">{interest}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <EmptyState
+                  icon={Target}
+                  title="타겟팅이 없어요"
+                  description="캠페인에 타겟팅이 설정되지 않았어요"
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="report">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" />
+                캠페인 성과
+              </CardTitle>
+              <CardDescription>
+                발송 결과 및 성과 분석
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {sentCount > 0 ? (
+                <div className="space-y-6">
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <div className="text-center p-4 bg-muted rounded-lg">
+                      <p className="text-3xl font-bold text-primary">{formatNumber(sentCount)}</p>
+                      <p className="text-small text-muted-foreground">총 발송</p>
+                    </div>
+                    <div className="text-center p-4 bg-muted rounded-lg">
+                      <p className="text-3xl font-bold text-success">{formatNumber(successCount)}</p>
+                      <p className="text-small text-muted-foreground">성공</p>
+                    </div>
+                    <div className="text-center p-4 bg-muted rounded-lg">
+                      <p className="text-3xl font-bold">{successRate}%</p>
+                      <p className="text-small text-muted-foreground">성공률</p>
+                    </div>
+                    <div className="text-center p-4 bg-muted rounded-lg">
+                      <p className="text-3xl font-bold text-chart-5">
+                        {campaign.report?.clickCount || 0}
+                      </p>
+                      <p className="text-small text-muted-foreground">클릭</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-small mb-2">
+                        <span>발송 성공률</span>
+                        <span className="font-medium">{successRate}%</span>
+                      </div>
+                      <Progress value={successRate} className="h-2" />
+                    </div>
+                    {campaign.report?.clickCount && successCount > 0 && (
+                      <div>
+                        <div className="flex justify-between text-small mb-2">
+                          <span>클릭률 (CTR)</span>
+                          <span className="font-medium">
+                            {((campaign.report.clickCount / successCount) * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                        <Progress 
+                          value={(campaign.report.clickCount / successCount) * 100} 
+                          className="h-2" 
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <EmptyState
+                  icon={BarChart3}
+                  title="아직 성과 데이터가 없어요"
+                  description="캠페인이 발송되면 여기에서 성과를 확인할 수 있어요"
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

@@ -1,0 +1,40 @@
+import { Badge } from "@/components/ui/badge";
+import { getStatusLabel } from "@/lib/authUtils";
+
+interface CampaignStatusBadgeProps {
+  status: string;
+  className?: string;
+}
+
+export function CampaignStatusBadge({ status, className }: CampaignStatusBadgeProps) {
+  const getStatusStyles = (status: string) => {
+    switch (status) {
+      case 'draft':
+        return 'bg-muted text-muted-foreground border-muted-border';
+      case 'pending':
+        return 'bg-warning/10 text-warning border-warning/20';
+      case 'approved':
+        return 'bg-success/10 text-success border-success/20';
+      case 'running':
+        return 'bg-primary/10 text-primary border-primary/20';
+      case 'completed':
+        return 'bg-success/10 text-success border-success/20';
+      case 'rejected':
+        return 'bg-destructive/10 text-destructive border-destructive/20';
+      case 'cancelled':
+        return 'bg-muted text-muted-foreground border-muted-border';
+      default:
+        return 'bg-muted text-muted-foreground border-muted-border';
+    }
+  };
+
+  return (
+    <Badge 
+      variant="outline" 
+      className={`${getStatusStyles(status)} ${className || ''}`}
+      data-testid={`badge-status-${status}`}
+    >
+      {getStatusLabel(status)}
+    </Badge>
+  );
+}
