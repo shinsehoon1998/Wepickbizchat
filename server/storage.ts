@@ -21,10 +21,19 @@ import {
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
 
+export interface CreditBalanceResult {
+  success: boolean;
+  alreadyProcessed?: boolean;
+  error?: string;
+  transaction?: Transaction;
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
   updateUserBalance(userId: string, amount: string): Promise<User | undefined>;
+  updateUserStripeCustomerId(userId: string, stripeCustomerId: string): Promise<User | undefined>;
+  creditBalanceAtomically(userId: string, amount: number, stripeSessionId: string): Promise<CreditBalanceResult>;
   
   getCampaigns(userId: string): Promise<Campaign[]>;
   getCampaign(id: string): Promise<Campaign | undefined>;
@@ -41,6 +50,7 @@ export interface IStorage {
   
   getTransactions(userId: string): Promise<Transaction[]>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
+  getTransactionByStripeSessionId(stripeSessionId: string): Promise<Transaction | undefined>;
   
   getReport(campaignId: string): Promise<Report | undefined>;
   createReport(report: InsertReport): Promise<Report>;
@@ -87,6 +97,67 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return user || undefined;
+  }
+
+  async updateUserStripeCustomerId(userId: string, stripeCustomerId: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ 
+        stripeCustomerId,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return user || undefined;
+  }
+
+  async creditBalanceAtomically(userId: string, amount: number, stripeSessionId: string): Promise<CreditBalanceResult> {
+    try {
+      const result = await db.transaction(async (tx) => {
+        const [user] = await tx
+          .select()
+          .from(users)
+          .where(eq(users.id, userId))
+          .for('update');
+
+        if (!user) {
+          throw new Error("User not found");
+        }
+
+        const currentBalance = parseFloat(user.balance as string || "0");
+        const newBalance = currentBalance + amount;
+
+        await tx
+          .update(users)
+          .set({ 
+            balance: newBalance.toString(),
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userId));
+
+        const [transaction] = await tx.insert(transactions).values({
+          userId,
+          type: "charge",
+          amount: amount.toString(),
+          balanceAfter: newBalance.toString(),
+          description: "Stripe 카드 결제 충전",
+          paymentMethod: "stripe",
+          stripeSessionId,
+        }).returning();
+
+        return { success: true as const, transaction };
+      });
+
+      return result;
+    } catch (error: any) {
+      if (error?.code === '23505') {
+        return { success: false, alreadyProcessed: true };
+      }
+      if (error?.message === "User not found") {
+        return { success: false, error: "User not found" };
+      }
+      return { success: false, error: error?.message || "Unknown error" };
+    }
   }
 
   async getCampaigns(userId: string): Promise<Campaign[]> {
@@ -161,6 +232,14 @@ export class DatabaseStorage implements IStorage {
   async createTransaction(transactionData: InsertTransaction): Promise<Transaction> {
     const [transaction] = await db.insert(transactions).values(transactionData).returning();
     return transaction;
+  }
+
+  async getTransactionByStripeSessionId(stripeSessionId: string): Promise<Transaction | undefined> {
+    const [transaction] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.stripeSessionId, stripeSessionId));
+    return transaction || undefined;
   }
 
   async getReport(campaignId: string): Promise<Report | undefined> {

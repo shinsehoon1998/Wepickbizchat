@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { insertCampaignSchema, insertMessageSchema, insertTargetingSchema } from "@shared/schema";
 import { z } from "zod";
 import { setupAuth, isAuthenticated } from "./replitAuth";
+import { getUncachableStripeClient, getStripePublishableKey } from "./stripeClient";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -507,6 +508,77 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error exporting reports:", error);
       res.status(500).json({ error: "Failed to export reports" });
+    }
+  });
+
+  app.get("/api/stripe/config", async (req, res) => {
+    try {
+      const publishableKey = await getStripePublishableKey();
+      res.json({ publishableKey });
+    } catch (error) {
+      console.error("Error getting Stripe config:", error);
+      res.status(500).json({ error: "Failed to get Stripe config" });
+    }
+  });
+
+  app.post("/api/stripe/checkout", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const user = await storage.getUser(userId);
+      const { amount } = req.body;
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      if (!amount || amount < 10000) {
+        return res.status(400).json({ error: "최소 충전 금액은 10,000원입니다" });
+      }
+      
+      const stripe = await getUncachableStripeClient();
+      
+      let customerId = user.stripeCustomerId;
+      if (!customerId) {
+        const customer = await stripe.customers.create({
+          email: user.email || undefined,
+          metadata: { userId: user.id },
+        });
+        customerId = customer.id;
+        await storage.updateUserStripeCustomerId(userId, customerId);
+      }
+      
+      const baseUrl = `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
+      
+      const session = await stripe.checkout.sessions.create({
+        customer: customerId,
+        payment_method_types: ['card'],
+        line_items: [
+          {
+            price_data: {
+              currency: 'krw',
+              product_data: {
+                name: 'BizChat 잔액 충전',
+                description: `${amount.toLocaleString()}원 충전`,
+              },
+              unit_amount: amount,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: 'payment',
+        success_url: `${baseUrl}/billing?success=true&amount=${amount}`,
+        cancel_url: `${baseUrl}/billing?canceled=true`,
+        metadata: {
+          userId,
+          amount: amount.toString(),
+          type: 'balance_charge',
+        },
+      });
+      
+      res.json({ url: session.url });
+    } catch (error) {
+      console.error("Error creating checkout session:", error);
+      res.status(500).json({ error: "Failed to create checkout session" });
     }
   });
 

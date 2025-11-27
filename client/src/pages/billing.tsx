@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Wallet, 
   CreditCard, 
@@ -9,7 +9,8 @@ import {
   ArrowDownRight,
   RefreshCw,
   Plus,
-  Loader2
+  Loader2,
+  ExternalLink
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency, formatDateTime } from "@/lib/authUtils";
@@ -34,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Transaction } from "@shared/schema";
+import { useLocation } from "wouter";
 
 const chargeAmounts = [100000, 300000, 500000, 1000000];
 
@@ -43,6 +45,32 @@ export default function Billing() {
   const [chargeAmount, setChargeAmount] = useState<number>(100000);
   const [customAmount, setCustomAmount] = useState<string>("");
   const [isChargeDialogOpen, setIsChargeDialogOpen] = useState(false);
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const success = params.get('success');
+    const amount = params.get('amount');
+    const canceled = params.get('canceled');
+
+    if (success === 'true' && amount) {
+      toast({
+        title: "결제 완료",
+        description: `${formatCurrency(parseInt(amount))}이 충전되었어요!`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      refetchUser();
+      window.history.replaceState({}, '', '/billing');
+    } else if (canceled === 'true') {
+      toast({
+        title: "결제 취소",
+        description: "결제가 취소되었어요",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, '', '/billing');
+    }
+  }, [toast, refetchUser]);
 
   const { data: transactions, isLoading } = useQuery<Transaction[]>({
     queryKey: ["/api/transactions"],
@@ -77,11 +105,34 @@ export default function Billing() {
     },
   });
 
+  const stripeCheckoutMutation = useMutation({
+    mutationFn: async (amount: number) => {
+      const res = await apiRequest("POST", "/api/stripe/checkout", { amount });
+      return await res.json();
+    },
+    onSuccess: (data) => {
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "결제 오류",
+        description: error.message || "결제 페이지로 이동할 수 없어요",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleCharge = () => {
     chargeMutation.mutate({
       amount: chargeAmount,
       paymentMethod: "card",
     });
+  };
+
+  const handleStripeCheckout = () => {
+    stripeCheckoutMutation.mutate(chargeAmount);
   };
 
   const balance = parseFloat(user?.balance as string || "0");
@@ -214,21 +265,22 @@ export default function Billing() {
                 </div>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsChargeDialogOpen(false)} disabled={chargeMutation.isPending}>
+            <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button variant="outline" onClick={() => setIsChargeDialogOpen(false)} disabled={chargeMutation.isPending || stripeCheckoutMutation.isPending}>
                 취소
               </Button>
               <Button 
-                disabled={chargeAmount < 10000 || chargeMutation.isPending}
-                onClick={handleCharge}
-                data-testid="button-confirm-charge"
+                disabled={chargeAmount < 10000 || chargeMutation.isPending || stripeCheckoutMutation.isPending}
+                onClick={handleStripeCheckout}
+                className="gap-2"
+                data-testid="button-stripe-checkout"
               >
-                {chargeMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                {stripeCheckoutMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <CreditCard className="h-4 w-4 mr-2" />
+                  <ExternalLink className="h-4 w-4" />
                 )}
-                {chargeMutation.isPending ? "결제 중..." : `${formatCurrency(chargeAmount)} 결제하기`}
+                {stripeCheckoutMutation.isPending ? "이동 중..." : `${formatCurrency(chargeAmount)} 카드 결제`}
               </Button>
             </DialogFooter>
           </DialogContent>

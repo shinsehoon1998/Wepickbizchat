@@ -69,8 +69,14 @@ SK코어타겟 비즈챗은 SK 통신사 가입자 대상 문자 광고 플랫�
 - `PATCH /api/campaigns/:id` - Update campaign
 - `DELETE /api/campaigns/:id` - Delete draft campaign
 - `GET /api/transactions` - Balance history
-- `POST /api/transactions/charge` - Add balance
+- `POST /api/transactions/charge` - Add balance (mock)
 - `POST /api/campaigns/:id/submit` - Submit for approval
+- `POST /api/campaigns/:id/approve` - Approve campaign (simulation)
+- `POST /api/campaigns/:id/start` - Start campaign sending
+- `POST /api/targeting/estimate` - Estimate target audience size
+- `GET /api/reports/export` - Export campaigns to CSV
+- `GET /api/stripe/config` - Get Stripe publishable key
+- `POST /api/stripe/checkout` - Create Stripe checkout session
 
 ## Design System
 See `design_guidelines.md` for complete design specifications:
@@ -99,6 +105,9 @@ npm run db:push  # Push schema changes to database
 - PostgreSQL database with Drizzle ORM
 - Dark mode support with theme toggle
 - Korean localization for all UI text
+- Stripe payment integration for real balance charging
+- Idempotent webhook handling to prevent duplicate credits
+- CSV export for campaign reports (scoped by authenticated user)
 
 ## User Preferences
 - Korean language (한국어) for all UI text

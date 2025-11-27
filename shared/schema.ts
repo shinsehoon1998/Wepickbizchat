@@ -35,6 +35,7 @@ export const users = pgTable("users", {
   businessNumber: varchar("business_number"),
   phone: varchar("phone"),
   balance: decimal("balance", { precision: 12, scale: 0 }).default("0"),
+  stripeCustomerId: varchar("stripe_customer_id"),
   isVerified: boolean("is_verified").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -89,6 +90,7 @@ export const transactions = pgTable("transactions", {
   balanceAfter: decimal("balance_after", { precision: 12, scale: 0 }).notNull(),
   description: text("description"),
   paymentMethod: varchar("payment_method", { length: 50 }),
+  stripeSessionId: varchar("stripe_session_id", { length: 255 }).unique(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
