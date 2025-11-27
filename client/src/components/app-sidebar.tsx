@@ -7,6 +7,8 @@ import {
   Settings,
   LogOut,
   ChevronUp,
+  FileText,
+  FilePlus,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -43,6 +45,22 @@ const mainNavItems = [
     url: "/",
     icon: LayoutDashboard,
   },
+];
+
+const templateNavItems = [
+  {
+    title: "템플릿 만들기",
+    url: "/templates/new",
+    icon: FilePlus,
+  },
+  {
+    title: "템플릿 목록",
+    url: "/templates",
+    icon: FileText,
+  },
+];
+
+const campaignNavItems = [
   {
     title: "캠페인 만들기",
     url: "/campaigns/new",
@@ -98,10 +116,52 @@ export function AppSidebar() {
 
       <SidebarContent className="custom-scrollbar">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-muted-foreground">광고 관리</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-muted-foreground">홈</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    onClick={() => navigate(item.url)}
+                    isActive={location === item.url}
+                    className="data-[active=true]:bg-sidebar-accent cursor-pointer"
+                    data-testid={`link-nav-${item.url.replace(/\//g, '-')}`}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-muted-foreground">템플릿 관리</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {templateNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    onClick={() => navigate(item.url)}
+                    isActive={location === item.url || (item.url !== '/' && location.startsWith(item.url))}
+                    className="data-[active=true]:bg-sidebar-accent cursor-pointer"
+                    data-testid={`link-nav-${item.url.replace(/\//g, '-')}`}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-muted-foreground">캠페인 관리</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {campaignNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     onClick={() => navigate(item.url)}

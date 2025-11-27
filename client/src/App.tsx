@@ -12,6 +12,8 @@ import { Loader2 } from "lucide-react";
 
 import Landing from "@/pages/landing";
 import Dashboard from "@/pages/dashboard";
+import Templates from "@/pages/templates";
+import TemplatesNew from "@/pages/templates-new";
 import Campaigns from "@/pages/campaigns";
 import CampaignDetail from "@/pages/campaign-detail";
 import CampaignsNew from "@/pages/campaigns-new";
@@ -77,6 +79,8 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={() => <ProtectedRoute component={Dashboard} />} />
+      <Route path="/templates" component={() => <ProtectedRoute component={Templates} />} />
+      <Route path="/templates/new" component={() => <ProtectedRoute component={TemplatesNew} />} />
       <Route path="/campaigns" component={() => <ProtectedRoute component={Campaigns} />} />
       <Route path="/campaigns/new" component={() => <ProtectedRoute component={CampaignsNew} />} />
       <Route path="/campaigns/:id" component={() => <ProtectedRoute component={CampaignDetail} />} />
