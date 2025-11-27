@@ -13,6 +13,7 @@ import {
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency } from "@/lib/authUtils";
+import logoImage from "@assets/위픽xSKT 로고_1764247660608.png";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sidebar,
@@ -101,15 +102,13 @@ export function AppSidebar() {
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <button 
           onClick={() => navigate("/")} 
-          className="flex items-center gap-2 w-full text-left" 
+          className="flex items-center gap-3 w-full text-left" 
           data-testid="link-logo"
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-lg">
-            SK
-          </div>
+          <img src={logoImage} alt="wepick x SKT 로고" className="h-9 w-auto" />
           <div className="flex flex-col">
-            <span className="font-bold text-sm text-sidebar-foreground">SK코어타겟</span>
-            <span className="text-tiny text-muted-foreground">비즈챗 광고관리</span>
+            <span className="font-bold text-sm text-sidebar-foreground">비즈챗</span>
+            <span className="text-tiny text-muted-foreground">광고관리</span>
           </div>
         </button>
       </SidebarHeader>

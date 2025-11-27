@@ -1,7 +1,7 @@
-# SK코어타겟 비즈챗 (BizChat) 광고 관리 플랫폼
+# wepick x SKT 비즈챗 (BizChat) 광고 관리 플랫폼
 
 ## Overview
-SK코어타겟 비즈챗은 SK 통신사 가입자 대상 문자 광고 플랫폼입니다. 영세 자영업자가 최소 10만원으로 LMS/MMS/RCS 캠페인을 생성하고 SK CoreTarget 기반 타겟팅으로 효과적인 광고를 발송할 수 있습니다.
+wepick x SKT 비즈챗은 SK텔레콤 광고 수신 동의 고객 1,600만 명 대상 문자 광고 플랫폼입니다. 영세 자영업자가 최소 10만원으로 LMS/MMS/RCS 캠페인을 생성하고 SK CoreTarget 기반 타겟팅으로 효과적인 광고를 발송할 수 있습니다.
 
 ## Tech Stack
 - **Frontend**: React 18 + TypeScript + Vite
@@ -80,10 +80,11 @@ SK코어타겟 비즈챗은 SK 통신사 가입자 대상 문자 광고 플랫�
 
 ## Design System
 See `design_guidelines.md` for complete design specifications:
-- **Primary Color**: #FF6F0F (당근 오렌지)
+- **Primary Color**: #E84040 (SKT 레드)
 - **Font**: Pretendard Variable
 - **Border Radius**: 8px (rounded-lg)
 - **UX Writing**: Friendly 반말 tone (당근마켓 스타일)
+- **Logo**: wepick x SKT 브랜드 로고
 
 ## Development
 ```bash
@@ -92,25 +93,30 @@ npm run db:push  # Push schema changes to database
 ```
 
 ## Key Features (MVP)
-1. **Landing Page**: Attractive marketing page with login CTA
+1. **Landing Page**: SKT 비즈챗 서비스 소개 및 로그인 CTA
 2. **Dashboard**: Campaign overview, stats, quick actions
-3. **Campaign Wizard**: 4-step creation flow (info → message → targeting → budget)
-4. **Campaign List**: Filter, search, and manage campaigns
-5. **Billing**: Balance charging and transaction history
-6. **Reports**: Campaign performance analytics
+3. **Template System**: 템플릿 작성 → 검수 요청 → 승인/반려 워크플로우
+4. **Campaign Wizard**: 3-step creation flow (템플릿 선택 → 타겟팅 → 예산)
+5. **Campaign List**: Filter, search, and manage campaigns
+6. **Billing**: Balance charging and transaction history
+7. **Reports**: Campaign performance analytics
 
 ## Recent Changes
 - Initial MVP implementation with all core pages
 - Replit Auth integration for user authentication
 - PostgreSQL database with Drizzle ORM
-- Dark mode support with theme toggle
 - Korean localization for all UI text
 - Stripe payment integration for real balance charging
 - Idempotent webhook handling to prevent duplicate credits
 - CSV export for campaign reports (scoped by authenticated user)
+- Template management system with approval workflow
+- Updated landing page with SKT BizChat content from PDF
+- Changed primary color to SKT red/orange (#E84040)
+- Updated logo to wepick x SKT brand logo
+- Removed dark mode toggle (light mode only)
 
 ## User Preferences
 - Korean language (한국어) for all UI text
 - 당근마켓-inspired friendly UX writing tone
-- Support for both light and dark modes
+- Light mode only
 - Mobile-responsive design

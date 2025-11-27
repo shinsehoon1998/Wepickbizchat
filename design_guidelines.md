@@ -1,7 +1,7 @@
-# SK CoreTarget BizChat 광고 관리 플랫폼 - Design Guidelines
+# wepick x SKT 비즈챗 광고 관리 플랫폼 - Design Guidelines
 
 ## Design Reference
-**Primary Inspiration**: 당근마켓 광고관리자 (Carrot Market Ad Manager)
+**Primary Inspiration**: SKT 브랜드 가이드라인 + 비즈챗 서비스
 - Friendly, approachable tone in all UX writing
 - Intuitive workflows that make complex advertising tasks feel simple
 - Clear visual hierarchy with warm, accessible design language
@@ -9,12 +9,12 @@
 
 ## Color System
 ```
-Primary: #FF6F0F (당근 오렌지) - CTAs, active states, highlights
+Primary: #E84040 (SKT 레드) - CTAs, active states, highlights (HSL: 8 85% 52%)
 Secondary: #212529 (진한 회색) - Headers, primary text
 Background: #F8F9FA (연한 회색) - Page backgrounds
 Success: #28A745 (초록) - Success messages, positive metrics
 Text: #495057 (중간 회색) - Body text, labels
-Accent: #FFF3E0 (연한 오렌지) - Badges, hover states, soft highlights
+Accent: #FFEBEB (연한 레드) - Badges, hover states, soft highlights
 White: #FFFFFF - Card backgrounds, input fields
 ```
 
@@ -60,12 +60,12 @@ White: #FFFFFF - Card backgrounds, input fields
 - Hover state: Slight shadow increase on interactive cards
 
 ### Buttons
-**Primary** (당근 Orange):
-- Background: #FF6F0F
+**Primary** (SKT Red):
+- Background: #E84040
 - Text: White
 - Padding: 12px 24px
 - Border radius: 8px
-- Hover: Slightly darker orange
+- Hover: Slightly darker red
 - Used for: Main actions, campaign creation, payment
 
 **Secondary** (Outlined):
@@ -76,7 +76,7 @@ White: #FFFFFF - Card backgrounds, input fields
 
 **Tertiary** (Text only):
 - No background/border
-- Text: #FF6F0F
+- Text: #E84040
 - Hover: Underline
 
 ### Form Inputs
@@ -84,7 +84,7 @@ White: #FFFFFF - Card backgrounds, input fields
 - Border: 1px solid #E5E7EB
 - Border radius: 8px
 - Padding: 12px 16px
-- Focus state: Orange border (#FF6F0F), subtle shadow
+- Focus state: Red border (#E84040), subtle shadow
 - Labels: 14px, #495057, positioned above input
 
 ### Dashboard Components
@@ -105,7 +105,7 @@ White: #FFFFFF - Card backgrounds, input fields
 - Pill shape with colored backgrounds
 - Draft: Gray (#6B7280)
 - Pending: Yellow (#FCD34D)
-- Running: Orange (#FF6F0F)
+- Running: Red (#E84040)
 - Completed: Green (#28A745)
 - Rejected: Red (#DC2626)
 
@@ -113,9 +113,9 @@ White: #FFFFFF - Card backgrounds, input fields
 
 **Multi-step Progress Indicator**:
 - Horizontal stepper at top
-- Orange for active/completed steps
+- Red for active/completed steps
 - Gray for upcoming steps
-- Step labels: "기본 정보" → "타겟 설정" → "메시지 작성" → "검토 및 발송"
+- Step labels: "템플릿 선택" → "타겟 설정" → "예산 확인"
 
 **Message Editor**:
 - Split view: Editor on left, Preview on right (desktop)
@@ -167,7 +167,7 @@ White: #FFFFFF - Card backgrounds, input fields
 - Page transitions: Subtle fade (150ms)
 - Card hover: Slight elevation increase
 - Button click: Scale down slightly (95%)
-- Loading states: Orange spinner with brand color
+- Loading states: Red spinner with brand color
 - Success notifications: Slide in from top
 
 ## Accessibility
