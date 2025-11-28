@@ -300,7 +300,18 @@ export default function CampaignsNew() {
   };
 
   const onSubmit = (data: CampaignFormData) => {
+    // Only submit when on the final step (Step 3)
+    if (currentStep !== 3) {
+      return;
+    }
     createCampaignMutation.mutate(data);
+  };
+
+  // Prevent Enter key from submitting the form on intermediate steps
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && currentStep !== 3) {
+      e.preventDefault();
+    }
   };
 
   return (
@@ -353,7 +364,7 @@ export default function CampaignsNew() {
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit)} onKeyDown={handleKeyDown} className="space-y-6">
           {currentStep === 1 && (
             <div className="space-y-6">
               <Card>
