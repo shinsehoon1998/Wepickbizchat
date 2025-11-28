@@ -276,7 +276,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteCampaign(id: string): Promise<boolean> {
-    const result = await db.delete(campaigns).where(eq(campaigns.id, id));
+    // 외래 키 제약 조건 때문에 관련 레코드를 먼저 삭제해야 함
+    await db.delete(reports).where(eq(reports.campaignId, id));
+    await db.delete(targeting).where(eq(targeting.campaignId, id));
+    await db.delete(messages).where(eq(messages.campaignId, id));
+    await db.delete(campaigns).where(eq(campaigns.id, id));
     return true;
   }
 
