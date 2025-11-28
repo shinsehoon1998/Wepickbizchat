@@ -46,10 +46,10 @@ export async function registerRoutes(
       const userId = (req as any).userId;
       const templates = await storage.getTemplates(userId);
       
-      // Add send history stats for each template
+      // Add send history stats for each template (filtered by userId for security)
       const templatesWithStats = await Promise.all(
         templates.map(async (template) => {
-          const stats = await storage.getTemplateStats(template.id);
+          const stats = await storage.getTemplateStats(template.id, userId);
           return {
             ...template,
             sendHistory: {
@@ -774,6 +774,56 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error sending test message:", error);
       res.status(500).json({ error: "Failed to send test message" });
+    }
+  });
+
+  // Template-based test send (before campaign creation)
+  app.post("/api/test-send", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { templateId, phoneNumber } = req.body;
+      
+      if (!templateId) {
+        return res.status(400).json({ error: "템플릿을 선택해주세요" });
+      }
+      
+      if (!phoneNumber) {
+        return res.status(400).json({ error: "휴대폰 번호를 입력해주세요" });
+      }
+      
+      // Validate phone number format (Korean mobile: 010-XXXX-XXXX or 01XXXXXXXXX)
+      const cleanPhone = phoneNumber.replace(/-/g, '');
+      if (!/^01[0-9]{8,9}$/.test(cleanPhone)) {
+        return res.status(400).json({ error: "올바른 휴대폰 번호 형식이 아니에요 (예: 010-1234-5678)" });
+      }
+      
+      const template = await storage.getTemplate(templateId);
+      
+      if (!template) {
+        return res.status(404).json({ error: "템플릿을 찾을 수 없어요" });
+      }
+      
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      if (template.status !== "approved") {
+        return res.status(400).json({ error: "승인된 템플릿만 테스트 발송이 가능해요" });
+      }
+      
+      // Mock test send - in production, this would call BizChat API
+      res.json({
+        success: true,
+        message: `${phoneNumber}로 테스트 메시지를 발송했어요`,
+        testId: `TEST${Date.now()}`,
+        template: {
+          name: template.name,
+          messageType: template.messageType,
+        },
+      });
+    } catch (error) {
+      console.error("Error sending test message:", error);
+      res.status(500).json({ error: "테스트 발송에 실패했어요" });
     }
   });
 

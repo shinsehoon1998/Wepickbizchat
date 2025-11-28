@@ -94,8 +94,8 @@ export interface IStorage {
   createFile(file: InsertFile): Promise<File>;
   deleteFile(id: string): Promise<boolean>;
   
-  // Template Stats
-  getTemplateStats(templateId: string): Promise<{
+  // Template Stats (filtered by userId for security)
+  getTemplateStats(templateId: string, userId: string): Promise<{
     campaignCount: number;
     totalSent: number;
     totalDelivered: number;
@@ -426,12 +426,13 @@ export class DatabaseStorage implements IStorage {
     return result.rowCount ? result.rowCount > 0 : false;
   }
 
-  async getTemplateStats(templateId: string): Promise<{
+  async getTemplateStats(templateId: string, userId: string): Promise<{
     campaignCount: number;
     totalSent: number;
     totalDelivered: number;
     lastSentAt: Date | null;
   }> {
+    // Filter by both templateId and userId for security
     const campaignList = await db
       .select({
         sentCount: campaigns.sentCount,
@@ -439,7 +440,10 @@ export class DatabaseStorage implements IStorage {
         status: campaigns.status,
       })
       .from(campaigns)
-      .where(eq(campaigns.templateId, templateId));
+      .where(and(
+        eq(campaigns.templateId, templateId),
+        eq(campaigns.userId, userId)
+      ));
     
     const reportsList = await db
       .select({
@@ -447,7 +451,10 @@ export class DatabaseStorage implements IStorage {
       })
       .from(reports)
       .innerJoin(campaigns, eq(reports.campaignId, campaigns.id))
-      .where(eq(campaigns.templateId, templateId));
+      .where(and(
+        eq(campaigns.templateId, templateId),
+        eq(campaigns.userId, userId)
+      ));
     
     const campaignCount = campaignList.length;
     const totalSent = campaignList.reduce((sum, c) => sum + (c.sentCount || 0), 0);
