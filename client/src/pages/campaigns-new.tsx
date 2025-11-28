@@ -16,6 +16,8 @@ import {
   Smartphone,
   FilePlus,
   Save,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency, formatNumber, getMessageTypeLabel } from "@/lib/authUtils";
@@ -28,6 +30,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -44,7 +47,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import TargetingAdvanced from "@/components/targeting-advanced";
 import type { Template, SenderNumber } from "@shared/schema";
 
 const campaignSchema = z.object({
@@ -93,6 +102,17 @@ export default function CampaignsNew() {
   const [uploadedImageId, setUploadedImageId] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [showAdvancedTargeting, setShowAdvancedTargeting] = useState(false);
+  const [advancedTargeting, setAdvancedTargeting] = useState({
+    carrierTypes: [] as string[],
+    deviceTypes: [] as string[],
+    shopping11stCategories: [] as string[],
+    webappCategories: [] as string[],
+    callUsageTypes: [] as string[],
+    locationTypes: [] as string[],
+    mobilityPatterns: [] as string[],
+    geofenceIds: [] as string[],
+  });
 
   const { data: approvedTemplates, isLoading: templatesLoading } = useQuery<Template[]>({
     queryKey: ["/api/templates/approved"],
@@ -731,6 +751,45 @@ export default function CampaignsNew() {
                 </Card>
               </CardContent>
             </Card>
+            
+            <Collapsible open={showAdvancedTargeting} onOpenChange={setShowAdvancedTargeting}>
+              <Card>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover-elevate">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          고급 타겟팅
+                          <Badge variant="outline" className="font-normal">SK CoreTarget</Badge>
+                        </CardTitle>
+                        <CardDescription>
+                          빅데이터 기반 정밀 타겟팅으로 광고 효과 UP
+                        </CardDescription>
+                      </div>
+                      {showAdvancedTargeting ? (
+                        <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent>
+                    <TargetingAdvanced
+                      targeting={advancedTargeting}
+                      onTargetingChange={setAdvancedTargeting}
+                      basicTargeting={{
+                        gender: watchGender,
+                        ageMin: watchAgeMin,
+                        ageMax: watchAgeMax,
+                        regions: watchRegions,
+                      }}
+                    />
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
           )}
 
           {currentStep === 3 && (

@@ -9,6 +9,64 @@ import multer from "multer";
 import { promises as fs } from "fs";
 import path from "path";
 
+// ATS 메타데이터 시뮬레이션 데이터
+function getSimulatedAtsMeta(metaType: string) {
+  switch (metaType) {
+    case "11st":
+      return [
+        { categoryCode: "11ST_001", categoryName: "패션/의류", level: 1, parentCode: null },
+        { categoryCode: "11ST_002", categoryName: "뷰티/화장품", level: 1, parentCode: null },
+        { categoryCode: "11ST_003", categoryName: "디지털/가전", level: 1, parentCode: null },
+        { categoryCode: "11ST_004", categoryName: "식품/건강", level: 1, parentCode: null },
+        { categoryCode: "11ST_005", categoryName: "생활/주방", level: 1, parentCode: null },
+        { categoryCode: "11ST_006", categoryName: "스포츠/레저", level: 1, parentCode: null },
+        { categoryCode: "11ST_007", categoryName: "유아/출산", level: 1, parentCode: null },
+        { categoryCode: "11ST_008", categoryName: "도서/문구", level: 1, parentCode: null },
+      ];
+    case "webapp":
+      return [
+        { categoryCode: "APP_001", categoryName: "금융/은행", level: 1, parentCode: null },
+        { categoryCode: "APP_002", categoryName: "쇼핑", level: 1, parentCode: null },
+        { categoryCode: "APP_003", categoryName: "게임", level: 1, parentCode: null },
+        { categoryCode: "APP_004", categoryName: "음악/동영상", level: 1, parentCode: null },
+        { categoryCode: "APP_005", categoryName: "소셜/커뮤니티", level: 1, parentCode: null },
+        { categoryCode: "APP_006", categoryName: "여행/교통", level: 1, parentCode: null },
+        { categoryCode: "APP_007", categoryName: "배달/음식", level: 1, parentCode: null },
+        { categoryCode: "APP_008", categoryName: "건강/운동", level: 1, parentCode: null },
+      ];
+    case "call":
+      return [
+        { categoryCode: "CALL_001", categoryName: "고빈도 통화자 (월 100회+)", level: 1, parentCode: null },
+        { categoryCode: "CALL_002", categoryName: "중빈도 통화자 (월 30-100회)", level: 1, parentCode: null },
+        { categoryCode: "CALL_003", categoryName: "저빈도 통화자 (월 30회 미만)", level: 1, parentCode: null },
+        { categoryCode: "CALL_004", categoryName: "장시간 통화자 (평균 5분+)", level: 1, parentCode: null },
+        { categoryCode: "CALL_005", categoryName: "단시간 통화자 (평균 2분 미만)", level: 1, parentCode: null },
+        { categoryCode: "CALL_006", categoryName: "비즈니스 통화 패턴", level: 1, parentCode: null },
+      ];
+    case "loc":
+      return [
+        { categoryCode: "LOC_001", categoryName: "출퇴근 패턴 (9-6)", level: 1, parentCode: null },
+        { categoryCode: "LOC_002", categoryName: "야간 활동 (18-24시)", level: 1, parentCode: null },
+        { categoryCode: "LOC_003", categoryName: "주말 활동 중심", level: 1, parentCode: null },
+        { categoryCode: "LOC_004", categoryName: "상업지구 빈번 방문", level: 1, parentCode: null },
+        { categoryCode: "LOC_005", categoryName: "주거지역 중심", level: 1, parentCode: null },
+        { categoryCode: "LOC_006", categoryName: "대중교통 이용자", level: 1, parentCode: null },
+        { categoryCode: "LOC_007", categoryName: "자가용 이용자", level: 1, parentCode: null },
+      ];
+    case "filter":
+      return [
+        { categoryCode: "DEVICE_ANDROID", categoryName: "Android 기기", level: 1, parentCode: null, metadata: { type: "device" } },
+        { categoryCode: "DEVICE_IOS", categoryName: "iOS 기기", level: 1, parentCode: null, metadata: { type: "device" } },
+        { categoryCode: "CARRIER_5G", categoryName: "5G 이용자", level: 1, parentCode: null, metadata: { type: "carrier" } },
+        { categoryCode: "CARRIER_LTE", categoryName: "LTE 이용자", level: 1, parentCode: null, metadata: { type: "carrier" } },
+        { categoryCode: "PLAN_UNLIMITED", categoryName: "무제한 요금제", level: 1, parentCode: null, metadata: { type: "plan" } },
+        { categoryCode: "PLAN_DATA", categoryName: "데이터 요금제", level: 1, parentCode: null, metadata: { type: "plan" } },
+      ];
+    default:
+      return [];
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -555,6 +613,241 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error estimating targeting:", error);
       res.status(500).json({ error: "Failed to estimate targeting" });
+    }
+  });
+
+  // ============================================================
+  // ATS Meta API - BizChat API 연동용 메타데이터 조회
+  // ============================================================
+  
+  // ATS 메타데이터 조회 (11st, webapp, call, loc, filter)
+  app.get("/api/ats/meta/:metaType", isAuthenticated, async (req, res) => {
+    try {
+      const { metaType } = req.params;
+      const validTypes = ["11st", "webapp", "call", "loc", "filter"];
+      
+      if (!validTypes.includes(metaType)) {
+        return res.status(400).json({ error: "Invalid meta type" });
+      }
+      
+      // 캐시된 메타데이터 조회
+      const cachedMeta = await storage.getAtsMetaByType(metaType);
+      
+      // 캐시가 없으면 시뮬레이션 데이터 반환
+      if (cachedMeta.length === 0) {
+        const simulatedMeta = getSimulatedAtsMeta(metaType);
+        res.json(simulatedMeta);
+      } else {
+        res.json(cachedMeta);
+      }
+    } catch (error) {
+      console.error("Error fetching ATS meta:", error);
+      res.status(500).json({ error: "Failed to fetch ATS meta" });
+    }
+  });
+
+  // ATS 발송 모수 조회 (고도화된 타겟팅 기반)
+  app.post("/api/ats/mosu", isAuthenticated, async (req, res) => {
+    try {
+      const { 
+        gender, ageMin, ageMax, regions, districts,
+        carrierTypes, deviceTypes,
+        shopping11stCategories, webappCategories, callUsageTypes,
+        locationTypes, mobilityPatterns, geofenceIds
+      } = req.body;
+      
+      let baseAudience = 16000000; // SK 광고 동의 고객 1,600만
+      
+      // 성별 필터
+      if (gender === "male") baseAudience *= 0.52;
+      else if (gender === "female") baseAudience *= 0.48;
+      
+      // 나이 필터
+      const ageRange = (ageMax || 60) - (ageMin || 20);
+      baseAudience *= Math.max(0.1, ageRange / 60);
+      
+      // 지역 필터
+      if (regions?.length > 0) {
+        const regionShare: Record<string, number> = {
+          "서울": 0.19, "경기": 0.26, "인천": 0.06, "부산": 0.07, "대구": 0.05,
+          "광주": 0.03, "대전": 0.03, "울산": 0.02, "세종": 0.01,
+          "강원": 0.03, "충북": 0.03, "충남": 0.04, "전북": 0.04, "전남": 0.04,
+          "경북": 0.05, "경남": 0.07, "제주": 0.01
+        };
+        const regionMultiplier = regions.reduce((sum: number, r: string) => sum + (regionShare[r] || 0.03), 0);
+        baseAudience *= regionMultiplier;
+      }
+      
+      // 시/군/구 필터 (추가 감소)
+      if (districts?.length > 0) {
+        baseAudience *= 0.3 * (districts.length / 5);
+      }
+      
+      // 회선/기기 필터
+      if (carrierTypes?.length > 0) baseAudience *= 0.6;
+      if (deviceTypes?.length > 0) baseAudience *= 0.5;
+      
+      // 행동 데이터 필터 (각각 적용시 감소)
+      if (shopping11stCategories?.length > 0) baseAudience *= 0.15;
+      if (webappCategories?.length > 0) baseAudience *= 0.2;
+      if (callUsageTypes?.length > 0) baseAudience *= 0.25;
+      if (locationTypes?.length > 0) baseAudience *= 0.3;
+      if (mobilityPatterns?.length > 0) baseAudience *= 0.35;
+      
+      // 지오펜스 필터 (가장 specific)
+      if (geofenceIds?.length > 0) baseAudience *= 0.05 * geofenceIds.length;
+      
+      const estimatedCount = Math.round(Math.max(100, baseAudience));
+      
+      res.json({
+        estimatedCount,
+        minCount: Math.round(estimatedCount * 0.85),
+        maxCount: Math.round(estimatedCount * 1.15),
+        reachRate: 85 + Math.floor(Math.random() * 10),
+        filterSummary: {
+          demographics: !!(gender !== "all" || ageMin || ageMax || regions?.length),
+          behavior: !!(shopping11stCategories?.length || webappCategories?.length || callUsageTypes?.length),
+          location: !!(locationTypes?.length || mobilityPatterns?.length || geofenceIds?.length),
+        }
+      });
+    } catch (error) {
+      console.error("Error calculating ATS mosu:", error);
+      res.status(500).json({ error: "Failed to calculate targeting audience" });
+    }
+  });
+
+  // ============================================================
+  // Maptics API - 지오펜스 관리
+  // ============================================================
+  
+  // POI 검색 (시뮬레이션)
+  app.post("/api/maptics/poi", isAuthenticated, async (req, res) => {
+    try {
+      const { keyword, latitude, longitude, radius } = req.body;
+      
+      // 시뮬레이션 POI 데이터
+      const simulatedPois = [
+        { id: "poi_001", name: `${keyword} 강남점`, category: "매장", lat: 37.4979, lng: 127.0276, distance: 120 },
+        { id: "poi_002", name: `${keyword} 홍대점`, category: "매장", lat: 37.5563, lng: 126.9220, distance: 350 },
+        { id: "poi_003", name: `${keyword} 명동점`, category: "매장", lat: 37.5636, lng: 126.9869, distance: 480 },
+        { id: "poi_004", name: `${keyword} 판교점`, category: "매장", lat: 37.3947, lng: 127.1114, distance: 890 },
+        { id: "poi_005", name: `${keyword} 잠실점`, category: "매장", lat: 37.5133, lng: 127.1001, distance: 1200 },
+      ];
+      
+      res.json({
+        pois: simulatedPois,
+        totalCount: simulatedPois.length,
+      });
+    } catch (error) {
+      console.error("Error searching POI:", error);
+      res.status(500).json({ error: "Failed to search POI" });
+    }
+  });
+
+  // 지오펜스 목록 조회
+  app.get("/api/geofences", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const geofenceList = await storage.getGeofences(userId);
+      res.json(geofenceList);
+    } catch (error) {
+      console.error("Error fetching geofences:", error);
+      res.status(500).json({ error: "Failed to fetch geofences" });
+    }
+  });
+
+  // 지오펜스 생성
+  const geofenceSchema = z.object({
+    name: z.string().min(1).max(100),
+    description: z.string().optional(),
+    latitude: z.string().or(z.number()),
+    longitude: z.string().or(z.number()),
+    radius: z.number().min(100).max(5000).default(500),
+    poiId: z.string().optional(),
+    poiName: z.string().optional(),
+    poiCategory: z.string().optional(),
+  });
+
+  app.post("/api/geofences", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const data = geofenceSchema.parse(req.body);
+      
+      const geofence = await storage.createGeofence({
+        userId,
+        name: data.name,
+        description: data.description,
+        latitude: String(data.latitude),
+        longitude: String(data.longitude),
+        radius: data.radius,
+        poiId: data.poiId,
+        poiName: data.poiName,
+        poiCategory: data.poiCategory,
+        bizchatGeofenceId: `GF${Date.now()}`,
+      });
+      
+      res.json(geofence);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid geofence data", details: error.errors });
+      }
+      console.error("Error creating geofence:", error);
+      res.status(500).json({ error: "Failed to create geofence" });
+    }
+  });
+
+  // 지오펜스 수정
+  app.patch("/api/geofences/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const geofence = await storage.getGeofence(req.params.id);
+      
+      if (!geofence) {
+        return res.status(404).json({ error: "Geofence not found" });
+      }
+      
+      if (geofence.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      const updateSchema = geofenceSchema.partial();
+      const data = updateSchema.parse(req.body);
+      
+      const updated = await storage.updateGeofence(req.params.id, {
+        ...data,
+        latitude: data.latitude ? String(data.latitude) : undefined,
+        longitude: data.longitude ? String(data.longitude) : undefined,
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid geofence data", details: error.errors });
+      }
+      console.error("Error updating geofence:", error);
+      res.status(500).json({ error: "Failed to update geofence" });
+    }
+  });
+
+  // 지오펜스 삭제
+  app.delete("/api/geofences/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const geofence = await storage.getGeofence(req.params.id);
+      
+      if (!geofence) {
+        return res.status(404).json({ error: "Geofence not found" });
+      }
+      
+      if (geofence.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
+      await storage.deleteGeofence(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting geofence:", error);
+      res.status(500).json({ error: "Failed to delete geofence" });
     }
   });
 

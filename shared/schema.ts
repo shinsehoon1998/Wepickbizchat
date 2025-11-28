@@ -170,14 +170,81 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Targeting table
+// Targeting table - BizChat ATS 기반 고도화
 export const targeting = pgTable("targeting", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   campaignId: varchar("campaign_id").references(() => campaigns.id).notNull(),
+  
+  // 기본 인구통계 필터 (/ats/meta/filter)
   gender: varchar("gender", { length: 10 }).default("all"), // all, male, female
   ageMin: integer("age_min"),
   ageMax: integer("age_max"),
-  regions: text("regions").array(),
+  regions: text("regions").array(), // 시/도
+  districts: text("districts").array(), // 시/군/구
+  
+  // 회선 정보 필터 (/ats/meta/filter)
+  carrierTypes: text("carrier_types").array(), // 통신사 유형: lte, 5g 등
+  deviceTypes: text("device_types").array(), // 기기 유형: android, ios 등
+  
+  // 11번가 쇼핑 행동 (/ats/meta/11st)
+  shopping11stCategories: text("shopping_11st_categories").array(), // 11번가 카테고리 코드
+  
+  // 웹앱 사용 행동 (/ats/meta/webapp)
+  webappCategories: text("webapp_categories").array(), // 웹앱 카테고리 코드
+  
+  // 통화 Usage 패턴 (/ats/meta/call)
+  callUsageTypes: text("call_usage_types").array(), // 통화 사용 패턴 코드
+  
+  // 위치/이동 특성 (/ats/meta/loc)
+  locationTypes: text("location_types").array(), // 위치 특성 코드
+  mobilityPatterns: text("mobility_patterns").array(), // 이동 패턴 코드
+  
+  // Maptics 지오펜스 (/maptics/*)
+  geofenceIds: text("geofence_ids").array(), // 지오펜스 ID 목록
+  
+  // ATS 쿼리 결과 (발송 모수 조회 결과 저장)
+  atsQuery: text("ats_query"), // ATS 쿼리 JSON
+  estimatedCount: integer("estimated_count"), // 예상 타겟 수
+  
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Maptics 지오펜스 테이블
+export const geofences = pgTable("geofences", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  
+  // 지오펜스 좌표 정보
+  latitude: decimal("latitude", { precision: 10, scale: 7 }).notNull(),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }).notNull(),
+  radius: integer("radius").default(500), // 반경 (미터)
+  
+  // POI 정보
+  poiId: varchar("poi_id", { length: 100 }), // Maptics POI ID
+  poiName: varchar("poi_name", { length: 200 }),
+  poiCategory: varchar("poi_category", { length: 100 }),
+  
+  // BizChat 연동
+  bizchatGeofenceId: varchar("bizchat_geofence_id", { length: 100 }),
+  
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// ATS 메타데이터 캐시 테이블 (API 응답 캐싱)
+export const atsMetaCache = pgTable("ats_meta_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  metaType: varchar("meta_type", { length: 50 }).notNull(), // 11st, webapp, call, loc, filter
+  categoryCode: varchar("category_code", { length: 50 }),
+  categoryName: varchar("category_name", { length: 200 }),
+  parentCode: varchar("parent_code", { length: 50 }),
+  level: integer("level").default(1),
+  metadata: jsonb("metadata"), // 추가 메타데이터
+  isActive: boolean("is_active").default(true),
+  lastSyncAt: timestamp("last_sync_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -215,6 +282,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   templates: many(templates),
   transactions: many(transactions),
   files: many(files),
+  geofences: many(geofences),
 }));
 
 export const senderNumbersRelations = relations(senderNumbers, ({ many }) => ({}));
@@ -273,6 +341,13 @@ export const reportsRelations = relations(reports, ({ one }) => ({
   campaign: one(campaigns, {
     fields: [reports.campaignId],
     references: [campaigns.id],
+  }),
+}));
+
+export const geofencesRelations = relations(geofences, ({ one }) => ({
+  user: one(users, {
+    fields: [geofences.userId],
+    references: [users.id],
   }),
 }));
 
@@ -341,6 +416,18 @@ export const insertReportSchema = createInsertSchema(reports).omit({
   updatedAt: true,
 });
 
+export const insertGeofenceSchema = createInsertSchema(geofences).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertAtsMetaCacheSchema = createInsertSchema(atsMetaCache).omit({
+  id: true,
+  createdAt: true,
+  lastSyncAt: true,
+});
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -372,6 +459,12 @@ export type InsertUserSenderNumber = z.infer<typeof insertUserSenderNumberSchema
 
 export type File = typeof files.$inferSelect;
 export type InsertFile = z.infer<typeof insertFileSchema>;
+
+export type Geofence = typeof geofences.$inferSelect;
+export type InsertGeofence = z.infer<typeof insertGeofenceSchema>;
+
+export type AtsMetaCache = typeof atsMetaCache.$inferSelect;
+export type InsertAtsMetaCache = z.infer<typeof insertAtsMetaCacheSchema>;
 
 // Campaign with related data
 export type CampaignWithDetails = Campaign & {

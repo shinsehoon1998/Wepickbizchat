@@ -9,6 +9,8 @@ import {
   senderNumbers,
   userSenderNumbers,
   files,
+  geofences,
+  atsMetaCache,
   type User,
   type UpsertUser,
   type Campaign,
@@ -29,6 +31,10 @@ import {
   type InsertUserSenderNumber,
   type File,
   type InsertFile,
+  type Geofence,
+  type InsertGeofence,
+  type AtsMetaCache,
+  type InsertAtsMetaCache,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and, sql } from "drizzle-orm";
@@ -111,6 +117,18 @@ export interface IStorage {
     totalDelivered: number;
     lastSentAt: Date | null;
   }>;
+  
+  // Geofences (Maptics)
+  getGeofences(userId: string): Promise<Geofence[]>;
+  getGeofence(id: string): Promise<Geofence | undefined>;
+  createGeofence(geofence: InsertGeofence): Promise<Geofence>;
+  updateGeofence(id: string, geofence: Partial<InsertGeofence>): Promise<Geofence | undefined>;
+  deleteGeofence(id: string): Promise<boolean>;
+  
+  // ATS Meta Cache
+  getAtsMetaByType(metaType: string): Promise<AtsMetaCache[]>;
+  upsertAtsMeta(data: InsertAtsMetaCache): Promise<AtsMetaCache>;
+  clearAtsMetaByType(metaType: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -521,6 +539,76 @@ export class DatabaseStorage implements IStorage {
       totalDelivered,
       lastSentAt,
     };
+  }
+
+  // Geofences (Maptics)
+  async getGeofences(userId: string): Promise<Geofence[]> {
+    const result = await db
+      .select()
+      .from(geofences)
+      .where(eq(geofences.userId, userId))
+      .orderBy(desc(geofences.createdAt));
+    return result;
+  }
+
+  async getGeofence(id: string): Promise<Geofence | undefined> {
+    const [geofence] = await db.select().from(geofences).where(eq(geofences.id, id));
+    return geofence || undefined;
+  }
+
+  async createGeofence(geofenceData: InsertGeofence): Promise<Geofence> {
+    const [geofence] = await db.insert(geofences).values(geofenceData).returning();
+    return geofence;
+  }
+
+  async updateGeofence(id: string, geofenceData: Partial<InsertGeofence>): Promise<Geofence | undefined> {
+    const [geofence] = await db
+      .update(geofences)
+      .set({ ...geofenceData, updatedAt: new Date() })
+      .where(eq(geofences.id, id))
+      .returning();
+    return geofence || undefined;
+  }
+
+  async deleteGeofence(id: string): Promise<boolean> {
+    const result = await db.delete(geofences).where(eq(geofences.id, id));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // ATS Meta Cache
+  async getAtsMetaByType(metaType: string): Promise<AtsMetaCache[]> {
+    const result = await db
+      .select()
+      .from(atsMetaCache)
+      .where(and(
+        eq(atsMetaCache.metaType, metaType),
+        eq(atsMetaCache.isActive, true)
+      ))
+      .orderBy(atsMetaCache.level, atsMetaCache.categoryName);
+    return result;
+  }
+
+  async upsertAtsMeta(data: InsertAtsMetaCache): Promise<AtsMetaCache> {
+    const [meta] = await db
+      .insert(atsMetaCache)
+      .values(data)
+      .onConflictDoUpdate({
+        target: [atsMetaCache.metaType, atsMetaCache.categoryCode],
+        set: {
+          categoryName: data.categoryName,
+          parentCode: data.parentCode,
+          level: data.level,
+          metadata: data.metadata,
+          isActive: data.isActive,
+          lastSyncAt: new Date(),
+        },
+      })
+      .returning();
+    return meta;
+  }
+
+  async clearAtsMetaByType(metaType: string): Promise<void> {
+    await db.delete(atsMetaCache).where(eq(atsMetaCache.metaType, metaType));
   }
 }
 
