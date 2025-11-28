@@ -45,7 +45,24 @@ export async function registerRoutes(
     try {
       const userId = (req as any).userId;
       const templates = await storage.getTemplates(userId);
-      res.json(templates);
+      
+      // Add send history stats for each template
+      const templatesWithStats = await Promise.all(
+        templates.map(async (template) => {
+          const stats = await storage.getTemplateStats(template.id);
+          return {
+            ...template,
+            sendHistory: {
+              campaignCount: stats.campaignCount,
+              totalSent: stats.totalSent,
+              totalDelivered: stats.totalDelivered,
+              lastSentAt: stats.lastSentAt,
+            },
+          };
+        })
+      );
+      
+      res.json(templatesWithStats);
     } catch (error) {
       console.error("Error fetching templates:", error);
       res.status(500).json({ error: "Failed to fetch templates" });

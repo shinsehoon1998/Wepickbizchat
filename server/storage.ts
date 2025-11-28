@@ -93,6 +93,14 @@ export interface IStorage {
   getFile(id: string): Promise<File | undefined>;
   createFile(file: InsertFile): Promise<File>;
   deleteFile(id: string): Promise<boolean>;
+  
+  // Template Stats
+  getTemplateStats(templateId: string): Promise<{
+    campaignCount: number;
+    totalSent: number;
+    totalDelivered: number;
+    lastSentAt: Date | null;
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -416,6 +424,49 @@ export class DatabaseStorage implements IStorage {
   async deleteFile(id: string): Promise<boolean> {
     const result = await db.delete(files).where(eq(files.id, id));
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async getTemplateStats(templateId: string): Promise<{
+    campaignCount: number;
+    totalSent: number;
+    totalDelivered: number;
+    lastSentAt: Date | null;
+  }> {
+    const campaignList = await db
+      .select({
+        sentCount: campaigns.sentCount,
+        completedAt: campaigns.completedAt,
+        status: campaigns.status,
+      })
+      .from(campaigns)
+      .where(eq(campaigns.templateId, templateId));
+    
+    const reportsList = await db
+      .select({
+        deliveredCount: reports.deliveredCount,
+      })
+      .from(reports)
+      .innerJoin(campaigns, eq(reports.campaignId, campaigns.id))
+      .where(eq(campaigns.templateId, templateId));
+    
+    const campaignCount = campaignList.length;
+    const totalSent = campaignList.reduce((sum, c) => sum + (c.sentCount || 0), 0);
+    const totalDelivered = reportsList.reduce((sum, r) => sum + (r.deliveredCount || 0), 0);
+    
+    const completedCampaigns = campaignList
+      .filter(c => c.completedAt !== null)
+      .map(c => c.completedAt as Date);
+    
+    const lastSentAt = completedCampaigns.length > 0
+      ? new Date(Math.max(...completedCampaigns.map(d => d.getTime())))
+      : null;
+    
+    return {
+      campaignCount,
+      totalSent,
+      totalDelivered,
+      lastSentAt,
+    };
   }
 }
 

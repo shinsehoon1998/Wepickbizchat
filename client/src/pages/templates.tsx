@@ -13,9 +13,11 @@ import {
   CheckCircle,
   Clock,
   XCircle,
+  BarChart3,
+  Mail,
 } from "lucide-react";
 import { useState } from "react";
-import { formatDateTime, getMessageTypeLabel } from "@/lib/authUtils";
+import { formatDateTime, formatNumber, getMessageTypeLabel } from "@/lib/authUtils";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -39,6 +41,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Template } from "@shared/schema";
+
+interface TemplateWithStats extends Template {
+  sendHistory: {
+    campaignCount: number;
+    totalSent: number;
+    totalDelivered: number;
+    lastSentAt: string | null;
+  };
+}
 
 function navigate(href: string) {
   window.history.pushState({}, "", href);
@@ -68,7 +79,7 @@ export default function Templates() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
 
-  const { data: templates, isLoading } = useQuery<Template[]>({
+  const { data: templates, isLoading } = useQuery<TemplateWithStats[]>({
     queryKey: ["/api/templates"],
   });
 
@@ -239,6 +250,26 @@ export default function Templates() {
                     {template.status === "rejected" && template.rejectionReason && (
                       <div className="mt-2 text-small text-destructive">
                         반려 사유: {template.rejectionReason}
+                      </div>
+                    )}
+                    
+                    {/* Send History Stats */}
+                    {template.sendHistory && template.sendHistory.campaignCount > 0 && (
+                      <div className="mt-2 flex items-center gap-4 text-small" data-testid={`send-history-${template.id}`}>
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <BarChart3 className="h-3.5 w-3.5" />
+                          <span>캠페인 {formatNumber(template.sendHistory.campaignCount)}건</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-primary">
+                          <Mail className="h-3.5 w-3.5" />
+                          <span>발송 {formatNumber(template.sendHistory.totalSent)}건</span>
+                        </div>
+                        {template.sendHistory.lastSentAt && (
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <Clock className="h-3.5 w-3.5" />
+                            <span>최근 {formatDateTime(template.sendHistory.lastSentAt)}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
