@@ -587,6 +587,7 @@ export default function CampaignsNew() {
           )}
 
           {currentStep === 2 && (
+            <div className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>타겟 설정</CardTitle>
@@ -790,6 +791,7 @@ export default function CampaignsNew() {
                 </CollapsibleContent>
               </Card>
             </Collapsible>
+            </div>
           )}
 
           {currentStep === 3 && (
