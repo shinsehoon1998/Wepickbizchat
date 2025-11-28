@@ -6,6 +6,7 @@ import {
   BarChart3,
   FileText,
   FilePlus,
+  History,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -59,6 +60,11 @@ const campaignNavItems = [
     title: "캠페인 목록",
     url: "/campaigns",
     icon: Megaphone,
+  },
+  {
+    title: "발송 내역",
+    url: "/send-history",
+    icon: History,
   },
 ];
 

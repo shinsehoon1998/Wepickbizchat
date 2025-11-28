@@ -15,9 +15,7 @@ import {
   Image,
   Smartphone,
   FilePlus,
-  Calendar,
-  Clock,
-  Send,
+  Save,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency, formatNumber, getMessageTypeLabel } from "@/lib/authUtils";
@@ -28,7 +26,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -47,14 +44,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import type { Template, SenderNumber } from "@shared/schema";
 
@@ -104,12 +93,6 @@ export default function CampaignsNew() {
   const [uploadedImageId, setUploadedImageId] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [showTestSendModal, setShowTestSendModal] = useState(false);
-  const [testPhoneNumber, setTestPhoneNumber] = useState("");
-  const [isScheduled, setIsScheduled] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState("");
-  const [scheduleTime, setScheduleTime] = useState("");
-  const [testSending, setTestSending] = useState(false);
 
   const { data: approvedTemplates, isLoading: templatesLoading } = useQuery<Template[]>({
     queryKey: ["/api/templates/approved"],
@@ -224,7 +207,7 @@ export default function CampaignsNew() {
       const template = approvedTemplates?.find(t => t.id === data.templateId);
       if (!template) throw new Error("템플릿을 찾을 수 없습니다");
 
-      const campaignData: Record<string, unknown> = {
+      const campaignData = {
         name: data.name,
         templateId: data.templateId,
         messageType: template.messageType,
@@ -237,10 +220,6 @@ export default function CampaignsNew() {
         budget: data.budget,
       };
 
-      if (isScheduled && scheduleDate && scheduleTime) {
-        campaignData.scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
-      }
-
       const response = await apiRequest("POST", "/api/campaigns", campaignData);
       return response.json();
     },
@@ -248,44 +227,19 @@ export default function CampaignsNew() {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({
-        title: isScheduled ? "캠페인 예약 완료" : "캠페인 생성 완료",
-        description: isScheduled 
-          ? `${scheduleDate} ${scheduleTime}에 발송될 예정이에요.`
-          : "캠페인이 성공적으로 생성되었어요.",
+        title: "캠페인 저장 완료",
+        description: "캠페인이 저장되었어요. 캠페인 목록에서 발송할 수 있어요.",
       });
       navigate("/campaigns");
     },
     onError: (error: Error) => {
       toast({
-        title: "캠페인 생성 실패",
-        description: error.message || "캠페인 생성 중 오류가 발생했어요. 다시 시도해주세요.",
+        title: "캠페인 저장 실패",
+        description: error.message || "캠페인 저장 중 오류가 발생했어요. 다시 시도해주세요.",
         variant: "destructive",
       });
     },
   });
-
-  const handleTestSend = async () => {
-    if (!testPhoneNumber) {
-      toast({ title: "휴대폰 번호를 입력해주세요", variant: "destructive" });
-      return;
-    }
-    
-    setTestSending(true);
-    try {
-      await apiRequest("POST", "/api/test-send", {
-        templateId: form.watch("templateId"),
-        phoneNumber: testPhoneNumber,
-      });
-      
-      toast({ title: "테스트 메시지를 발송했어요" });
-      setShowTestSendModal(false);
-      setTestPhoneNumber("");
-    } catch (error) {
-      toast({ title: "테스트 발송에 실패했어요", variant: "destructive" });
-    } finally {
-      setTestSending(false);
-    }
-  };
 
   const nextStep = async () => {
     if (currentStep === 1) {
@@ -947,69 +901,6 @@ export default function CampaignsNew() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>발송 옵션</CardTitle>
-                  <CardDescription>캠페인을 어떻게 발송할지 선택해주세요</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <div className="font-medium">테스트 발송</div>
-                      <div className="text-small text-muted-foreground">실제 발송 전 테스트 메시지를 보내보세요</div>
-                    </div>
-                    <Button 
-                      type="button"
-                      variant="outline" 
-                      onClick={() => setShowTestSendModal(true)}
-                      data-testid="button-test-send"
-                    >
-                      <Send className="h-4 w-4 mr-2" />
-                      테스트 발송
-                    </Button>
-                  </div>
-                  
-                  <div className="p-4 border rounded-lg space-y-4">
-                    <div className="flex items-center gap-3">
-                      <Checkbox 
-                        id="schedule-checkbox"
-                        checked={isScheduled} 
-                        onCheckedChange={(checked) => setIsScheduled(checked === true)}
-                        data-testid="checkbox-schedule"
-                      />
-                      <label htmlFor="schedule-checkbox" className="cursor-pointer">
-                        <div className="font-medium">예약 발송</div>
-                        <div className="text-small text-muted-foreground">원하는 날짜와 시간에 자동 발송해요</div>
-                      </label>
-                    </div>
-                    {isScheduled && (
-                      <div className="flex flex-col sm:flex-row gap-4 ml-6">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <Input 
-                            type="date" 
-                            value={scheduleDate} 
-                            onChange={(e) => setScheduleDate(e.target.value)}
-                            min={new Date().toISOString().split('T')[0]}
-                            className="w-auto"
-                            data-testid="input-schedule-date"
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <Input 
-                            type="time" 
-                            value={scheduleTime} 
-                            onChange={(e) => setScheduleTime(e.target.value)}
-                            className="w-auto"
-                            data-testid="input-schedule-time"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           )}
 
@@ -1040,76 +931,20 @@ export default function CampaignsNew() {
                 다음
                 <ArrowRight className="h-4 w-4" />
               </Button>
-            ) : isScheduled ? (
-              <Button
-                type="submit"
-                disabled={createCampaignMutation.isPending || estimatedCost > userBalance || !scheduleDate || !scheduleTime}
-                className="gap-2"
-                data-testid="button-send-scheduled"
-              >
-                {createCampaignMutation.isPending ? "예약 중..." : "예약 발송하기"}
-                <Calendar className="h-4 w-4" />
-              </Button>
             ) : (
               <Button
                 type="submit"
                 disabled={createCampaignMutation.isPending || estimatedCost > userBalance}
                 className="gap-2"
-                data-testid="button-send-now"
+                data-testid="button-save-campaign"
               >
-                {createCampaignMutation.isPending ? "생성 중..." : "즉시 발송하기"}
-                <Send className="h-4 w-4" />
+                {createCampaignMutation.isPending ? "저장 중..." : "캠페인 저장하기"}
+                <Save className="h-4 w-4" />
               </Button>
             )}
           </div>
         </form>
       </Form>
-
-      <Dialog open={showTestSendModal} onOpenChange={setShowTestSendModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>테스트 발송</DialogTitle>
-            <DialogDescription>
-              실제 발송 전 테스트 메시지를 보내보세요
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="test-phone">휴대폰 번호</Label>
-              <Input
-                id="test-phone"
-                type="tel"
-                placeholder="010-1234-5678"
-                value={testPhoneNumber}
-                onChange={(e) => setTestPhoneNumber(e.target.value)}
-                data-testid="input-test-phone"
-              />
-              <p className="text-small text-muted-foreground">
-                테스트 메시지를 받을 번호를 입력해주세요
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setShowTestSendModal(false);
-                setTestPhoneNumber("");
-              }}
-            >
-              취소
-            </Button>
-            <Button
-              type="button"
-              onClick={handleTestSend}
-              disabled={testSending || !testPhoneNumber}
-            >
-              {testSending ? "발송 중..." : "테스트 발송"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

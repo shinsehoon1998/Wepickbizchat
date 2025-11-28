@@ -24,6 +24,7 @@ import TemplatesNew from "@/pages/templates-new";
 import Campaigns from "@/pages/campaigns";
 import CampaignDetail from "@/pages/campaign-detail";
 import CampaignsNew from "@/pages/campaigns-new";
+import SendHistory from "@/pages/send-history";
 import Billing from "@/pages/billing";
 import Reports from "@/pages/reports";
 import NotFound from "@/pages/not-found";
@@ -149,6 +150,7 @@ function Router() {
       <Route path="/campaigns" component={() => <ProtectedRoute component={Campaigns} />} />
       <Route path="/campaigns/new" component={() => <ProtectedRoute component={CampaignsNew} />} />
       <Route path="/campaigns/:id" component={() => <ProtectedRoute component={CampaignDetail} />} />
+      <Route path="/send-history" component={() => <ProtectedRoute component={SendHistory} />} />
       <Route path="/billing" component={() => <ProtectedRoute component={Billing} />} />
       <Route path="/reports" component={() => <ProtectedRoute component={Reports} />} />
       <Route component={() => <ProtectedRoute component={NotFound} />} />

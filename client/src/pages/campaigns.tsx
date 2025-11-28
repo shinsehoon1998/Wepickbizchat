@@ -8,22 +8,21 @@ import {
   MoreHorizontal,
   Eye,
   Trash2,
-  RefreshCw,
-  Clock,
-  CheckCircle2,
-  XCircle,
   Send,
-  AlertTriangle
+  Calendar,
+  Clock,
+  Play,
 } from "lucide-react";
 import { useState } from "react";
-import { formatNumber, formatDateTime, getMessageTypeLabel, CAMPAIGN_STATUS } from "@/lib/authUtils";
+import { formatCurrency, formatNumber, formatDateTime, getMessageTypeLabel, CAMPAIGN_STATUS } from "@/lib/authUtils";
 import { CampaignStatusBadge } from "@/components/campaign-status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -48,81 +47,32 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Campaign } from "@shared/schema";
-
-function getRelativeTime(date: Date | string | null): string {
-  if (!date) return "-";
-  const now = new Date();
-  const target = new Date(date);
-  const diffMs = now.getTime() - target.getTime();
-  const diffMinutes = Math.floor(diffMs / (1000 * 60));
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffMinutes < 1) return "방금 전";
-  if (diffMinutes < 60) return `${diffMinutes}분 전`;
-  if (diffHours < 24) return `${diffHours}시간 전`;
-  if (diffDays < 30) return `${diffDays}일 전`;
-  return formatDateTime(date);
-}
-
-function getStatusText(statusCode: number | null): string {
-  switch (statusCode) {
-    case CAMPAIGN_STATUS.DRAFT:
-      return "초안";
-    case CAMPAIGN_STATUS.APPROVAL_REQUESTED:
-      return "검수 중";
-    case CAMPAIGN_STATUS.APPROVED:
-      return "발송 대기";
-    case CAMPAIGN_STATUS.REJECTED:
-      return "반려됨";
-    case CAMPAIGN_STATUS.SEND_PREPARATION:
-      return "발송 준비중";
-    case CAMPAIGN_STATUS.IN_PROGRESS:
-      return "발송 중";
-    case CAMPAIGN_STATUS.COMPLETED:
-      return "처리완료";
-    case CAMPAIGN_STATUS.CANCELLED:
-      return "취소됨";
-    default:
-      return "알 수 없음";
-  }
-}
-
-function getStatusIcon(statusCode: number | null) {
-  switch (statusCode) {
-    case CAMPAIGN_STATUS.DRAFT:
-      return Clock;
-    case CAMPAIGN_STATUS.APPROVAL_REQUESTED:
-      return Clock;
-    case CAMPAIGN_STATUS.APPROVED:
-      return CheckCircle2;
-    case CAMPAIGN_STATUS.REJECTED:
-      return XCircle;
-    case CAMPAIGN_STATUS.SEND_PREPARATION:
-      return RefreshCw;
-    case CAMPAIGN_STATUS.IN_PROGRESS:
-      return Send;
-    case CAMPAIGN_STATUS.COMPLETED:
-      return CheckCircle2;
-    case CAMPAIGN_STATUS.CANCELLED:
-      return XCircle;
-    default:
-      return AlertTriangle;
-  }
-}
 
 export default function Campaigns() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
+  const [sendDialogOpen, setSendDialogOpen] = useState(false);
+  const [campaignToSend, setCampaignToSend] = useState<Campaign | null>(null);
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
   const { toast } = useToast();
 
-  const { data: campaigns, isLoading, refetch } = useQuery<Campaign[]>({
+  const { data: campaigns, isLoading } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns"],
   });
 
@@ -149,14 +99,56 @@ export default function Campaigns() {
     },
   });
 
+  const sendMutation = useMutation({
+    mutationFn: async ({ id, scheduledAt }: { id: string; scheduledAt?: string }) => {
+      await apiRequest("POST", `/api/campaigns/${id}/submit`, { scheduledAt });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({
+        title: isScheduled ? "예약 발송 완료" : "발송 요청 완료",
+        description: isScheduled 
+          ? `${scheduleDate} ${scheduleTime}에 발송될 예정이에요.`
+          : "캠페인 발송 요청이 완료되었어요. 검수 후 발송됩니다.",
+      });
+      setSendDialogOpen(false);
+      setCampaignToSend(null);
+      setIsScheduled(false);
+      setScheduleDate("");
+      setScheduleTime("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "발송 요청 실패",
+        description: error.message || "캠페인 발송 요청에 실패했어요.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleDeleteClick = (campaign: Campaign) => {
     setCampaignToDelete(campaign);
     setDeleteDialogOpen(true);
   };
 
+  const handleSendClick = (campaign: Campaign) => {
+    setCampaignToSend(campaign);
+    setSendDialogOpen(true);
+  };
+
   const confirmDelete = () => {
     if (campaignToDelete) {
       deleteMutation.mutate(campaignToDelete.id);
+    }
+  };
+
+  const confirmSend = () => {
+    if (campaignToSend) {
+      const scheduledAt = isScheduled && scheduleDate && scheduleTime 
+        ? new Date(`${scheduleDate}T${scheduleTime}`).toISOString()
+        : undefined;
+      sendMutation.mutate({ id: campaignToSend.id, scheduledAt });
     }
   };
 
@@ -197,14 +189,6 @@ export default function Campaigns() {
               />
             </div>
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={() => refetch()}
-                data-testid="button-refresh"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[140px]" data-testid="select-status-filter">
                   <Filter className="h-4 w-4 mr-2" />
@@ -225,184 +209,112 @@ export default function Campaigns() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent>
           {isLoading ? (
-            <div className="divide-y">
+            <div className="space-y-4">
               {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="grid grid-cols-12 gap-4 p-4 items-center">
-                  <div className="col-span-2">
-                    <Skeleton className="h-4 w-24" />
+                <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="space-y-2">
+                    <Skeleton className="h-5 w-40" />
+                    <Skeleton className="h-4 w-60" />
                   </div>
-                  <div className="col-span-3">
-                    <Skeleton className="h-5 w-32" />
-                  </div>
-                  <div className="col-span-2">
-                    <Skeleton className="h-6 w-16" />
-                  </div>
-                  <div className="col-span-3">
-                    <Skeleton className="h-4 w-full" />
-                  </div>
-                  <div className="col-span-2">
-                    <Skeleton className="h-4 w-20" />
-                  </div>
+                  <Skeleton className="h-8 w-8" />
                 </div>
               ))}
             </div>
           ) : filteredCampaigns && filteredCampaigns.length > 0 ? (
-            <div className="overflow-x-auto">
-              <div className="min-w-[800px]">
-                <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-muted/50 text-small font-medium text-muted-foreground border-b">
-                  <div className="col-span-2">생성일</div>
-                  <div className="col-span-3">상태</div>
-                  <div className="col-span-2">타입</div>
-                  <div className="col-span-3">현황</div>
-                  <div className="col-span-2">최근 업데이트</div>
-                </div>
-                <div className="divide-y">
-                  {filteredCampaigns.map((campaign) => {
-                    const StatusIcon = getStatusIcon(campaign.statusCode);
-                    const totalCount = campaign.targetCount || 0;
-                    const sentCount = campaign.sentCount || 0;
-                    const successCount = campaign.successCount || 0;
-                    const failedCount = sentCount - successCount;
-                    const pendingCount = totalCount - sentCount;
-                    const progressPercent = totalCount > 0 ? (sentCount / totalCount) * 100 : 0;
-
-                    return (
-                      <div
-                        key={campaign.id}
-                        className="grid grid-cols-12 gap-4 px-4 py-4 items-center hover-elevate cursor-pointer group"
-                        data-testid={`row-campaign-${campaign.id}`}
+            <div className="space-y-3">
+              {filteredCampaigns.map((campaign) => (
+                <div
+                  key={campaign.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover-elevate"
+                  data-testid={`card-campaign-${campaign.id}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-1">
+                      <Link 
+                        href={`/campaigns/${campaign.id}`}
+                        className="font-medium hover:text-primary truncate"
+                        data-testid={`link-campaign-${campaign.id}`}
                       >
-                        <div className="col-span-2">
-                          <Link 
-                            href={`/campaigns/${campaign.id}`}
-                            className="text-small font-medium hover:text-primary"
-                            data-testid={`link-campaign-date-${campaign.id}`}
-                          >
-                            {campaign.createdAt ? new Date(campaign.createdAt).toLocaleDateString('ko-KR', {
-                              month: '2-digit',
-                              day: '2-digit',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            }) : '-'}
+                        {campaign.name}
+                      </Link>
+                      <CampaignStatusBadge statusCode={campaign.statusCode} />
+                      <Badge variant="outline" className="text-tiny">
+                        {getMessageTypeLabel(campaign.messageType)}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-4 text-small text-muted-foreground">
+                      <span>타겟: {formatNumber(campaign.targetCount || 0)}명</span>
+                      <span>예산: {formatCurrency(parseInt(campaign.budget as string || "0"))}</span>
+                      <span>생성일: {campaign.createdAt ? formatDateTime(campaign.createdAt) : '-'}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {campaign.statusCode === CAMPAIGN_STATUS.DRAFT && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => handleSendClick(campaign)}
+                        data-testid={`button-send-${campaign.id}`}
+                      >
+                        <Send className="h-4 w-4" />
+                        발송하기
+                      </Button>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          data-testid={`button-menu-${campaign.id}`}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild data-testid={`menu-view-${campaign.id}`}>
+                          <Link href={`/campaigns/${campaign.id}`} className="flex items-center gap-2">
+                            <Eye className="h-4 w-4" />
+                            <span>상세 보기</span>
                           </Link>
-                        </div>
-
-                        <div className="col-span-3">
-                          <div className="flex items-center gap-2">
-                            <StatusIcon className="h-4 w-4 text-muted-foreground" />
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-small text-muted-foreground">
-                                  총 {formatNumber(totalCount)}건
-                                </span>
-                                <CampaignStatusBadge statusCode={campaign.statusCode} />
-                              </div>
-                              <Link 
-                                href={`/campaigns/${campaign.id}`}
-                                className="text-small font-medium truncate block hover:text-primary"
-                                data-testid={`link-campaign-name-${campaign.id}`}
-                              >
-                                {campaign.name}
-                              </Link>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="col-span-2">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-tiny">
-                              API
-                            </Badge>
-                            <Badge variant="secondary" className="text-tiny">
-                              {getMessageTypeLabel(campaign.messageType)}
-                            </Badge>
-                          </div>
-                        </div>
-
-                        <div className="col-span-3">
-                          <div className="space-y-1.5">
-                            <div className="flex items-center gap-3 text-tiny">
-                              <span className="text-destructive">
-                                실패 {formatNumber(failedCount)}
-                              </span>
-                              <span className="text-success">
-                                성공 {formatNumber(successCount)}
-                              </span>
-                              <span className="text-muted-foreground">
-                                발송중 {formatNumber(pendingCount)}
-                              </span>
-                            </div>
-                            <Progress 
-                              value={progressPercent} 
-                              className="h-1.5"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="col-span-2 flex items-center justify-between">
-                          <span className="text-small text-muted-foreground">
-                            ({getRelativeTime(campaign.updatedAt || campaign.createdAt)}) 메시지를 발송했습니다
-                          </span>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon"
-                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                data-testid={`button-campaign-menu-${campaign.id}`}
-                              >
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild data-testid={`menu-item-view-${campaign.id}`}>
-                                <Link href={`/campaigns/${campaign.id}`} className="flex items-center gap-2">
-                                  <Eye className="h-4 w-4" />
-                                  <span>상세 보기</span>
-                                </Link>
-                              </DropdownMenuItem>
-                              {campaign.statusCode === CAMPAIGN_STATUS.DRAFT && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem 
-                                    className="text-destructive flex items-center gap-2"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      handleDeleteClick(campaign);
-                                    }}
-                                    data-testid={`menu-item-delete-${campaign.id}`}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    <span>삭제하기</span>
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                    );
-                  })}
+                        </DropdownMenuItem>
+                        {campaign.statusCode === CAMPAIGN_STATUS.DRAFT && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-destructive flex items-center gap-2"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleDeleteClick(campaign);
+                              }}
+                              data-testid={`menu-delete-${campaign.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              <span>삭제하기</span>
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           ) : (
-            <div className="p-6">
-              <EmptyState
-                icon={Megaphone}
-                title={searchQuery || statusFilter !== 'all' ? "검색 결과가 없어요" : "아직 캠페인이 없어요"}
-                description={searchQuery || statusFilter !== 'all' 
-                  ? "다른 검색어나 필터를 사용해보세요" 
-                  : "첫 캠페인을 만들어 고객에게 광고를 보내보세요"
-                }
-                action={!searchQuery && statusFilter === 'all' ? {
-                  label: "캠페인 만들기",
-                  onClick: () => window.location.href = '/campaigns/new',
-                } : undefined}
-              />
-            </div>
+            <EmptyState
+              icon={Megaphone}
+              title={searchQuery || statusFilter !== 'all' ? "검색 결과가 없어요" : "아직 캠페인이 없어요"}
+              description={searchQuery || statusFilter !== 'all' 
+                ? "다른 검색어나 필터를 사용해보세요" 
+                : "첫 캠페인을 만들어 고객에게 광고를 보내보세요"
+              }
+              action={!searchQuery && statusFilter === 'all' ? {
+                label: "캠페인 만들기",
+                onClick: () => window.location.href = '/campaigns/new',
+              } : undefined}
+            />
           )}
         </CardContent>
       </Card>
@@ -428,6 +340,111 @@ export default function Campaigns() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={sendDialogOpen} onOpenChange={setSendDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>캠페인 발송하기</DialogTitle>
+            <DialogDescription>
+              "{campaignToSend?.name}" 캠페인을 발송할까요?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="p-4 border rounded-lg bg-muted/50">
+              <div className="grid grid-cols-2 gap-2 text-small">
+                <div>
+                  <span className="text-muted-foreground">타겟 수:</span>
+                  <span className="ml-2 font-medium">{formatNumber(campaignToSend?.targetCount || 0)}명</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">예산:</span>
+                  <span className="ml-2 font-medium">{formatCurrency(parseInt(campaignToSend?.budget as string || "0"))}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">메시지 유형:</span>
+                  <span className="ml-2 font-medium">{getMessageTypeLabel(campaignToSend?.messageType || "LMS")}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border rounded-lg space-y-4">
+              <div className="flex items-center gap-3">
+                <Checkbox 
+                  id="schedule-checkbox"
+                  checked={isScheduled} 
+                  onCheckedChange={(checked) => setIsScheduled(checked === true)}
+                  data-testid="checkbox-schedule-send"
+                />
+                <label htmlFor="schedule-checkbox" className="cursor-pointer">
+                  <div className="font-medium">예약 발송</div>
+                  <div className="text-small text-muted-foreground">원하는 날짜와 시간에 자동 발송해요</div>
+                </label>
+              </div>
+              {isScheduled && (
+                <div className="flex flex-col sm:flex-row gap-4 ml-6">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      type="date" 
+                      value={scheduleDate} 
+                      onChange={(e) => setScheduleDate(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-auto"
+                      data-testid="input-schedule-date"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      type="time" 
+                      value={scheduleTime} 
+                      onChange={(e) => setScheduleTime(e.target.value)}
+                      className="w-auto"
+                      data-testid="input-schedule-time"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setSendDialogOpen(false);
+                setIsScheduled(false);
+                setScheduleDate("");
+                setScheduleTime("");
+              }}
+              data-testid="button-cancel-send"
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmSend}
+              disabled={sendMutation.isPending || (isScheduled && (!scheduleDate || !scheduleTime))}
+              className="gap-2"
+              data-testid="button-confirm-send"
+            >
+              {sendMutation.isPending ? (
+                "처리 중..."
+              ) : isScheduled ? (
+                <>
+                  <Calendar className="h-4 w-4" />
+                  예약 발송
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  즉시 발송
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
