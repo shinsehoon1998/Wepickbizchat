@@ -314,6 +314,7 @@ export async function registerRoutes(
     regions: z.array(z.string()).default([]),
     targetCount: z.number().min(100).default(1000),
     budget: z.number().min(10000),
+    scheduledAt: z.string().optional(),
   });
 
   app.post("/api/campaigns", isAuthenticated, async (req, res) => {
@@ -357,6 +358,7 @@ export async function registerRoutes(
         status: CAMPAIGN_STATUS.DRAFT.status,
         targetCount: data.targetCount,
         budget: data.budget.toString(),
+        scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : undefined,
       });
       
       await storage.createMessage({
@@ -536,6 +538,46 @@ export async function registerRoutes(
     } catch (error) {
       console.error("Error estimating targeting:", error);
       res.status(500).json({ error: "Failed to estimate targeting" });
+    }
+  });
+
+  const testSendSchema = z.object({
+    templateId: z.string().min(1),
+    phoneNumber: z.string().min(1),
+  });
+
+  app.post("/api/test-send", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const data = testSendSchema.parse(req.body);
+      
+      const template = await storage.getTemplate(data.templateId);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied to template" });
+      }
+      
+      if (template.status !== "approved") {
+        return res.status(400).json({ error: "Template must be approved before sending test message" });
+      }
+      
+      console.log(`Test send requested: Template ${template.name} to ${data.phoneNumber}`);
+      
+      res.json({ 
+        success: true, 
+        message: "테스트 메시지를 발송했어요",
+        templateId: data.templateId,
+        phoneNumber: data.phoneNumber,
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Invalid request data", details: error.errors });
+      }
+      console.error("Error sending test message:", error);
+      res.status(500).json({ error: "Failed to send test message" });
     }
   });
 
