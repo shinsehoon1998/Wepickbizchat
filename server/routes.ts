@@ -1090,5 +1090,179 @@ export async function registerRoutes(
     }
   });
 
+  // User Sender Numbers routes
+  const createSenderNumberSchema = z.object({
+    phoneNumber: z.string().min(10, "발신번호를 입력해주세요").max(15),
+    isCompanyOwned: z.boolean(),
+    verificationMethod: z.enum(["sms", "document"]),
+  });
+
+  const updateSenderNumberAliasSchema = z.object({
+    alias: z.string().max(100).optional(),
+  });
+
+  const verifySmsSchema = z.object({
+    code: z.string().min(4, "인증코드를 입력해주세요").max(10),
+  });
+
+  app.get("/api/sender-numbers", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const numbers = await storage.getUserSenderNumbers(userId);
+      res.json(numbers);
+    } catch (error) {
+      console.error("Error fetching sender numbers:", error);
+      res.status(500).json({ error: "Failed to fetch sender numbers" });
+    }
+  });
+
+  app.post("/api/sender-numbers", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      
+      const parseResult = createSenderNumberSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0].message });
+      }
+      
+      const { phoneNumber, isCompanyOwned, verificationMethod } = parseResult.data;
+      
+      // Create sender number with pending status
+      const expiryDate = new Date();
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1); // 1년 후 만료
+      
+      const number = await storage.createUserSenderNumber({
+        userId,
+        phoneNumber: phoneNumber.replace(/\D/g, ''),
+        status: verificationMethod === 'sms' ? 'pending' : 'active',
+        verificationMethod,
+        isCompanyOwned,
+        expiryDate,
+        lastActivityNote: '발신번호를 생성하였습니다.',
+      });
+      
+      // 증빙서류의 경우 즉시 인증 완료 처리
+      if (verificationMethod === 'document') {
+        await storage.updateUserSenderNumber(number.id, {
+          verifiedAt: new Date(),
+        });
+      }
+      
+      res.status(201).json(number);
+    } catch (error) {
+      console.error("Error creating sender number:", error);
+      res.status(500).json({ error: "Failed to create sender number" });
+    }
+  });
+
+  app.patch("/api/sender-numbers/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { id } = req.params;
+      
+      const parseResult = updateSenderNumberAliasSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0].message });
+      }
+      
+      const existing = await storage.getUserSenderNumber(id);
+      if (!existing || existing.userId !== userId) {
+        return res.status(404).json({ error: "발신번호를 찾을 수 없습니다" });
+      }
+      
+      // 별칭만 수정 허용
+      const updated = await storage.updateUserSenderNumber(id, { 
+        alias: parseResult.data.alias 
+      });
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating sender number:", error);
+      res.status(500).json({ error: "Failed to update sender number" });
+    }
+  });
+
+  app.post("/api/sender-numbers/:id/verify-sms", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { id } = req.params;
+      
+      const parseResult = verifySmsSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return res.status(400).json({ error: parseResult.error.errors[0].message });
+      }
+      
+      const existing = await storage.getUserSenderNumber(id);
+      if (!existing || existing.userId !== userId) {
+        return res.status(404).json({ error: "발신번호를 찾을 수 없습니다" });
+      }
+      
+      if (existing.status !== 'pending') {
+        return res.status(400).json({ error: "이미 인증된 발신번호입니다" });
+      }
+      
+      // 시뮬레이션: 모든 코드 승인 (실제로는 SMS 인증 코드 검증)
+      const expiryDate = new Date();
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+      
+      const updated = await storage.updateUserSenderNumber(id, {
+        status: 'active',
+        verifiedAt: new Date(),
+        expiryDate,
+        lastActivityNote: '문자 인증이 완료되었습니다.',
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error verifying sender number:", error);
+      res.status(500).json({ error: "Failed to verify sender number" });
+    }
+  });
+
+  app.post("/api/sender-numbers/:id/renew", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { id } = req.params;
+      
+      const existing = await storage.getUserSenderNumber(id);
+      if (!existing || existing.userId !== userId) {
+        return res.status(404).json({ error: "발신번호를 찾을 수 없습니다" });
+      }
+      
+      const expiryDate = new Date();
+      expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+      
+      // 허용된 필드만 업데이트
+      const updated = await storage.updateUserSenderNumber(id, {
+        status: 'active',
+        expiryDate,
+        verifiedAt: new Date(),
+        lastActivityNote: '시스템에 의해 자동 연장 처리되었습니다.',
+      });
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error renewing sender number:", error);
+      res.status(500).json({ error: "Failed to renew sender number" });
+    }
+  });
+
+  app.delete("/api/sender-numbers/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { id } = req.params;
+      
+      const existing = await storage.getUserSenderNumber(id);
+      if (!existing || existing.userId !== userId) {
+        return res.status(404).json({ error: "발신번호를 찾을 수 없습니다" });
+      }
+      
+      await storage.deleteUserSenderNumber(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting sender number:", error);
+      res.status(500).json({ error: "Failed to delete sender number" });
+    }
+  });
+
   return httpServer;
 }

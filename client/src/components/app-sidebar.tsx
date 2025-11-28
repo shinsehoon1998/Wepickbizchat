@@ -7,6 +7,7 @@ import {
   FileText,
   FilePlus,
   History,
+  Phone,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,19 +38,6 @@ const mainNavItems = [
   },
 ];
 
-const templateNavItems = [
-  {
-    title: "템플릿 만들기",
-    url: "/templates/new",
-    icon: FilePlus,
-  },
-  {
-    title: "템플릿 목록",
-    url: "/templates",
-    icon: FileText,
-  },
-];
-
 const campaignNavItems = [
   {
     title: "캠페인 만들기",
@@ -65,6 +53,24 @@ const campaignNavItems = [
     title: "발송 내역",
     url: "/send-history",
     icon: History,
+  },
+];
+
+const preparationNavItems = [
+  {
+    title: "템플릿 만들기",
+    url: "/templates/new",
+    icon: FilePlus,
+  },
+  {
+    title: "템플릿 목록",
+    url: "/templates",
+    icon: FileText,
+  },
+  {
+    title: "발신번호",
+    url: "/sender-numbers",
+    icon: Phone,
   },
 ];
 
@@ -125,10 +131,10 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel className="text-muted-foreground">템플릿 관리</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-muted-foreground">캠페인 관리</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {templateNavItems.map((item) => (
+              {campaignNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     onClick={() => navigate(item.url)}
@@ -146,10 +152,10 @@ export function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel className="text-muted-foreground">캠페인 관리</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-muted-foreground">발송준비</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {campaignNavItems.map((item) => (
+              {preparationNavItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     onClick={() => navigate(item.url)}
