@@ -62,7 +62,7 @@ export default function CampaignDetail() {
   const [, params] = useRoute("/campaigns/:id");
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const campaignId = params?.id ? parseInt(params.id) : null;
+  const campaignId = params?.id || null;
 
   const { data: campaign, isLoading, error } = useQuery<CampaignDetail>({
     queryKey: ["/api/campaigns", campaignId],
@@ -183,11 +183,10 @@ export default function CampaignDetail() {
           icon={AlertCircle}
           title="캠페인을 찾을 수 없어요"
           description="요청하신 캠페인이 존재하지 않거나 접근 권한이 없어요"
-          action={
-            <Button asChild>
-              <Link href="/campaigns">캠페인 목록으로</Link>
-            </Button>
-          }
+          action={{
+            label: "캠페인 목록으로",
+            onClick: () => navigate("/campaigns"),
+          }}
         />
       </div>
     );
