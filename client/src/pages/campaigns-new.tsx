@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { useLocation, Link } from "wouter";
+import { useLocation, useRoute, Link } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { Campaign, Targeting } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -94,8 +95,16 @@ function getMessageTypeIcon(type: string) {
   }
 }
 
+interface CampaignWithDetails extends Campaign {
+  targeting?: Targeting;
+}
+
 export default function CampaignsNew() {
   const [, navigate] = useLocation();
+  const [, editParams] = useRoute("/campaigns/:id/edit");
+  const campaignId = editParams?.id || null;
+  const isEditMode = !!campaignId;
+  
   const { user } = useAuth();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
@@ -112,6 +121,11 @@ export default function CampaignsNew() {
     locationTypes: [] as string[],
     mobilityPatterns: [] as string[],
     geofenceIds: [] as string[],
+  });
+
+  const { data: existingCampaign, isLoading: campaignLoading } = useQuery<CampaignWithDetails>({
+    queryKey: ["/api/campaigns", campaignId],
+    enabled: isEditMode,
   });
 
   const { data: approvedTemplates, isLoading: templatesLoading } = useQuery<Template[]>({
@@ -136,6 +150,22 @@ export default function CampaignsNew() {
       budget: 100000,
     },
   });
+
+  useEffect(() => {
+    if (isEditMode && existingCampaign) {
+      form.reset({
+        name: existingCampaign.name,
+        templateId: existingCampaign.templateId || "",
+        sndNum: existingCampaign.sndNum || "",
+        gender: (existingCampaign.targeting?.gender as "all" | "male" | "female") || "all",
+        ageMin: existingCampaign.targeting?.ageMin || 20,
+        ageMax: existingCampaign.targeting?.ageMax || 60,
+        regions: existingCampaign.targeting?.regions || [],
+        targetCount: existingCampaign.targetCount || 1000,
+        budget: parseFloat(existingCampaign.budget as string) || 100000,
+      });
+    }
+  }, [isEditMode, existingCampaign, form]);
 
   const selectedTemplateId = form.watch("templateId");
   const selectedTemplate = approvedTemplates?.find(t => t.id === selectedTemplateId);
@@ -222,7 +252,7 @@ export default function CampaignsNew() {
     }
   };
 
-  const createCampaignMutation = useMutation({
+  const saveCampaignMutation = useMutation({
     mutationFn: async (data: CampaignFormData) => {
       const template = approvedTemplates?.find(t => t.id === data.templateId);
       if (!template) throw new Error("템플릿을 찾을 수 없습니다");
@@ -240,21 +270,31 @@ export default function CampaignsNew() {
         budget: data.budget,
       };
 
-      const response = await apiRequest("POST", "/api/campaigns", campaignData);
-      return response.json();
+      if (isEditMode && campaignId) {
+        const response = await apiRequest("PATCH", `/api/campaigns/${campaignId}`, campaignData);
+        return response.json();
+      } else {
+        const response = await apiRequest("POST", "/api/campaigns", campaignData);
+        return response.json();
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      if (isEditMode) {
+        queryClient.invalidateQueries({ queryKey: ["/api/campaigns", campaignId] });
+      }
       toast({
-        title: "캠페인 저장 완료",
-        description: "캠페인이 저장되었어요. 캠페인 목록에서 발송할 수 있어요.",
+        title: isEditMode ? "캠페인 수정 완료" : "캠페인 저장 완료",
+        description: isEditMode 
+          ? "캠페인이 수정되었어요." 
+          : "캠페인이 저장되었어요. 캠페인 목록에서 발송할 수 있어요.",
       });
       navigate("/campaigns");
     },
     onError: (error: Error) => {
       toast({
-        title: "캠페인 저장 실패",
+        title: isEditMode ? "캠페인 수정 실패" : "캠페인 저장 실패",
         description: error.message || "캠페인 저장 중 오류가 발생했어요. 다시 시도해주세요.",
         variant: "destructive",
       });
@@ -278,7 +318,7 @@ export default function CampaignsNew() {
     if (currentStep !== 3) {
       return;
     }
-    createCampaignMutation.mutate(data);
+    saveCampaignMutation.mutate(data);
   };
 
   // Prevent Enter key from submitting the form on intermediate steps
@@ -300,9 +340,13 @@ export default function CampaignsNew() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-display font-bold">캠페인 만들기</h1>
+          <h1 className="text-display font-bold">
+            {isEditMode ? "캠페인 수정" : "캠페인 만들기"}
+          </h1>
           <p className="text-muted-foreground mt-1">
-            승인된 템플릿으로 새로운 광고 캠페인을 만들어보세요
+            {isEditMode 
+              ? "캠페인 정보를 수정하세요" 
+              : "승인된 템플릿으로 새로운 광고 캠페인을 만들어보세요"}
           </p>
         </div>
       </div>
@@ -995,11 +1039,13 @@ export default function CampaignsNew() {
             ) : (
               <Button
                 type="submit"
-                disabled={createCampaignMutation.isPending || estimatedCost > userBalance}
+                disabled={saveCampaignMutation.isPending || estimatedCost > userBalance}
                 className="gap-2"
                 data-testid="button-save-campaign"
               >
-                {createCampaignMutation.isPending ? "저장 중..." : "캠페인 저장하기"}
+                {saveCampaignMutation.isPending 
+                  ? "저장 중..." 
+                  : isEditMode ? "캠페인 수정하기" : "캠페인 저장하기"}
                 <Save className="h-4 w-4" />
               </Button>
             )}

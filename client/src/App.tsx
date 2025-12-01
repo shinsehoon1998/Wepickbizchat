@@ -150,6 +150,7 @@ function Router() {
       <Route path="/templates/new" component={() => <ProtectedRoute component={TemplatesNew} />} />
       <Route path="/campaigns" component={() => <ProtectedRoute component={Campaigns} />} />
       <Route path="/campaigns/new" component={() => <ProtectedRoute component={CampaignsNew} />} />
+      <Route path="/campaigns/:id/edit" component={() => <ProtectedRoute component={CampaignsNew} />} />
       <Route path="/campaigns/:id" component={() => <ProtectedRoute component={CampaignDetail} />} />
       <Route path="/send-history" component={() => <ProtectedRoute component={SendHistory} />} />
       <Route path="/sender-numbers" component={() => <ProtectedRoute component={SenderNumbers} />} />
