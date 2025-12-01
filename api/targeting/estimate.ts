@@ -1,10 +1,29 @@
-import type { VercelResponse } from '@vercel/node';
-import { withAuth, type AuthenticatedRequest } from '../_lib/auth';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
 
-async function handler(req: AuthenticatedRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+function getSupabaseAdmin() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Supabase configuration is missing');
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
+async function verifyAuth(req: VercelRequest) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(authHeader.replace('Bearer ', ''));
+    if (error || !user) return null;
+    return { userId: user.id, email: user.email || '' };
+  } catch { return null; }
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  const auth = await verifyAuth(req);
+  if (!auth) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
     const { gender, ageMin: rawAgeMin, ageMax: rawAgeMax, regions } = req.body;
@@ -66,5 +85,3 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
     return res.status(500).json({ error: 'Failed to estimate targeting' });
   }
 }
-
-export default withAuth(handler);

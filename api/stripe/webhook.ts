@@ -1,6 +1,34 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { storage } from '../_lib/storage';
+import { neon, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import { eq } from 'drizzle-orm';
+import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import Stripe from 'stripe';
+import { randomUUID } from 'crypto';
+
+neonConfig.fetchConnectionCache = true;
+
+const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  balance: text('balance').default('0').notNull(),
+});
+
+const transactions = pgTable('transactions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  type: text('type').notNull(),
+  amount: text('amount').notNull(),
+  balanceAfter: text('balance_after'),
+  description: text('description'),
+  stripeSessionId: text('stripe_session_id'),
+  createdAt: timestamp('created_at').defaultNow(),
+});
+
+function getDb() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error('DATABASE_URL is not set');
+  return drizzle(neon(dbUrl));
+}
 
 export const config = {
   api: {
@@ -17,9 +45,8 @@ async function buffer(readable: any): Promise<Buffer> {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -53,14 +80,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const amount = parseInt(session.metadata?.amount || '0');
 
       if (userId && amount > 0) {
-        const result = await storage.creditBalanceAtomically(userId, amount, session.id);
+        const db = getDb();
         
-        if (result.alreadyProcessed) {
+        const existingTx = await db.select().from(transactions).where(eq(transactions.stripeSessionId, session.id));
+        
+        if (existingTx.length > 0) {
           console.log(`Session ${session.id} already processed, skipping`);
-        } else if (result.success) {
-          console.log(`Successfully credited ${amount} to user ${userId}`);
         } else {
-          console.error(`Failed to credit balance for user ${userId}`);
+          const userResult = await db.select().from(users).where(eq(users.id, userId));
+          const user = userResult[0];
+          
+          if (user) {
+            const currentBalance = parseInt(user.balance) || 0;
+            const newBalance = currentBalance + amount;
+
+            await db.update(users).set({ balance: newBalance.toString() }).where(eq(users.id, userId));
+            
+            await db.insert(transactions).values({
+              id: randomUUID(),
+              userId,
+              type: 'charge',
+              amount: amount.toString(),
+              balanceAfter: newBalance.toString(),
+              description: `잔액 충전 (Stripe)`,
+              stripeSessionId: session.id,
+            });
+
+            console.log(`Successfully credited ${amount} to user ${userId}`);
+          } else {
+            console.error(`User ${userId} not found`);
+          }
         }
       }
     }

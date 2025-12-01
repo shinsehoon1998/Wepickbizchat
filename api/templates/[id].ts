@@ -1,7 +1,51 @@
-import type { VercelResponse } from '@vercel/node';
-import { withAuth, type AuthenticatedRequest } from '../_lib/auth';
-import { storage } from '../_lib/storage';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+import { neon, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import { eq } from 'drizzle-orm';
+import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
+
+neonConfig.fetchConnectionCache = true;
+
+const templates = pgTable('templates', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  messageType: text('message_type').notNull(),
+  title: text('title'),
+  content: text('content').notNull(),
+  imageUrl: text('image_url'),
+  status: text('status').default('draft'),
+  submittedAt: timestamp('submitted_at'),
+  reviewedAt: timestamp('reviewed_at'),
+  rejectionReason: text('rejection_reason'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+function getDb() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error('DATABASE_URL is not set');
+  return drizzle(neon(dbUrl));
+}
+
+function getSupabaseAdmin() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Supabase configuration is missing');
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
+async function verifyAuth(req: VercelRequest) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(authHeader.replace('Bearer ', ''));
+    if (error || !user) return null;
+    return { userId: user.id, email: user.email || '' };
+  } catch { return null; }
+}
 
 const updateTemplateSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -11,26 +55,24 @@ const updateTemplateSchema = z.object({
   imageUrl: z.string().optional(),
 });
 
-async function handler(req: AuthenticatedRequest, res: VercelResponse) {
-  const userId = req.userId;
-  const { id } = req.query;
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
-  if (typeof id !== 'string') {
-    return res.status(400).json({ error: 'Invalid template ID' });
-  }
+  const auth = await verifyAuth(req);
+  if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+
+  const { id } = req.query;
+  if (typeof id !== 'string') return res.status(400).json({ error: 'Invalid template ID' });
+
+  const db = getDb();
+  const userId = auth.userId;
 
   if (req.method === 'GET') {
     try {
-      const template = await storage.getTemplate(id);
-      
-      if (!template) {
-        return res.status(404).json({ error: 'Template not found' });
-      }
-      
-      if (template.userId !== userId) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
-      
+      const result = await db.select().from(templates).where(eq(templates.id, id));
+      const template = result[0];
+      if (!template) return res.status(404).json({ error: 'Template not found' });
+      if (template.userId !== userId) return res.status(403).json({ error: 'Access denied' });
       return res.status(200).json(template);
     } catch (error) {
       console.error('Error fetching template:', error);
@@ -40,28 +82,19 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
 
   if (req.method === 'PATCH') {
     try {
-      const template = await storage.getTemplate(id);
-      
-      if (!template) {
-        return res.status(404).json({ error: 'Template not found' });
-      }
-      
-      if (template.userId !== userId) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
-      
+      const result = await db.select().from(templates).where(eq(templates.id, id));
+      const template = result[0];
+      if (!template) return res.status(404).json({ error: 'Template not found' });
+      if (template.userId !== userId) return res.status(403).json({ error: 'Access denied' });
       if (template.status !== 'draft' && template.status !== 'rejected') {
         return res.status(400).json({ error: 'Only draft or rejected templates can be edited' });
       }
-      
+
       const data = updateTemplateSchema.parse(req.body);
-      const updatedTemplate = await storage.updateTemplate(id, data);
-      
-      return res.status(200).json(updatedTemplate);
+      const updated = await db.update(templates).set(data).where(eq(templates.id, id)).returning();
+      return res.status(200).json(updated[0]);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: 'Invalid template data', details: error.errors });
-      }
+      if (error instanceof z.ZodError) return res.status(400).json({ error: 'Invalid template data', details: error.errors });
       console.error('Error updating template:', error);
       return res.status(500).json({ error: 'Failed to update template' });
     }
@@ -69,21 +102,13 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
 
   if (req.method === 'DELETE') {
     try {
-      const template = await storage.getTemplate(id);
-      
-      if (!template) {
-        return res.status(404).json({ error: 'Template not found' });
-      }
-      
-      if (template.userId !== userId) {
-        return res.status(403).json({ error: 'Access denied' });
-      }
-      
-      if (template.status === 'pending') {
-        return res.status(400).json({ error: 'Cannot delete template under review' });
-      }
-      
-      await storage.deleteTemplate(id);
+      const result = await db.select().from(templates).where(eq(templates.id, id));
+      const template = result[0];
+      if (!template) return res.status(404).json({ error: 'Template not found' });
+      if (template.userId !== userId) return res.status(403).json({ error: 'Access denied' });
+      if (template.status === 'pending') return res.status(400).json({ error: 'Cannot delete template under review' });
+
+      await db.delete(templates).where(eq(templates.id, id));
       return res.status(200).json({ success: true });
     } catch (error) {
       console.error('Error deleting template:', error);
@@ -93,5 +118,3 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
 
   return res.status(405).json({ error: 'Method not allowed' });
 }
-
-export default withAuth(handler);

@@ -4,11 +4,6 @@
   "outputDirectory": "dist/public",
   "framework": null,
   "installCommand": "npm install",
-  "functions": {
-    "api/**/*.ts": {
-      "includeFiles": "{api/_lib/**,shared/**}"
-    }
-  },
   "rewrites": [
     { "source": "/api/auth/:path*", "destination": "/api/auth/:path*" },
     { "source": "/api/dashboard/:path*", "destination": "/api/dashboard/:path*" },

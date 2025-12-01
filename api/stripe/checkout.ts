@@ -1,17 +1,63 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { authenticateRequest } from '../_lib/auth';
-import { storage } from '../_lib/storage';
+import { createClient } from '@supabase/supabase-js';
+import { neon, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import { eq } from 'drizzle-orm';
+import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import Stripe from 'stripe';
 
+neonConfig.fetchConnectionCache = true;
+
+const users = pgTable('users', {
+  id: text('id').primaryKey(),
+  email: text('email'),
+  balance: text('balance').default('0').notNull(),
+  stripeCustomerId: text('stripe_customer_id'),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+function getDb() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error('DATABASE_URL is not set');
+  return drizzle(neon(dbUrl));
+}
+
+function getSupabaseAdmin() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Supabase configuration is missing');
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
+async function verifyAuth(req: VercelRequest) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(authHeader.replace('Bearer ', ''));
+    if (error || !user) return null;
+    return { userId: user.id, email: user.email || '' };
+  } catch { return null; }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const user = await authenticateRequest(req);
+    const auth = await verifyAuth(req);
+    if (!auth) return res.status(401).json({ error: 'Unauthorized' });
+
+    const db = getDb();
+    const userResult = await db.select().from(users).where(eq(users.id, auth.userId));
+    let user = userResult[0];
+
     if (!user) {
-      return res.status(401).json({ error: 'Unauthorized' });
+      const insertResult = await db.insert(users).values({
+        id: auth.userId,
+        email: auth.email,
+        balance: '0',
+      }).returning();
+      user = insertResult[0];
     }
 
     const { amount } = req.body;
@@ -34,7 +80,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         metadata: { userId: user.id },
       });
       customerId = customer.id;
-      await storage.updateUserStripeCustomerId(user.id, customerId);
+      await db.update(users).set({
+        stripeCustomerId: customerId,
+        updatedAt: new Date(),
+      }).where(eq(users.id, user.id));
     }
 
     const baseUrl = process.env.VERCEL_URL 
