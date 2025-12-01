@@ -117,7 +117,7 @@ export default function Landing() {
           </div>
           <div className="flex items-center gap-4">
             <Button asChild data-testid="button-login-header">
-              <a href="/api/login">로그인</a>
+              <a href="/auth">로그인</a>
             </Button>
           </div>
         </div>
@@ -142,7 +142,7 @@ export default function Landing() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button size="lg" asChild className="gap-2" data-testid="button-start-now">
-                  <a href="/api/login">
+                  <a href="/auth">
                     지금 시작하기
                     <ArrowRight className="h-4 w-4" />
                   </a>
@@ -348,7 +348,7 @@ export default function Landing() {
               className="gap-2"
               data-testid="button-cta-start"
             >
-              <a href="/api/login">
+              <a href="/auth">
                 무료로 시작하기
                 <ArrowRight className="h-4 w-4" />
               </a>

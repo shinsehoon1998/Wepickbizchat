@@ -15,6 +15,10 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
+localPort = 36955
+externalPort = 3001
+
+[[ports]]
 localPort = 42291
 externalPort = 3000
 
@@ -44,3 +48,12 @@ waitForPort = 5000
 
 [agent]
 integrations = ["javascript_object_storage:1.0.0", "javascript_log_in_with_replit:1.0.0", "javascript_database:1.0.0", "stripe:1.0.0"]
+
+[userenv]
+
+[userenv.shared]
+SUPABASE_URL = "https://guofowuscfvfpkwgpbjo.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1b2Zvd3VzY2Z2ZnBrd2dwYmpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NjMzNzEsImV4cCI6MjA4MDEzOTM3MX0.gm5S4zl7PrcXOaKeQqEUEUVuUYn_Wz6HK86rfgi6mgE"
+SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1b2Zvd3VzY2Z2ZnBrd2dwYmpvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDU2MzM3MSwiZXhwIjoyMDgwMTM5MzcxfQ.VZP3dJNqeI38DxSYn3Wh4K56Gm9QsGqDadGqBTzYpg4"
+VITE_SUPABASE_URL = "https://guofowuscfvfpkwgpbjo.supabase.co"
+VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd1b2Zvd3VzY2Z2ZnBrd2dwYmpvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ1NjMzNzEsImV4cCI6MjA4MDEzOTM3MX0.gm5S4zl7PrcXOaKeQqEUEUVuUYn_Wz6HK86rfgi6mgE"

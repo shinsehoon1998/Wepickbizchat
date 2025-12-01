@@ -1,0 +1,221 @@
+import { db } from './db';
+import { eq, desc, and, sql } from 'drizzle-orm';
+import {
+  users,
+  campaigns,
+  messages,
+  targeting,
+  transactions,
+  reports,
+  templates,
+} from '../../shared/schema';
+
+export const storage = {
+  async getUser(id: string) {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  },
+
+  async upsertUser(userData: { id: string; email?: string; firstName?: string; lastName?: string; profileImageUrl?: string }) {
+    const existingUser = await this.getUser(userData.id);
+    
+    if (existingUser) {
+      const [updated] = await db
+        .update(users)
+        .set({
+          email: userData.email,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          profileImageUrl: userData.profileImageUrl,
+        })
+        .where(eq(users.id, userData.id))
+        .returning();
+      return updated;
+    }
+
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        id: userData.id,
+        email: userData.email,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        profileImageUrl: userData.profileImageUrl,
+        balance: '0',
+      })
+      .returning();
+    return newUser;
+  },
+
+  async updateUserBalance(userId: string, amount: string) {
+    const [updated] = await db
+      .update(users)
+      .set({ balance: amount })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  },
+
+  async getTemplates(userId: string) {
+    return db.select().from(templates).where(eq(templates.userId, userId)).orderBy(desc(templates.createdAt));
+  },
+
+  async getTemplate(id: string) {
+    const [template] = await db.select().from(templates).where(eq(templates.id, id));
+    return template;
+  },
+
+  async getApprovedTemplates(userId: string) {
+    return db.select().from(templates).where(and(eq(templates.userId, userId), eq(templates.status, 'approved'))).orderBy(desc(templates.createdAt));
+  },
+
+  async createTemplate(data: any) {
+    const [template] = await db.insert(templates).values(data).returning();
+    return template;
+  },
+
+  async updateTemplate(id: string, data: any) {
+    const [template] = await db.update(templates).set(data).where(eq(templates.id, id)).returning();
+    return template;
+  },
+
+  async deleteTemplate(id: string) {
+    await db.delete(templates).where(eq(templates.id, id));
+    return true;
+  },
+
+  async getCampaigns(userId: string) {
+    return db.select().from(campaigns).where(eq(campaigns.userId, userId)).orderBy(desc(campaigns.createdAt));
+  },
+
+  async getCampaign(id: string) {
+    const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    return campaign;
+  },
+
+  async createCampaign(data: any) {
+    const [campaign] = await db.insert(campaigns).values(data).returning();
+    return campaign;
+  },
+
+  async updateCampaign(id: string, data: any) {
+    const [campaign] = await db.update(campaigns).set(data).where(eq(campaigns.id, id)).returning();
+    return campaign;
+  },
+
+  async deleteCampaign(id: string) {
+    await db.delete(messages).where(eq(messages.campaignId, id));
+    await db.delete(targeting).where(eq(targeting.campaignId, id));
+    await db.delete(reports).where(eq(reports.campaignId, id));
+    await db.delete(campaigns).where(eq(campaigns.id, id));
+    return true;
+  },
+
+  async getMessage(campaignId: string) {
+    const [message] = await db.select().from(messages).where(eq(messages.campaignId, campaignId));
+    return message;
+  },
+
+  async createMessage(data: any) {
+    const [message] = await db.insert(messages).values(data).returning();
+    return message;
+  },
+
+  async getTargeting(campaignId: string) {
+    const [targetingResult] = await db.select().from(targeting).where(eq(targeting.campaignId, campaignId));
+    return targetingResult;
+  },
+
+  async createTargeting(data: any) {
+    const [targetingResult] = await db.insert(targeting).values(data).returning();
+    return targetingResult;
+  },
+
+  async updateTargeting(campaignId: string, data: any) {
+    const [targetingResult] = await db.update(targeting).set(data).where(eq(targeting.campaignId, campaignId)).returning();
+    return targetingResult;
+  },
+
+  async getTransactions(userId: string) {
+    return db.select().from(transactions).where(eq(transactions.userId, userId)).orderBy(desc(transactions.createdAt));
+  },
+
+  async createTransaction(data: any) {
+    const [transaction] = await db.insert(transactions).values(data).returning();
+    return transaction;
+  },
+
+  async getReport(campaignId: string) {
+    const [report] = await db.select().from(reports).where(eq(reports.campaignId, campaignId));
+    return report;
+  },
+
+  async createReport(data: any) {
+    const [report] = await db.insert(reports).values(data).returning();
+    return report;
+  },
+
+  async updateReport(campaignId: string, data: any) {
+    const [report] = await db.update(reports).set(data).where(eq(reports.campaignId, campaignId)).returning();
+    return report;
+  },
+
+  async getDashboardStats(userId: string) {
+    const userCampaigns = await db.select().from(campaigns).where(eq(campaigns.userId, userId));
+    
+    let totalSent = 0;
+    let totalSuccess = 0;
+    let totalClicks = 0;
+    let activeCampaigns = 0;
+
+    for (const campaign of userCampaigns) {
+      if (campaign.statusCode === '01') {
+        activeCampaigns++;
+      }
+      const report = await this.getReport(campaign.id);
+      if (report) {
+        totalSent += report.sent || 0;
+        totalSuccess += report.delivered || 0;
+        totalClicks += report.clicked || 0;
+      }
+    }
+
+    return {
+      totalCampaigns: userCampaigns.length,
+      activeCampaigns,
+      totalSent,
+      totalSuccess,
+      totalClicks,
+      successRate: totalSent > 0 ? Math.round((totalSuccess / totalSent) * 100) : 0,
+    };
+  },
+
+  async getTemplateStats(templateId: string, userId: string) {
+    const templateCampaigns = await db
+      .select()
+      .from(campaigns)
+      .where(and(eq(campaigns.templateId, templateId), eq(campaigns.userId, userId)));
+
+    let totalSent = 0;
+    let totalDelivered = 0;
+    let lastSentAt: Date | null = null;
+
+    for (const campaign of templateCampaigns) {
+      const report = await this.getReport(campaign.id);
+      if (report) {
+        totalSent += report.sent || 0;
+        totalDelivered += report.delivered || 0;
+      }
+      if (campaign.sentAt && (!lastSentAt || campaign.sentAt > lastSentAt)) {
+        lastSentAt = campaign.sentAt;
+      }
+    }
+
+    return {
+      campaignCount: templateCampaigns.length,
+      totalSent,
+      totalDelivered,
+      lastSentAt,
+    };
+  },
+};

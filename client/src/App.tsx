@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import Landing from "@/pages/landing";
+import AuthPage from "@/pages/auth";
 import Dashboard from "@/pages/dashboard";
 import Templates from "@/pages/templates";
 import TemplatesNew from "@/pages/templates-new";
@@ -36,7 +37,7 @@ function navigate(href: string) {
 }
 
 function UserMenu() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   const displayName = user?.firstName 
     ? `${user.firstName}${user.lastName || ''}`
@@ -77,11 +78,13 @@ function UserMenu() {
           <span>설정</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <a href="/api/logout" className="flex items-center gap-2 text-destructive" data-testid="link-logout">
-            <LogOut className="h-4 w-4" />
-            <span>로그아웃</span>
-          </a>
+        <DropdownMenuItem 
+          onClick={signOut}
+          className="flex items-center gap-2 text-destructive cursor-pointer"
+          data-testid="link-logout"
+        >
+          <LogOut className="h-4 w-4" />
+          <span>로그아웃</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -124,15 +127,21 @@ function LoadingScreen() {
 }
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, session } = useAuth();
   const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (!isLoading && !session) {
+      navigate("/auth");
+    }
+  }, [isLoading, session, navigate]);
 
   if (isLoading) {
     return <LoadingScreen />;
   }
 
-  if (!user) {
-    return <Landing />;
+  if (!session) {
+    return null;
   }
 
   return (
@@ -145,7 +154,9 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={() => <ProtectedRoute component={Dashboard} />} />
+      <Route path="/" component={Landing} />
+      <Route path="/auth" component={AuthPage} />
+      <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/templates" component={() => <ProtectedRoute component={Templates} />} />
       <Route path="/templates/new" component={() => <ProtectedRoute component={TemplatesNew} />} />
       <Route path="/campaigns" component={() => <ProtectedRoute component={Campaigns} />} />
