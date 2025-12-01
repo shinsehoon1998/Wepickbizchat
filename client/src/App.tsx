@@ -127,7 +127,7 @@ function LoadingScreen() {
 }
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
-  const { user, isLoading, session } = useAuth();
+  const { user, isLoading, session, isError, signOut } = useAuth();
   const [, navigate] = useLocation();
 
   useEffect(() => {
@@ -142,6 +142,33 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 
   if (!session) {
     return null;
+  }
+
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center p-8 max-w-md">
+          <h2 className="text-xl font-semibold mb-2">연결 오류</h2>
+          <p className="text-muted-foreground mb-4">
+            서버와 연결하는 중 문제가 발생했어요. 다시 시도해주세요.
+          </p>
+          <div className="flex gap-2 justify-center">
+            <button 
+              onClick={() => window.location.reload()} 
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              다시 시도
+            </button>
+            <button 
+              onClick={signOut} 
+              className="px-4 py-2 border border-border rounded-md hover:bg-muted"
+            >
+              로그아웃
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

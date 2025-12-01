@@ -43,7 +43,7 @@ export async function verifyAuth(req: VercelRequest): Promise<{ userId: string; 
 }
 
 export function withAuth(
-  handler: (req: AuthenticatedRequest, res: VercelResponse) => Promise<void>
+  handler: (req: AuthenticatedRequest, res: VercelResponse) => Promise<VercelResponse | void>
 ) {
   return async (req: VercelRequest, res: VercelResponse) => {
     const auth = await verifyAuth(req);

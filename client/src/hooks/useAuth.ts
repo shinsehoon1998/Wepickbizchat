@@ -26,21 +26,31 @@ export function useAuth() {
     };
   }, []);
 
-  const { data: user, isLoading: isUserLoading, refetch } = useQuery<User>({
+  const { data: user, isLoading: isUserLoading, isError, error, refetch } = useQuery<User>({
     queryKey: ["/api/auth/user"],
-    retry: false,
+    retry: 2,
+    retryDelay: 1000,
     enabled: !!session,
   });
+
+  useEffect(() => {
+    if (isError && error) {
+      console.error('Failed to fetch user:', error);
+    }
+  }, [isError, error]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
     window.location.href = "/auth";
   }, []);
 
+  const isLoading = isAuthLoading || (!!session && isUserLoading && !isError);
+
   return {
     user: session ? user : undefined,
     session,
-    isLoading: isAuthLoading || (!!session && isUserLoading),
+    isLoading,
+    isError,
     isAuthenticated: !!session && !!user,
     refetchUser: refetch,
     signOut,
