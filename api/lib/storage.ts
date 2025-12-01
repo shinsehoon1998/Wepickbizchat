@@ -56,6 +56,50 @@ export const storage = {
     return updated;
   },
 
+  async updateUserStripeCustomerId(userId: string, stripeCustomerId: string) {
+    const [updated] = await db
+      .update(users)
+      .set({ 
+        stripeCustomerId,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updated;
+  },
+
+  async creditBalanceAtomically(userId: string, amount: number, stripeSessionId: string) {
+    const existingTx = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.stripeSessionId, stripeSessionId))
+      .limit(1);
+
+    if (existingTx.length > 0) {
+      return { success: false, alreadyProcessed: true };
+    }
+
+    const user = await this.getUser(userId);
+    if (!user) {
+      return { success: false, alreadyProcessed: false };
+    }
+
+    const currentBalance = parseInt(user.balance) || 0;
+    const newBalance = currentBalance + amount;
+
+    await db.update(users).set({ balance: newBalance.toString() }).where(eq(users.id, userId));
+    
+    await db.insert(transactions).values({
+      userId,
+      type: 'charge',
+      amount: amount.toString(),
+      description: `잔액 충전 (Stripe)`,
+      stripeSessionId,
+    });
+
+    return { success: true, alreadyProcessed: false, newBalance };
+  },
+
   async getTemplates(userId: string) {
     return db.select().from(templates).where(eq(templates.userId, userId)).orderBy(desc(templates.createdAt));
   },
@@ -169,7 +213,7 @@ export const storage = {
     let activeCampaigns = 0;
 
     for (const campaign of userCampaigns) {
-      if (campaign.statusCode === '01') {
+      if (campaign.statusCode === 20 || campaign.statusCode === 30) {
         activeCampaigns++;
       }
       const report = await this.getReport(campaign.id);
@@ -206,8 +250,8 @@ export const storage = {
         totalSent += report.sent || 0;
         totalDelivered += report.delivered || 0;
       }
-      if (campaign.sentAt && (!lastSentAt || campaign.sentAt > lastSentAt)) {
-        lastSentAt = campaign.sentAt;
+      if (campaign.completedAt && (!lastSentAt || campaign.completedAt > lastSentAt)) {
+        lastSentAt = campaign.completedAt;
       }
     }
 

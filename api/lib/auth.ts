@@ -58,3 +58,25 @@ export function withAuth(
     return handler(req as AuthenticatedRequest, res);
   };
 }
+
+import { storage } from './storage';
+
+export async function authenticateRequest(req: VercelRequest) {
+  const auth = await verifyAuth(req);
+  
+  if (!auth) {
+    return null;
+  }
+
+  const user = await storage.getUser(auth.userId);
+  
+  if (!user) {
+    const newUser = await storage.upsertUser({
+      id: auth.userId,
+      email: auth.email,
+    });
+    return newUser;
+  }
+
+  return user;
+}
