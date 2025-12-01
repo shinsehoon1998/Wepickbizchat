@@ -33,7 +33,7 @@ function navigate(href: string) {
 const mainNavItems = [
   {
     title: "대시보드",
-    url: "/",
+    url: "/dashboard",
     icon: LayoutDashboard,
   },
 ];
@@ -97,7 +97,7 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <button 
-          onClick={() => navigate("/")} 
+          onClick={() => navigate("/dashboard")} 
           className="flex items-center gap-3 w-full text-left" 
           data-testid="link-logo"
         >
@@ -117,7 +117,7 @@ export function AppSidebar() {
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     onClick={() => navigate(item.url)}
-                    isActive={location === item.url}
+                    isActive={location === item.url || location === '/'}
                     className="data-[active=true]:bg-sidebar-accent cursor-pointer"
                     data-testid={`link-nav-${item.url.replace(/\//g, '-')}`}
                   >
