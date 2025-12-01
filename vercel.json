@@ -4,11 +4,6 @@
   "outputDirectory": "dist/public",
   "framework": null,
   "installCommand": "npm install",
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "@vercel/node@3"
-    }
-  },
   "rewrites": [
     { "source": "/api/auth/:path*", "destination": "/api/auth/:path*" },
     { "source": "/api/dashboard/:path*", "destination": "/api/dashboard/:path*" },
