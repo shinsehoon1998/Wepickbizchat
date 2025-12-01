@@ -8,19 +8,26 @@ async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   }
 
   try {
+    console.log('Fetching user:', req.userId);
     let user = await storage.getUser(req.userId);
 
     if (!user) {
+      console.log('User not found, creating new user:', req.userId, req.userEmail);
       user = await storage.upsertUser({
         id: req.userId,
         email: req.userEmail,
       });
     }
 
+    console.log('User fetched successfully:', user.id);
     return res.status(200).json(user);
   } catch (error) {
     console.error('Error fetching user:', error);
-    return res.status(500).json({ error: 'Failed to fetch user' });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return res.status(500).json({ 
+      error: 'Failed to fetch user',
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+    });
   }
 }
 

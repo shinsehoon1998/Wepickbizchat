@@ -1,14 +1,36 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+let _supabaseAdmin: SupabaseClient | null = null;
 
-export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-  },
+function getSupabaseAdmin(): SupabaseClient {
+  if (_supabaseAdmin) return _supabaseAdmin;
+  
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('Missing Supabase environment variables:', {
+      hasUrl: !!supabaseUrl,
+      hasServiceKey: !!supabaseServiceKey,
+    });
+    throw new Error('Supabase configuration is missing');
+  }
+  
+  _supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+  
+  return _supabaseAdmin;
+}
+
+export const supabaseAdmin = new Proxy({} as SupabaseClient, {
+  get(target, prop) {
+    return getSupabaseAdmin()[prop as keyof SupabaseClient];
+  }
 });
 
 export interface AuthenticatedRequest extends VercelRequest {
@@ -20,6 +42,7 @@ export async function verifyAuth(req: VercelRequest): Promise<{ userId: string; 
   const authHeader = req.headers.authorization;
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('No authorization header found');
     return null;
   }
 
@@ -28,7 +51,13 @@ export async function verifyAuth(req: VercelRequest): Promise<{ userId: string; 
   try {
     const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
 
-    if (error || !user) {
+    if (error) {
+      console.error('Supabase auth error:', error.message);
+      return null;
+    }
+    
+    if (!user) {
+      console.log('No user found for token');
       return null;
     }
 

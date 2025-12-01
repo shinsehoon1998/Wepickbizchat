@@ -93,6 +93,7 @@ export const storage = {
       userId,
       type: 'charge',
       amount: amount.toString(),
+      balanceAfter: newBalance.toString(),
       description: `잔액 충전 (Stripe)`,
       stripeSessionId,
     });
