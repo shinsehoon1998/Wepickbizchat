@@ -1,5 +1,5 @@
 import type { VercelResponse } from '@vercel/node';
-import { withAuth, type AuthenticatedRequest } from '../lib/auth';
+import { withAuth, type AuthenticatedRequest } from '../_lib/auth';
 
 async function handler(req: AuthenticatedRequest, res: VercelResponse) {
   if (req.method !== 'POST') {

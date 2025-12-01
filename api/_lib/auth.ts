@@ -88,8 +88,6 @@ export function withAuth(
   };
 }
 
-import { storage } from './storage';
-
 export async function authenticateRequest(req: VercelRequest) {
   const auth = await verifyAuth(req);
   
@@ -97,6 +95,7 @@ export async function authenticateRequest(req: VercelRequest) {
     return null;
   }
 
+  const { storage } = await import('./storage');
   const user = await storage.getUser(auth.userId);
   
   if (!user) {

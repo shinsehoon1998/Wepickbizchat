@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { storage } from '../lib/storage';
+import { storage } from '../_lib/storage';
 import Stripe from 'stripe';
 
 export const config = {

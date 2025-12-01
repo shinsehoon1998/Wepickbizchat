@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { authenticateRequest } from '../lib/auth';
-import { storage } from '../lib/storage';
+import { authenticateRequest } from '../_lib/auth';
+import { storage } from '../_lib/storage';
 import Stripe from 'stripe';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
