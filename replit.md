@@ -5,12 +5,13 @@ wepick x SKT 비즈챗은 SK텔레콤 광고 수신 동의 고객 1,600만 명 �
 
 ## Tech Stack
 - **Frontend**: React 18 + TypeScript + Vite
-- **Backend**: Express.js + TypeScript
+- **Backend**: Vercel Serverless Functions (Edge-compatible)
 - **Database**: PostgreSQL (Neon) with Drizzle ORM
-- **Authentication**: Replit Auth (OIDC)
+- **Authentication**: Supabase Auth (JWT-based)
 - **UI**: shadcn/ui + Tailwind CSS + Lucide Icons
 - **State Management**: TanStack Query v5
 - **Routing**: Wouter
+- **Deployment**: Vercel
 
 ## Project Structure
 ```
@@ -22,16 +23,17 @@ wepick x SKT 비즈챗은 SK텔레콤 광고 수신 동의 고객 1,600만 명 �
 │   │   │   ├── campaign-status-badge.tsx
 │   │   │   ├── stats-card.tsx
 │   │   │   ├── empty-state.tsx
-│   │   │   ├── theme-provider.tsx
-│   │   │   └── theme-toggle.tsx
+│   │   │   └── theme-provider.tsx
 │   │   ├── hooks/
-│   │   │   └── useAuth.ts    # Authentication hook
+│   │   │   ├── useAuth.ts    # Supabase Authentication hook
+│   │   │   └── useSupabaseAuth.ts # Low-level Supabase auth hook
 │   │   ├── lib/
-│   │   │   ├── authUtils.ts  # Auth & formatting utilities
-│   │   │   ├── queryClient.ts
+│   │   │   ├── supabase.ts   # Supabase client
+│   │   │   ├── queryClient.ts # React Query setup with auth headers
 │   │   │   └── utils.ts
 │   │   ├── pages/
 │   │   │   ├── landing.tsx   # Landing page (unauthenticated)
+│   │   │   ├── auth.tsx      # Login/Signup page
 │   │   │   ├── dashboard.tsx # Dashboard (authenticated)
 │   │   │   ├── campaigns.tsx # Campaign list
 │   │   │   ├── campaigns-new.tsx # Campaign wizard
@@ -39,44 +41,103 @@ wepick x SKT 비즈챗은 SK텔레콤 광고 수신 동의 고객 1,600만 명 �
 │   │   │   └── reports.tsx   # Analytics & reports
 │   │   └── App.tsx           # Main app with routing
 │   └── index.html
-├── server/
-│   ├── db.ts                 # Database connection
-│   ├── storage.ts            # Data access layer
-│   ├── routes.ts             # API endpoints
-│   ├── replitAuth.ts         # Replit Auth setup
-│   └── index.ts              # Server entry point
+├── api/                      # Vercel Serverless Functions
+│   ├── auth/
+│   │   └── user.ts          # GET /api/auth/user
+│   ├── campaigns/
+│   │   ├── index.ts         # GET/POST /api/campaigns
+│   │   └── [id].ts          # GET/PATCH/DELETE /api/campaigns/:id
+│   ├── dashboard/
+│   │   └── stats.ts         # GET /api/dashboard/stats
+│   ├── templates/
+│   │   ├── index.ts         # GET/POST /api/templates
+│   │   ├── [id].ts          # GET/PATCH/DELETE /api/templates/:id
+│   │   ├── [id]/approve.ts  # POST /api/templates/:id/approve
+│   │   ├── [id]/reject.ts   # POST /api/templates/:id/reject
+│   │   ├── [id]/submit.ts   # POST /api/templates/:id/submit
+│   │   └── approved.ts      # GET /api/templates/approved
+│   ├── transactions/
+│   │   ├── index.ts         # GET /api/transactions
+│   │   └── charge.ts        # POST /api/transactions/charge
+│   ├── targeting/
+│   │   └── estimate.ts      # POST /api/targeting/estimate
+│   ├── stripe/
+│   │   ├── config.ts        # GET /api/stripe/config
+│   │   ├── checkout.ts      # POST /api/stripe/checkout
+│   │   └── webhook.ts       # POST /api/stripe/webhook
+│   └── lib/
+│       ├── auth.ts          # JWT verification with Supabase
+│       ├── db.ts            # Neon database connection
+│       └── storage.ts       # Data access layer
+├── server/                   # Legacy Express server (for local dev)
+│   ├── db.ts
+│   ├── storage.ts
+│   ├── routes.ts
+│   └── index.ts
 ├── shared/
 │   └── schema.ts             # Database schema & types
+├── vercel.json               # Vercel deployment config
 ├── design_guidelines.md      # UI/UX design system
 └── tailwind.config.ts
 ```
 
 ## Database Schema
-- **users**: User accounts with balance
+- **users**: User accounts with balance and Supabase user ID
 - **campaigns**: Advertising campaigns (LMS/MMS/RCS)
 - **messages**: Campaign message content
 - **targeting**: Audience targeting settings (gender, age, regions)
 - **transactions**: Balance charge/usage history
+- **templates**: Message templates with approval workflow
 - **reports**: Campaign performance metrics
-- **sessions**: Authentication sessions
 
-## API Endpoints
-- `GET /api/auth/user` - Current user info
+## API Endpoints (Vercel Serverless)
+- `GET /api/auth/user` - Current user info (JWT auth)
 - `GET /api/dashboard/stats` - Dashboard statistics
 - `GET /api/campaigns` - List user campaigns
 - `GET /api/campaigns/:id` - Campaign details
 - `POST /api/campaigns` - Create campaign
 - `PATCH /api/campaigns/:id` - Update campaign
 - `DELETE /api/campaigns/:id` - Delete draft campaign
+- `GET /api/templates` - List user templates
+- `POST /api/templates` - Create template
+- `GET /api/templates/:id` - Template details
+- `PATCH /api/templates/:id` - Update template
+- `DELETE /api/templates/:id` - Delete template
+- `POST /api/templates/:id/submit` - Submit for approval
+- `POST /api/templates/:id/approve` - Approve template (simulation)
+- `POST /api/templates/:id/reject` - Reject template
+- `GET /api/templates/approved` - Get approved templates
 - `GET /api/transactions` - Balance history
 - `POST /api/transactions/charge` - Add balance (mock)
-- `POST /api/campaigns/:id/submit` - Submit for approval
-- `POST /api/campaigns/:id/approve` - Approve campaign (simulation)
-- `POST /api/campaigns/:id/start` - Start campaign sending
 - `POST /api/targeting/estimate` - Estimate target audience size
-- `GET /api/reports/export` - Export campaigns to CSV
 - `GET /api/stripe/config` - Get Stripe publishable key
 - `POST /api/stripe/checkout` - Create Stripe checkout session
+- `POST /api/stripe/webhook` - Stripe webhook handler
+
+## Authentication
+Using Supabase Auth with JWT tokens:
+- Frontend uses `@supabase/supabase-js` for login/signup
+- Backend verifies JWT tokens using Supabase service role key
+- All authenticated API requests include `Authorization: Bearer <token>` header
+- User data synced between Supabase Auth and local users table
+
+## Environment Variables
+Required for Vercel deployment:
+```
+SUPABASE_URL=<your-supabase-url>
+SUPABASE_ANON_KEY=<your-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
+DATABASE_URL=<neon-database-url>
+STRIPE_SECRET_KEY=<stripe-secret-key>
+STRIPE_PUBLISHABLE_KEY=<stripe-publishable-key>
+STRIPE_WEBHOOK_SECRET=<stripe-webhook-secret> (optional)
+```
+
+Frontend environment variables (must be prefixed with VITE_):
+```
+VITE_SUPABASE_URL=<your-supabase-url>
+VITE_SUPABASE_ANON_KEY=<your-anon-key>
+```
 
 ## Design System
 See `design_guidelines.md` for complete design specifications:
@@ -88,32 +149,38 @@ See `design_guidelines.md` for complete design specifications:
 
 ## Development
 ```bash
-npm run dev      # Start development server (port 5000)
+npm run dev      # Start development server (port 5000) - uses Express
+npm run build    # Build for Vercel deployment
 npm run db:push  # Push schema changes to database
 ```
 
+## Deployment
+The project is configured for Vercel deployment:
+1. Connect to Vercel
+2. Set environment variables in Vercel dashboard
+3. Deploy (auto-builds on push)
+
 ## Key Features (MVP)
 1. **Landing Page**: SKT 비즈챗 서비스 소개 및 로그인 CTA
-2. **Dashboard**: Campaign overview, stats, quick actions
-3. **Template System**: 템플릿 작성 → 검수 요청 → 승인/반려 워크플로우
-4. **Campaign Wizard**: 3-step creation flow (템플릿 선택 → 타겟팅 → 예산)
-5. **Campaign List**: Filter, search, and manage campaigns
-6. **Billing**: Balance charging and transaction history
-7. **Reports**: Campaign performance analytics
+2. **Auth Page**: Supabase 이메일/비밀번호 로그인 및 회원가입
+3. **Dashboard**: Campaign overview, stats, quick actions
+4. **Template System**: 템플릿 작성 → 검수 요청 → 승인/반려 워크플로우
+5. **Campaign Wizard**: 3-step creation flow (템플릿 선택 → 타겟팅 → 예산)
+6. **Campaign List**: Filter, search, and manage campaigns
+7. **Billing**: Balance charging and transaction history (Stripe integration)
+8. **Reports**: Campaign performance analytics
 
 ## Recent Changes
-- Initial MVP implementation with all core pages
-- Replit Auth integration for user authentication
-- PostgreSQL database with Drizzle ORM
-- Korean localization for all UI text
-- Stripe payment integration for real balance charging
+- Migrated from Express.js to Vercel Serverless Functions
+- Replaced Replit Auth with Supabase Auth (JWT-based)
+- Created /api folder with serverless function handlers
+- Updated frontend auth hooks to use Supabase
+- Added auth page with login/signup forms
+- Updated queryClient to include JWT auth headers
+- Configured vercel.json for deployment
+- Stripe integration for real balance charging
 - Idempotent webhook handling to prevent duplicate credits
-- CSV export for campaign reports (scoped by authenticated user)
-- Template management system with approval workflow
-- Updated landing page with SKT BizChat content from PDF
-- Changed primary color to SKT red/orange (#E84040)
-- Updated logo to wepick x SKT brand logo
-- Removed dark mode toggle (light mode only)
+- Korean localization for all UI text
 
 ## User Preferences
 - Korean language (한국어) for all UI text
