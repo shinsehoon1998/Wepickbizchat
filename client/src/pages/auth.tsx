@@ -429,15 +429,15 @@ export default function AuthPage() {
                             약관 전문 보기
                           </button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[80vh]">
+                        <DialogContent className="max-w-2xl max-h-[80vh] bg-background">
                           <DialogHeader>
-                            <DialogTitle>위픽 서비스 이용약관</DialogTitle>
+                            <DialogTitle className="text-foreground">위픽 서비스 이용약관</DialogTitle>
                           </DialogHeader>
                           <ScrollArea className="h-[60vh] pr-4">
-                            <div className="prose prose-sm max-w-none">
-                              <pre className="whitespace-pre-wrap text-sm font-sans text-foreground leading-relaxed">
+                            <div className="bg-muted/50 rounded-lg p-4 border">
+                              <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
                                 {TERMS_OF_SERVICE}
-                              </pre>
+                              </div>
                             </div>
                           </ScrollArea>
                           <div className="flex justify-end gap-2 pt-4 border-t">
