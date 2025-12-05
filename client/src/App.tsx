@@ -186,6 +186,8 @@ function Router() {
       <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/templates" component={() => <ProtectedRoute component={Templates} />} />
       <Route path="/templates/new" component={() => <ProtectedRoute component={TemplatesNew} />} />
+      <Route path="/templates/:id/edit" component={() => <ProtectedRoute component={TemplatesNew} />} />
+      <Route path="/templates/:id" component={() => <ProtectedRoute component={TemplatesNew} />} />
       <Route path="/campaigns" component={() => <ProtectedRoute component={Campaigns} />} />
       <Route path="/campaigns/new" component={() => <ProtectedRoute component={CampaignsNew} />} />
       <Route path="/campaigns/:id/edit" component={() => <ProtectedRoute component={CampaignsNew} />} />
