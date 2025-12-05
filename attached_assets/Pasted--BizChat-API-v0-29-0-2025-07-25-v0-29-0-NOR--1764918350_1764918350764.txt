@@ -1,0 +1,1459 @@
+# BizChat API 연동 규격서 v0.29.0
+
+> **업데이트 날짜**: 2025.07.25  
+> **문서 버전**: v0.29.0_NOR
+
+---
+
+## 목차
+1. [REST API 공통 규격](#1-rest-api-공통-규격)
+2. [전체 API 목록](#2-전체-api-목록)
+3. [에러 코드](#3-에러-코드)
+4. [REST API - ATS](#4-rest-api---ats)
+5. [REST API - Maptics](#5-rest-api---maptics)
+6. [REST API - 공통 (파일/발신번호)](#6-rest-api---공통)
+7. [REST API - 캠페인](#7-rest-api---캠페인)
+8. [REST API - AI](#8-rest-api---ai)
+9. [REST API - 리워드](#9-rest-api---리워드)
+10. [Entity 정의](#10-entity-정의)
+11. [파일 포맷](#11-파일-포맷)
+12. [ATS 발송모수 필터 샘플](#12-ats-발송모수-필터-샘플)
+13. [메시지 결과 코드](#13-메시지-결과-코드)
+
+---
+
+## 1. REST API 공통 규격
+
+### 1.1 Request 공통
+
+| 구분 | 요소 | 항목 | 설명 | 예시 |
+|------|------|------|------|------|
+| Header | Authorization | 유저 인증 값 | 고객사 생성시 발급받은 토큰값 | `e2ea3b1ce0f95491bbbaf1b6bcdc6f88ca0c62d8b1b452ecbb8d1b28ed81471f` |
+| Query Params | tid | Transaction ID | API 호출시 unique하게 생성 (milli-sec timestamp 주로 사용) | `?tid=1705298638704` |
+| Body | - | JSON type | 기본적으로 JSON, 파일 업로드 등 특수 API는 명시된 type 사용 | - |
+
+### 1.2 Response 공통
+
+```json
+{
+  "tid": "1705298638704",
+  "code": "S000001",
+  "msg": "success",
+  ...
+}
+```
+
+| 필드 | 설명 |
+|------|------|
+| tid | API 호출시 사용한 tid 값 |
+| code | 성공: `S000001`, 실패: `E`로 시작 (예: `E000001`) |
+| msg | API 처리 결과 메시지 |
+
+---
+
+## 2. 전체 API 목록
+
+### 2.1 ATS API
+
+| Method | URL | 설명 |
+|--------|-----|------|
+| POST | `/api/v1/ats/meta/11st` | ATS 메타 - 11번가 카테고리 메타 정보 |
+| POST | `/api/v1/ats/meta/webapp` | ATS 메타 - 웹앱 카테고리 메타 정보 |
+| POST | `/api/v1/ats/meta/call` | ATS 메타 - 통화Usage 카테고리 메타 정보 |
+| POST | `/api/v1/ats/meta/loc` | ATS 메타 - 위치/이동 특성 정보 |
+| POST | `/api/v1/ats/meta/filter` | ATS 필터 메타 - 회선, 위치, 프로파일링 |
+| POST | `/api/v1/ats/mosu` | ATS 발송 모수 확인 |
+| POST | `/api/v1/ats/meta/11st/full` | ATS 메타 - 11번가 전체 데이터 |
+| POST | `/api/v1/ats/meta/webapp/full` | ATS 메타 - 웹앱 전체 데이터 |
+| POST | `/api/v1/ats/meta/call/full` | ATS 메타 - 통화Usage 전체 데이터 |
+| POST | `/api/v1/ats/meta/loc/full` | ATS 메타 - 위치/이동 특성 전체 데이터 |
+| POST | `/api/v1/ats/meta/target` | ATS 메타 - 통화 분석 메타 정보 |
+| POST | `/api/v1/ats/rpt/gender/age` | 성별/연령대별 분석 리포트 |
+| POST | `/api/v1/ats/rpt/area` | 지역별 분석 리포트 |
+| POST | `/api/v1/ats/rpt/period` | 발송 일자별 분석 리포트 |
+
+### 2.2 Maptics API
+
+| Method | URL | 설명 |
+|--------|-----|------|
+| POST | `/api/v1/maptics/poi` | POI 검색 (지오펜스용) |
+| POST | `/api/v1/maptics/geofences/save` | 지오펜스 생성 |
+| POST | `/api/v1/maptics/geofences/update` | 지오펜스 수정 |
+| POST | `/api/v1/maptics/geofences/delete` | 지오펜스 삭제 |
+
+### 2.3 공통 API
+
+| Method | URL | 설명 |
+|--------|-----|------|
+| POST | `/api/v1/file` | 파일 업로드 |
+| POST | `/api/v1/file/download` | 파일 다운로드 |
+| POST | `/api/v1/sndnum/list` | 발신 번호 코드 목록 |
+
+### 2.4 캠페인 API
+
+| Method | URL | 설명 |
+|--------|-----|------|
+| POST | `/api/v1/cmpn/create` | 캠페인 생성 |
+| GET | `/api/v1/cmpn` | 캠페인 조회 |
+| POST | `/api/v1/cmpn/update` | 캠페인 수정 |
+| POST | `/api/v1/cmpn/delete` | 캠페인 삭제 |
+| POST | `/api/v1/cmpn/list` | 캠페인 목록 |
+| POST | `/api/v1/cmpn/cancel` | 캠페인 취소 |
+| POST | `/api/v1/cmpn/stop` | 캠페인 중단 |
+| POST | `/api/v1/cmpn/test/send` | 캠페인 테스트 발송 |
+| POST | `/api/v1/cmpn/test/send/cancel` | 캠페인 테스트 발송 취소 |
+| GET | `/api/v1/cmpn/test` | 캠페인 테스트 조회 |
+| POST | `/api/v1/cmpn/verify/mdn` | 캠페인 대상 검증 |
+| GET | `/api/v1/cmpn/stat/read` | 캠페인 통계 조회 |
+| POST | `/api/v1/cmpn/appr/req` | 캠페인 승인 요청 |
+| POST | (callback url) | 캠페인 상태 알림 (Bizchat → 3rd Party) |
+
+### 2.5 AI API
+
+| Method | URL | 설명 |
+|--------|-----|------|
+| POST | `/api/v1/ai/gen/msg` | AI 캠페인 문구 생성 |
+| POST | `/api/v1/ai/chk/msg` | AI 캠페인 문구 검증 |
+| POST | `/api/v1/ai/goun/inspect` | 고언연 캠페인 검수 요청 |
+| POST | `/api/v1/ai/goun/inspect/result` | 고언연 캠페인 검수 결과 확인 |
+
+### 2.6 리워드 API
+
+| Method | URL | 설명 |
+|--------|-----|------|
+| POST | `/reward/api/v1/agree` | 동의 요청 |
+| POST | `/reward/api/v1/save` | 적립 요청 |
+| GET | `/reward/api/v1/agree/{bizchat-access-key}/{JSON string}` | 동의/가입 및 적립 요청 웹 링크 |
+
+---
+
+## 3. 에러 코드
+
+### 3.1 공통 에러 코드
+
+| No | Code | 메시지 | 설명 |
+|----|------|--------|------|
+| 1 | S000001 | Success | 성공 |
+| 2 | E000001 | Failed | 서버 에러 (분류하지 않는 서버 에러) |
+| 3 | E000002 | Invalid request | 잘못된 요청 |
+| 4 | E000003 | Failed | 파일 처리 실패 |
+| 5 | E000004 | Invalid request | 잘못된 mdn |
+| 6 | E000005 | Resource not exists | 데이터를 찾을 수 없음 |
+| 7 | E000006 | Server error | 서버 에러 |
+| 8 | E000007 | Server error | 서버 에러 |
+| 9 | E000100 | Limit wrong password count | 잘못된 비밀번호 카운트 최대 횟수 |
+| 10 | E000101 | Wrong password | 잘못된 비밀번호 |
+| 11 | E000104 | Expired session | 만료된 세션 |
+| 12 | E000106 | Invalid authorization | 권한 없음 |
+
+### 3.2 ATS/Maptics 에러 코드
+
+| No | Code | 설명 |
+|----|------|------|
+| 17 | E001000 | ATS 메타 - 11번가 호출 실패 |
+| 18 | E001001 | ATS 메타 - 웹앱 호출 실패 |
+| 19 | E001002 | ATS 메타 - 통화Usage 호출 실패 |
+| 20 | E001003 | ATS 메타 - 위치/이동 호출 실패 |
+| 21 | E001004 | ATS 필터 메타 호출 실패 |
+| 22 | E001005 | ATS 발송 모수 확인 실패 |
+| 23 | E001006 | MDN 획득 실패 |
+| 24 | E001007 | ATS 메타 - 통화분석 호출 실패 |
+| 25 | E001008 | ATS 리포트 연동 실패 |
+| 26 | E001100 | Maptics POI 검색 실패 |
+| 27 | E001101 | Maptics 지오펜스 생성 실패 |
+| 28 | E001102 | Maptics 지오펜스 수정 실패 |
+| 29 | E001103 | Maptics 지오펜스 삭제 실패 |
+
+### 3.3 캠페인 에러 코드
+
+| No | Code | 설명 |
+|----|------|------|
+| 36 | E100001 | 잘못된 sndMosu 값 |
+| 37 | E100002 | 잘못된 sndGoalCnt 값 |
+| 38 | E100003 | 잘못된 sndNum 값 |
+| 39 | E100004 | mdn 직접 지정 방식 미지원 |
+| 40 | E100005 | LMS/MMS 메시지 본문 길이 초과 |
+| 41 | E100006 | RCS 메시지 본문 길이 초과 |
+| 42 | E100007 | 잘못된 캠페인 시작 날짜 |
+| 43 | E100008 | mdn 파일 없음 |
+| 44 | E100009 | 잘못된 content-type |
+| 45 | E100010 | 잘못된 sndMosuQuery |
+| 46 | E100011 | 잘못된 sndMosuDesc |
+| 47 | E100012 | 잘못된 geoFenceId |
+| 48 | E100017 | 잘못된 RCS 타입 |
+| 49 | E100018 | 잘못된 슬라이드 카운트 |
+| 50 | E100022 | 캠페인 수정 불가능한 state |
+| 51 | E100024 | 캠페인 취소/중단 불가능한 state |
+| 65 | E100030 | 잘못된 랜덤 쿠폰 파일 |
+| 66 | E100031 | sndMosu 카운트 오류 (150% 이상 필요) |
+| 67 | E100032 | 고객사명 없음 |
+| 68 | E100033 | adverDeny 값 없음 |
+| 34 | E002000 | AIHub 연동 실패 |
+| 35 | E002001 | 고언연 연동 실패 |
+
+### 3.4 리워드 에러 코드
+
+| No | Code | 설명 |
+|----|------|------|
+| 80 | E201006 | 암호화/복호화 오류 |
+| 81 | E201101 | JSON Syntax Error |
+| 82 | E201102 | 필수 JSON Element 없음 |
+| 83 | E201103 | 데이터 값 오류 |
+| 84 | E202001 | 미동의자 |
+| 85 | E202002 | 미가입자 |
+| 86 | E202101 | 이미 적립된 요청 |
+| 87 | E202102 | 적립 기간 종료 |
+| 88 | E202103 | 적립포인트 요청 범위 오류 |
+| 89 | E202201 | Merchant ID 없음 |
+| 90 | E202202 | Response ID 없음 |
+| 91 | E202999 | 적립 실패 (기타 오류) |
+| 92 | E209001 | 고객사 하루 요청 처리량 초과 |
+
+---
+
+## 4. REST API - ATS
+
+### 4.1 ATS 메타 - 11번가 카테고리 (`/api/v1/ats/meta/11st`)
+
+11번가 카테고리 메타 정보 조회. 카테고리 3 목록은 고객사 권한에 따라 획득 가능/불가능.
+
+**Request**
+```
+POST /api/v1/ats/meta/11st?tid=1706073253324
+Authorization: {token}
+Content-Type: application/json
+
+{
+  "cateid": "01"  // Optional: 없으면 카테고리1, 2자리=카테고리2, 4자리=카테고리3
+}
+```
+
+**Response**
+```json
+{
+  "tid": "1706073253324",
+  "code": "S000001",
+  "msg": "Success",
+  "data": {
+    "metaType": "STREET",
+    "dataType": "cate",
+    "list": [
+      {"id": "01", "name": "가구/인테리어"},
+      {"id": "02", "name": "도서/취미/반려동물"}
+    ]
+  }
+}
+```
+
+### 4.2 ATS 메타 - 웹앱 카테고리 (`/api/v1/ats/meta/webapp`)
+
+웹앱 카테고리 메타 정보 조회. 사용법은 11번가와 동일.
+
+**Response 예시**
+```json
+{
+  "data": {
+    "metaType": "APP",
+    "dataType": "cate",
+    "list": [
+      {"id": "01", "name": "게임"},
+      {"id": "02", "name": "교육/학습"}
+    ]
+  }
+}
+```
+
+### 4.3 ATS 메타 - 통화Usage (`/api/v1/ats/meta/call`)
+
+통화Usage 카테고리 메타 정보 조회. 사용법은 11번가와 동일.
+
+**Response 예시**
+```json
+{
+  "data": {
+    "metaType": "TEL",
+    "dataType": "cate",
+    "list": [
+      {"id": "01", "name": "공공"},
+      {"id": "02", "name": "교육"}
+    ]
+  }
+}
+```
+
+### 4.4 ATS 메타 - 위치/이동 특성 (`/api/v1/ats/meta/loc`)
+
+위치 코드(hcode) 검색. ATS 필터 메타 - 위치 사용시 필요.
+
+**hcode 구조**
+- 앞 2자리: 광역시/도 레벨
+- 앞 5자리: 시/구/군 레벨
+- 8자리 전체: 동/면/읍 레벨
+
+**Request**
+```json
+{
+  "addr": "양양"
+}
+```
+
+**Response**
+```json
+{
+  "data": {
+    "list": [
+      {"hcode": "51830250", "ado": "강원", "sigu": "양양군", "dong": "양양읍"}
+    ],
+    "listR": [
+      {"rcode": "51830310", "ado": "강원", "sigu": "양양군", "dong": "서면"}
+    ]
+  }
+}
+```
+
+> **주의**: 행정동, 법정동은 mix해서 사용하지 않도록 한다.
+
+### 4.5 ATS 필터 메타 (`/api/v1/ats/meta/filter`)
+
+회선, 위치, 프로파일링 필터 메타 정보 조회.
+
+**Request**
+```json
+{
+  "type": "svc"  // svc: 회선, loc: 위치, pro: 프로파일링
+}
+```
+
+**Response (svc 예시)**
+```json
+{
+  "data": {
+    "metaType": "svc",
+    "list": [
+      {
+        "name": "정보광고 수신 동의",
+        "desc": "",
+        "code": "ad_agr_yn",
+        "dataType": "code",
+        "min": 0,
+        "max": 0,
+        "unit": "",
+        "attributes": [
+          {"name": "동의", "desc": "", "val": "Y"},
+          {"name": "비동의", "desc": "", "val": "N"}
+        ]
+      },
+      {
+        "name": "연령",
+        "code": "cust_age_cd",
+        "dataType": "number",
+        "min": 0,
+        "max": 100,
+        "unit": "세",
+        "attributes": []
+      }
+    ]
+  }
+}
+```
+
+### 4.6 ATS 발송 모수 확인 (`/api/v1/ats/mosu`)
+
+발송 대상 모수(수) 확인.
+
+**필터 규칙**
+- `$and` / `$or` 조건은 동시 사용 불가
+- 조건 단계는 최대 2단계까지 (`$and.$or` 가능, `$and.$or.$and` 불가)
+- 정보광고 수신 동의, SMS 수신거부 여부, 스마일고객 여부, SKT 구성원 여부는 ATS에서 기본 적용되므로 필터에서 제외
+
+**Request 예시**
+```json
+{
+  "$and": [
+    {
+      "data": [{"cat1": "게임", "cat2": "VR/AR게임", "cat3": "포켓몬 고(Pokemon Go)"}],
+      "dataType": "cate",
+      "metaType": "app",
+      "code": "",
+      "desc": "게임: 게임 > VR/AR게임 > 포켓몬 고(Pokemon Go)",
+      "not": true
+    },
+    {
+      "data": {"gt": 30, "lt": 50},
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 30세 ~ 50세",
+      "not": false
+    }
+  ]
+}
+```
+
+**Response**
+```json
+{
+  "data": {
+    "cnt": 11309949,
+    "filterStr": "<table>...</table>",
+    "query": "( ( ((app not like '0101002%' and app not like '%,0101002%')) ) ) and indv_info_use_agree_yn = 'Y'"
+  }
+}
+```
+
+---
+
+## 5. REST API - Maptics
+
+### 5.1 POI 검색 (`/api/v1/maptics/poi`)
+
+지오펜스에 사용할 POI(Point of Interest) 검색.
+
+**Request**
+```json
+{
+  "skey": "을지로입구",
+  "type": "poi"  // poi: POI로 검색, addr: 지번/도로명으로 검색
+}
+```
+
+**Response**
+```json
+{
+  "data": {
+    "list": [
+      {
+        "road": "서울 중구 을지로 42(을지로1가) 을지로입구역[2호선]",
+        "lat": "37.56598210",
+        "lon": "126.98215959"
+      }
+    ]
+  }
+}
+```
+
+### 5.2 지오펜스 생성 (`/api/v1/maptics/geofences/save`)
+
+**Request**
+```json
+{
+  "name": "지오펜스1",
+  "target": [
+    {
+      "gender": 0,      // 0: 전체, 1: 남자, 2: 여자
+      "minAge": 20,     // 19 <= minAge <= 90
+      "maxAge": 30,     // 19 <= maxAge <= 90
+      "stayMin": 10,    // 체류 시간(분). 5 <= stayMin <= 30
+      "radius": 500,    // 반경(미터). 50 <= radius <= 2000
+      "address": "서울 중구 을지로 42(을지로1가) 을지로입구역[2호선]"
+    }
+  ]
+}
+```
+
+**Response**
+```json
+{
+  "data": {
+    "id": 569  // 지오펜스 아이디 (수정/삭제시 사용)
+  }
+}
+```
+
+### 5.3 지오펜스 수정 (`/api/v1/maptics/geofences/update`)
+
+Query Parameter: `tid=xxx&targetId=579`
+
+Request Body는 생성과 동일.
+
+### 5.4 지오펜스 삭제 (`/api/v1/maptics/geofences/delete`)
+
+Query Parameter: `tid=xxx&targetId=569`
+
+---
+
+## 6. REST API - 공통
+
+### 6.1 파일 업로드 (`/api/v1/file`)
+
+form-data로 파일 업로드. 최대 500MB 지원.
+
+**Query Parameters**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| tid | string | Transaction ID |
+| type | number | 파일 종류: 1=기타, 2=이미지, 3=동영상, 4=csv, 5=오디오, 6=텍스트 |
+| rcs | number | RCS용 파일 여부: 1=RCS용, 그외=아님 |
+
+**MMS 이미지 규격**
+- 지원 코덱: JPG
+- 권장 사이즈: 장당 300KB (장당 1MB 초과시 실패)
+- 해상도: 320x240 권장 (2000x2000 초과시 실패)
+
+**RCS 이미지 규격**
+- png, jpg 지원 (jpg 추천)
+- RCS 메시지 타입별 해상도 맞춰야 정상 발송
+
+**Response**
+```json
+{
+  "data": {
+    "id": "3c0e1cdfb64233f6a1c1e04ff38f9045204202"  // 다른 API에서 파일 사용시 이용
+  }
+}
+```
+
+### 6.2 파일 다운로드 (`/api/v1/file/download`)
+
+Query Parameter: `tid=xxx&id={파일아이디}`
+
+### 6.3 발신 번호 코드 목록 (`/api/v1/sndnum/list`)
+
+사용 가능한 발신 번호 코드 목록 조회.
+
+**Response**
+```json
+{
+  "data": {
+    "list": [
+      {"code": "001001", "name": "테스트 발신번호1"}
+    ]
+  }
+}
+```
+
+---
+
+## 7. REST API - 캠페인
+
+### 7.1 캠페인 생성 (`/api/v1/cmpn/create`)
+
+캠페인을 [승인 요청] 상태로 생성.
+
+#### 중요 규칙
+
+1. **시작 시간 규칙**: 현재 시간 대비 1시간 이후, 10분 단위로 체크
+   - 10:11에 11:15 시작 캠페인 → 실패
+   - 10:11에 11:20 시작 캠페인 → 성공
+
+2. **billingType별 메시지 생성 규칙**
+
+| billingType | 값 | 규칙 |
+|-------------|---|------|
+| LMS | 0 | mms 데이터만 필요, 파일 없음 |
+| RCS MMS | 1 | mms + rcs 모두 필요, mms에 파일 있음 (RCS 실패시 MMS fallback) |
+| MMS | 2 | mms 데이터만 필요, 파일 있음 |
+| RCS LMS | 3 | mms + rcs 모두 필요, mms에 파일 없음 (RCS 실패시 LMS fallback) |
+
+3. **URL분석 길이 변환**
+   - 개발기: `[URL분석]` 하나당 32자 증가
+   - 상용기: `[URL분석]` 하나당 25자 증가
+
+4. **코드삽입 길이 변환**
+   - `[코드삽입]` 하나당: `<쿠폰문자열길이> - 6` 만큼 증가
+
+#### Request Body 파라미터
+
+| Parameter | Mandatory | Type | Description |
+|-----------|-----------|------|-------------|
+| tgtCompanyName | Y | string | 고객사명 (최대 100자) |
+| name | Y | string | 캠페인명 (최대 40자) |
+| sndNum | Y | string | 발신 번호 코드 |
+| rcvType | Y | number | 0: ATS 일반, 1: Maptics 실시간, 2: Maptics 모아서, 10: MDN 직접 지정 |
+| sndGoalCnt | Y | number | 발송 목표 건수 (1~200,000) |
+| billingType | Y | number | 0: LMS, 1: RCS MMS, 2: MMS, 3: RCS LMS |
+| isTmp | Y | number | 임시 저장 여부 (0: 아니오, 1: 네) |
+| settleCnt | Y | number | 정산 건수 (이상은 무료 처리) |
+| atsSndStartDate | N | number | rcvType=0,10일 때 발송 시작 일시 (unix timestamp, 초단위) |
+| collStartDate | N | number | rcvType=1,2일 때 수집 시작 일시 |
+| collEndDate | N | number | rcvType=1,2일 때 수집 종료 일시 |
+| collSndDate | N | number | rcvType=2일 때 발송 시작 일시 |
+| sndDayDiv | N | number | rcvType=1일 때 일 균등 분할 (0: 미분할, 1: 분할) |
+| rtStartHhmm | N | string | rcvType=1일 때 발송 시작 시간 (HHMM) |
+| rtEndHhmm | N | string | rcvType=1일 때 발송 종료 시간 (HHMM) |
+| rcsType | N | number | RCS 템플릿: 0=스탠다드, 1=LMS, 2=슬라이드, 3=이미지강조A, 4=이미지강조B, 5=상품소개세로 |
+| slideCnt | N | number | 슬라이드 개수 (최대 6) |
+| mdnFileId | N | string | MDN 파일 아이디 (rcvType=10일 때 필수, 최대 20만건) |
+| sndGeofenceId | N | number | 지오펜스 아이디 (rcvType=1,2일 때 필수) |
+| sndMosu | N | number | ATS 발송 모수 (rcvType=0일 때 필수, 최소 sndGoalCnt의 150%, 최대 400,000) |
+| sndMosuFlag | N | number | sndMosu 150% 체크 사용 여부 (0: 사용, 1: 미사용) |
+| sndMosuDesc | N | string | 발송 모수 필터 설명 (HTML) |
+| sndMosuQuery | N | string | ATS 발송 모수 쿼리 |
+| useCoupon | N | number | 쿠폰 사용 여부 (0: 미사용, 1: 사용) |
+| coupon | N | string | 쿠폰 파일 아이디 |
+| adverDeny | N | string | 무료 수신거부 번호 (기본: 1504) |
+| free | N | number | (deprecated) settleCnt 사용 |
+| rewardEndDate | N | number | 리워드 지급 제한 기간 (리워드 사용시 필수) |
+| cb | N | object | callback url 정보 |
+| cb.state | N | string | 상태 변경 알림 callback url |
+| retarget | N | array | 이전 캠페인 수신 mdn 제외 정보 (최대 10개) |
+| retarget.id | Y | string | 제외할 캠페인 아이디 (1일~6개월 이내 진행 캠페인) |
+| retarget.recv | Y | boolean | 수신 성공 mdn 제외 여부 |
+| retarget.react | Y | boolean | 반응(URL/버튼 클릭) mdn 제외 여부 |
+
+#### MMS 객체
+
+| Parameter | Mandatory | Type | Description |
+|-----------|-----------|------|-------------|
+| mms.title | Y | string | 제목 (최대 30자) |
+| mms.msg | Y | string | 메시지 본문 (최대 1000자) |
+| mms.fileInfo | Y | object | 이미지 파일 정보 |
+| mms.fileInfo.list | N | array | 파일 리스트 (최대 1개) |
+| mms.fileInfo.list[].origId | Y | string | 파일 아이디 |
+| mms.urlFile | N | string | 개별 URL CSV 파일 아이디 |
+| mms.urlFileReward | N | number | 리워드 링크 URL index |
+| mms.urlLink | Y | object | 마케팅 URL 정보 |
+| mms.urlLink.list | N | array | URL 리스트 (최대 3개) |
+| mms.urlLink.reward | N | number | 리워드 URL index |
+
+#### RCS 객체 (배열)
+
+| Parameter | Mandatory | Type | Description |
+|-----------|-----------|------|-------------|
+| rcs[].slideNum | Y | number | 슬라이드 index (비슬라이드=1) |
+| rcs[].title | N | string | 제목 (최대 30자) |
+| rcs[].msg | N | string | 본문 (템플릿별 제한) |
+| rcs[].imgOrigId | N | string | 이미지 파일 아이디 |
+| rcs[].urlFile | N | string | 개별 URL CSV 파일 아이디 |
+| rcs[].urlFileReward | N | number | 리워드 링크 URL index |
+| rcs[].urlLink | Y | object | 마케팅 URL 정보 |
+| rcs[].urlLink.list | N | array | URL 리스트 |
+| rcs[].urlLink.reward | N | number | 리워드 URL index |
+| rcs[].buttons | Y | object | 버튼 정보 |
+| rcs[].buttons.list | N | array | 버튼 목록 (슬라이드별 최대 2개) |
+| rcs[].buttons.list[].type | Y | string | 0=URL, 1=전화, 2=지도 |
+| rcs[].buttons.list[].name | Y | string | 버튼 텍스트 |
+| rcs[].buttons.list[].val1 | Y | string | URL/전화번호/위치이름 |
+| rcs[].buttons.list[].val2 | N | string | 지도 fallback URL |
+| rcs[].buttons.list[].reward | N | string | 리워드 버튼 여부 (1=리워드) |
+| rcs[].opts | Y | object | 상품소개세로 옵션 |
+| rcs[].opts.list | N | array | 옵션 목록 (2~3개) |
+| rcs[].opts.list[].origId | Y | string | 이미지 아이디 (300x300) |
+| rcs[].opts.list[].descr | Y | string | 설명 (최대 33자) |
+| rcs[].opts.list[].link | Y | string | 링크 URL |
+
+#### RCS 메시지 본문 길이 제한
+
+| rcsType | 본문 길이 |
+|---------|----------|
+| 스탠다드 | 1100자 |
+| LMS | 1100자 |
+| 슬라이드 | 슬라이드당 300자 (전체 합산 1300자) |
+| 이미지 강조 A | 1100자 |
+| 이미지 강조 B | 1100자 |
+| 상품 소개 세로 | 1100자 |
+
+#### RCS 이미지 규격
+
+| rcsType | 최대 용량 | 해상도 |
+|---------|----------|--------|
+| 스탠다드 | 0.3MB | 400x240, 500x300 |
+| LMS | 없음 | - |
+| 슬라이드 | 1MB (장당 300KB) | 464x336 |
+| 이미지 강조 A | 1MB | 900x1200 |
+| 이미지 강조 B | 1MB | 900x900 |
+| 상품 소개 세로 | 1MB | 900x560 |
+
+#### RCS 버튼 텍스트 길이
+
+| rcsType | 글자 수 |
+|---------|---------|
+| 스탠다드 | 17자 |
+| LMS | 17자 |
+| 슬라이드 | 13자 |
+| 이미지 강조 A/B | 16자 |
+| 상품 소개 세로 | 16자 |
+
+#### Request 예시 (LMS)
+
+```json
+{
+  "tgtCompanyName": "유엔젤",
+  "name": "유엔젤 이벤트 (lms)",
+  "sndNum": "001001",
+  "rcvType": 10,
+  "sndGoalCnt": 10,
+  "atsSndStartDate": 1717545600,
+  "billingType": 0,
+  "mdnFileId": "ebe7525e815d3c01855e30c754bcc34f504202",
+  "isTmp": 0,
+  "settleCnt": 0,
+  "mms": {
+    "title": "유엔젤 이벤트 (lms)",
+    "msg": "(lms) 구정을 맞이하여 만원 이상 구매 고객에게 복조리를 증정해드립니다. [URL분석1] [URL분석2] [URL분석3]",
+    "fileInfo": {},
+    "urlLink": {
+      "list": [
+        "https://www.google.com",
+        "https://www.apple.com",
+        "https://www.kakao.com"
+      ]
+    }
+  },
+  "rcs": [],
+  "cb": {}
+}
+```
+
+**Response**
+```json
+{
+  "tid": "1706073253324",
+  "code": "S000001",
+  "msg": "success",
+  "data": {
+    "id": "19ca34b180394f15a9c66f798b65df95"
+  }
+}
+```
+
+### 7.2 캠페인 조회 (`GET /api/v1/cmpn`)
+
+Query Parameter: `tid=xxx&id={캠페인아이디}`
+
+캠페인 Entity 형태로 응답.
+
+### 7.3 캠페인 수정 (`/api/v1/cmpn/update`)
+
+Query Parameter: `tid=xxx&id={캠페인아이디}`
+
+Request Body는 생성과 동일. 추가 파라미터:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| isAppr | number | 반려된 캠페인 승인 재요청 (0: 안함, 1: 요청) - *deprecated, 별도 승인 요청 API 사용* |
+
+### 7.4 캠페인 삭제 (`/api/v1/cmpn/delete`)
+
+임시 저장(isTmp=1) 또는 임시 등록(state=0) 캠페인만 삭제 가능. 최대 10개.
+
+**Request**
+```json
+{
+  "ids": ["19ca34b180394f15a9c66f798b65df95"]
+}
+```
+
+**Response**
+```json
+{
+  "data": {
+    "count": 1
+  }
+}
+```
+
+### 7.5 캠페인 목록 (`/api/v1/cmpn/list`)
+
+**Request**
+```json
+{
+  "pageNumber": 0,
+  "pageSize": 10,
+  "tgtCompanyName": "이마트",
+  "name": "새해맞이",
+  "states": [10],
+  "isTmp": 0
+}
+```
+
+**Response**
+```json
+{
+  "data": {
+    "pageNumber": 0,
+    "pageSize": 10,
+    "totalPage": 7,
+    "totalAmount": 65,
+    "list": [...]
+  }
+}
+```
+
+### 7.6 캠페인 취소 (`/api/v1/cmpn/cancel`)
+
+진행 전 캠페인 취소. 시작일시 1시간 전 캠페인만 가능.
+
+**가능한 상태**: 검수요청(1), 검수완료(2), 승인요청(10), 승인완료(11), 반려(17), 발송준비(20)
+
+Query Parameter: `tid=xxx&id={캠페인아이디}`
+
+### 7.7 캠페인 중단 (`/api/v1/cmpn/stop`)
+
+진행 중인 캠페인 중단.
+
+Query Parameter: `tid=xxx&id={캠페인아이디}`
+
+### 7.8 캠페인 테스트 발송 (`/api/v1/cmpn/test/send`)
+
+최대 20명에게 테스트 발송. 임시 저장 캠페인(isTmp=1)은 테스트 불가.
+
+**Request**
+```json
+{
+  "mdn": ["01012345678"],
+  "sendTime": 1705298638  // Optional: 없으면 즉시 발송
+}
+```
+
+### 7.9 캠페인 테스트 발송 취소 (`/api/v1/cmpn/test/send/cancel`)
+
+예약된 테스트 발송 모두 취소.
+
+Query Parameter: `tid=xxx&id={캠페인아이디}`
+
+### 7.10 캠페인 테스트 조회 (`GET /api/v1/cmpn/test`)
+
+해당 캠페인의 모든 테스트 발송 결과 조회.
+
+**Response**
+```json
+{
+  "data": {
+    "list": [
+      {
+        "recvMdn": "01031626351",
+        "customerReserveTime": "20240703142524",
+        "svcStatus": "001000",   // 발송 코드
+        "svcStatus2": "201000"   // 수신 코드 (201000=성공)
+      }
+    ]
+  }
+}
+```
+
+### 7.11 캠페인 대상 검증 (`/api/v1/cmpn/verify/mdn`)
+
+MDN 파일과 발송 목표 건수 비교. rcvType=10(직접 지정)일 때만 사용.
+
+**Response**
+```json
+{
+  "data": {
+    "goalCount": 10,
+    "validCount": 1,
+    "duplicate": {
+      "count": 199998,
+      "list": [{"mdn": "01030985066", "count": 133333}]
+    },
+    "invalid": {
+      "count": 1,
+      "list": ["0123"]
+    }
+  }
+}
+```
+
+### 7.12 캠페인 통계 조회 (`GET /cmpn/stat/read`)
+
+통계 데이터는 5분 주기로 갱신.
+
+**Response 주요 필드**
+
+| 필드 | 설명 |
+|------|------|
+| statDate | 통계 수집 일자 (YYYYMMDD) |
+| mdnCnt | 발송 대상자 수 |
+| dupExcludeCnt | 타 캠페인 수신자 수 |
+| adRcvExcludeCnt | 광고 수신 미동의 수신자 수 |
+| sendTryCnt | 발송 시도자 수 |
+| msgRecvCnt | 메시지 수신자 수 |
+| rcsMsgRecvCnt | RCS 메시지 수신자 수 |
+| vmgMsgRecvCnt | 일반 메시지 수신자 수 |
+| msgNotRecvCnt | 미수신자 수 |
+| msgReactCnt | 메시지 반응자 수 (UA+IP 제한) |
+| msgReactRatio | 메시지 반응률 (%) |
+| msgReactCnt2 | 메시지 반응자 수 (UA만 제한) |
+| msgReactRatio2 | 메시지 반응률 (UA만 제한) |
+| rcsMsgReadCnt | RCS 메시지 확인자 수 |
+| rcsMsgReadRatio | RCS 메시지 확인률 |
+| url | URL별 클릭 상세 (UA+IP 제한) |
+| url2 | URL별 클릭 상세 (UA만 제한) |
+
+### 7.13 캠페인 상태 알림 (Callback)
+
+Bizchat에서 연동 서버로 전송. HTTP status 200 리턴 필요.
+
+**Request Body**
+```json
+{
+  "id": "ff1e695ff6364daa8cefed57f5506605",
+  "state": 30,
+  "stateUpdateDate": 1705298638,
+  "stateReason": ""
+}
+```
+
+**캠페인 상태 코드**
+
+| state | 설명 |
+|-------|------|
+| 1 | 검수 요청 |
+| 2 | 검수 완료 |
+| 10 | 승인 요청 |
+| 11 | 승인 완료 |
+| 17 | 반려 |
+| 20 | 발송 준비 |
+| 25 | 취소 |
+| 30 | 진행중 |
+| 35 | 중단 |
+| 40 | 종료 |
+
+### 7.14 캠페인 승인 요청 (`/api/v1/cmpn/appr/req`)
+
+캠페인 상태가 "임시등록", "검수완료", "반려"일 때 사용 가능.
+
+> **맵틱스 캠페인**: 승인 요청 시간 + 1시간은 collStartDate보다 과거여야 함.
+
+Query Parameter: `tid=xxx&id={캠페인아이디}`
+
+---
+
+## 8. REST API - AI
+
+### 8.1 AI 캠페인 문구 생성 (`/api/v1/ai/gen/msg`)
+
+AI를 사용해 캠페인 문구 생성. guideline은 최소 10자 이상.
+
+**Request**
+```json
+{
+  "guideline": "광고주(또는 브랜드명): SK 브로드밴드\n이벤트 내용: Btv 키즈 이벤트 안내...\n이벤트 기간: 2024년 10월 15일~10월 30일\nURL 바로가기: https://tworld.co.kr\n유의사항: ...\n문의: SK브로드밴드(116)"
+}
+```
+
+**Response**
+```json
+{
+  "data": {
+    "title": "SK브로드밴드 B tv 키즈 이벤트 안내드립니다.",
+    "body": "(광고)[SKT] SK브로드밴드 B tv 키즈 뽀로로 이벤트 안내..."
+  }
+}
+```
+
+### 8.2 AI 캠페인 문구 검증 (`/api/v1/ai/chk/msg`)
+
+캠페인 문구 검증 및 수정 제안.
+
+**Request**
+```json
+{
+  "title": "SK브로드밴드 B tv 키즈 이벤트 안내드립니다.",
+  "body": "(광고)[SKT] SK브로드밴드드 B tv 키즈 뽀로 이벤트 안내..."
+}
+```
+
+**Response**
+```json
+{
+  "data": {
+    "result": {
+      "title": "SK브로드밴드 B tv 키즈 이벤트 안내드립니다.",
+      "body": "(광고)[SKT] SK브로드밴드 B tv 키즈 뽀로로 이벤트 안내..."
+    },
+    "delta": {
+      "title": "...",
+      "body": "...{{- 드}} B tv 키즈 뽀{{+ 로}}로 이벤트..."
+    }
+  }
+}
+```
+
+**delta 표기법**
+- 추가: `{{+ 로}}`
+- 삭제: `{{- 드}}`
+- 변경: `{{보 -> 참여하}}`
+
+### 8.3 고언연 캠페인 검수 요청 (`/api/v1/ai/goun/inspect`)
+
+캠페인 상태가 "임시 등록"일 때 가능.
+
+> 캠페인 시작 시간은 검수 요청 시간보다 최소 2.5일 이상이어야 함.
+
+**Request**
+```json
+{
+  "cmpnId": "c674de4be2393b0aaad1aff96427c78c"
+}
+```
+
+### 8.4 고언연 캠페인 검수 결과 확인 (`/api/v1/ai/goun/inspect/result`)
+
+**Response**
+```json
+{
+  "data": {
+    "cmpnName": "캠페인",
+    "customerName": "제휴사A",
+    "managerName": "팀전체메일",
+    "startDate": 1748503800,
+    ...
+  }
+}
+```
+
+---
+
+## 9. REST API - 리워드
+
+### 9.1 동의/가입 및 적립 요청 웹 링크
+
+비즈챗에서 사용자에게 제공하는 리워드 링크 형태.
+
+**URL 형식**
+```
+GET /reward/api/v1/agree/{bizchat-access-key}/{AES암호화된JSON}
+```
+
+**Query Parameters**
+
+| Parameter | Description |
+|-----------|-------------|
+| userId | 제휴사 ID |
+| mdn | 수신자 전화번호 |
+| rewardPt | 리워드 포인트 |
+| ignorePeriod | Y=기간 무시, N=기간 체크 |
+
+### 9.2 동의 요청 (`/reward/api/v1/agree`)
+
+리워드 지급을 위한 CI 사용 동의 API.
+
+**도메인**: `https://gw.bizchat1.co.kr`
+
+**Request Header**
+```
+Content-Type: text/plain
+bizchat-access-key: {Authorization 토큰}
+```
+
+**Request Body** (AES 암호화)
+```json
+{
+  "merchantId": 0,
+  "responseId": 123
+}
+```
+
+**Response** (AES 암호화)
+```json
+{
+  "resCd": "S000001",
+  "resMsg": "Success",
+  "agreeYn": "Y",
+  "joinYn": "Y"
+}
+```
+
+### 9.3 적립 요청 (`/reward/api/v1/save`)
+
+리워드 포인트 지급 API. CI 동의 및 네이버 가입 확인 필요.
+
+**Request Body** (AES 암호화)
+```json
+{
+  "merchantId": 0,
+  "responseId": 123,
+  "rewardPt": 100,
+  "ignorePeriod": "N"
+}
+```
+
+**Response** (AES 암호화)
+```json
+{
+  "resCd": "S000001",
+  "resMsg": "Success",
+  "saveDate": "20241203153020",
+  "savePoint": 100
+}
+```
+
+### 9.4 AES 암호화 (Java 참고)
+
+```java
+public static String encryptRewardAES(String plainText, String decEnckey) {
+    if (plainText == null || plainText.length() <= 0) return null;
+    String secretKey = decEnckey.length() > 16 ? decEnckey.substring(0, 16) : decEnckey;
+    try {
+        byte[] raw = secretKey.getBytes("UTF-8");
+        SecretKeySpec skeySpec = new SecretKeySpec(raw, "AES");
+        Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, skeySpec);
+        byte[] encrypted = cipher.doFinal(plainText.getBytes(Charset.forName("UTF-8")));
+        return asHex(encrypted);
+    } catch (Exception ex) {
+        return null;
+    }
+}
+```
+
+---
+
+## 10. Entity 정의
+
+### 10.1 캠페인 Entity
+
+| 필드 | Type | Description |
+|------|------|-------------|
+| id | string | 캠페인 아이디 |
+| customerName | string | 제휴사명 |
+| tgtCompanyName | string | 고객사명 |
+| name | string | 캠페인명 |
+| sndNum | string | 발신 번호 코드 |
+| rcvType | number | 수신자 구분 (0: ATS, 1: Maptics 실시간, 2: Maptics 모아서, 10: MDN 직접) |
+| sndGoalCnt | number | 발송 목표 건수 |
+| atsSndStartDate | number | 발송 시작 일시 (rcvType=0,10) |
+| atsSndEndDate | number | 발송 종료 일시 (rcvType=0,10) |
+| collStartDate | number | 수집 시작 일시 (rcvType=1,2) |
+| collEndDate | number | 수집 종료 일시 (rcvType=1,2) |
+| collSndDate | number | 발송 시작 일시 (rcvType=2) |
+| startDate | number | 캠페인 시작 시간 |
+| endDate | number | 캠페인 종료 시간 |
+| rtStartHhmm | string | 발송 시작 시간 (HHMM, rcvType=1) |
+| rtEndHhmm | string | 발송 종료 시간 (HHMM, rcvType=1) |
+| sndDayDiv | number | 일 균등 분할 여부 |
+| billingType | number | 과금 유형 (0: LMS, 1: RCS MMS, 2: MMS, 3: RCS LMS) |
+| rcsType | number | RCS 템플릿 (200: RCS 아님) |
+| slideCnt | number | 슬라이드 개수 |
+| state | number | 캠페인 상태 코드 |
+| stateUpdateDate | number | 상태 업데이트 일시 |
+| stateReason | string | 상태 사유 |
+| apprUserId | string | 승인자 아이디 |
+| mdnFileId | string | MDN 파일 아이디 |
+| isTmp | number | 임시 저장 여부 |
+| sndGeofenceId | number | 지오펜스 아이디 |
+| sndMosu | number | 발송 모수 |
+| sndMosuDesc | string | 발송 모수 필터 설명 |
+| sndMosuQuery | string | 발송 모수 쿼리 |
+| useCoupon | number | 쿠폰 사용 여부 |
+| coupon | string | 쿠폰 파일 아이디 |
+| adver | number | 광고 문구 자동 추가 여부 |
+| adverDeny | string | 수신거부 번호 |
+| settleCnt | number | 정산 건수 |
+| rewardEndDate | number | 리워드 지급 제한 기간 |
+| cb | object | callback url 정보 |
+| retarget | array | 리타겟팅 정보 |
+| crtDate | number | 생성일 |
+| updDate | number | 수정일 |
+| mms | object | MMS 메시지 정보 |
+| rcs | array | RCS 메시지 정보 |
+
+---
+
+## 11. 파일 포맷
+
+### 11.1 MDN 파일
+
+- **파일명**: `{임의지정}.csv`
+- **헤더**: 없음
+- **구분자**: 없음
+
+```
+01010000002
+01010000005
+01010000003
+01010000004
+01010000001
+```
+
+### 11.2 코드분석 파일 (쿠폰)
+
+- **파일명**: `{임의지정}.csv`
+- **헤더**: 없음
+- **구분자**: 없음
+- **주의**: 모든 코드 길이 동일해야 함
+
+```
+cc-code100
+cc-code101
+cc-code102
+cc-code103
+cc-code104
+```
+
+### 11.3 URL분석 파일
+
+- **파일명**: `{임의지정}.csv`
+- **헤더**: 없음
+- **구분자**: 콤마(,)
+- **용도**: mms.urlFile, rcs[].urlFile에 사용
+
+```
+https://a.com,https://b.com,https://c.com
+https://a2.com,https://b2.com,https://c2.com
+https://a3.com,https://b3.com,https://c3.com
+```
+
+> RCS 슬라이드에서는 URL분석2, URL분석3 사용 안함
+
+---
+
+## 12. ATS 발송모수 필터 샘플
+
+### 12.1 연령 필터 (OR)
+
+```json
+{
+  "$or": [
+    {
+      "data": {"gt": 0, "lt": 15},
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 0세 ~ 15세",
+      "not": false
+    },
+    {
+      "data": {"gt": 30, "lt": 50},
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 30세 ~ 50세",
+      "not": false
+    }
+  ]
+}
+```
+
+### 12.2 연령 필터 (AND, 제외)
+
+> `not: true`일 때 desc 마지막에 "제외" 추가
+
+```json
+{
+  "$and": [
+    {
+      "data": {"gt": 0, "lt": 15},
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 0세 ~ 15세 제외",
+      "not": true
+    }
+  ]
+}
+```
+
+### 12.3 성별 필터
+
+```json
+{
+  "$or": [
+    {
+      "data": ["1", "2", "B"],
+      "dataType": "code",
+      "metaType": "svc",
+      "code": "sex_cd",
+      "desc": "성별: 남자, 여자, 법인",
+      "not": false
+    }
+  ]
+}
+```
+
+### 12.4 앱/웹 Usage 필터
+
+```json
+{
+  "$or": [
+    {
+      "data": [
+        {"cat1": "엔터테인먼트", "cat2": "라디오", "cat3": "FM라디오"},
+        {"cat1": "교육/학습", "cat2": "교육정보", "cat3": "국립국어원"}
+      ],
+      "dataType": "cate",
+      "metaType": "app",
+      "code": "",
+      "desc": "엔터테인먼트: 엔터테인먼트 > 라디오 > FM라디오, 교육/학습 > 교육정보 > 국립국어원",
+      "not": false
+    }
+  ]
+}
+```
+
+### 12.5 위치 필터 (법정동)
+
+```json
+{
+  "$or": [
+    {
+      "data": ["11680108", "26440103"],
+      "dataType": "code",
+      "metaType": "loc",
+      "code": "home_location",
+      "desc": "추정 집주소: 논현동, 강동동",
+      "not": false
+    }
+  ]
+}
+```
+
+### 12.6 위치 필터 (행정동)
+
+> 행정동은 desc 마지막에 "[행정동]" 추가  
+> not=true면 "제외"가 "[행정동]" 뒤에 위치
+
+```json
+{
+  "$or": [
+    {
+      "data": ["11680660", "11680670"],
+      "dataType": "code",
+      "metaType": "loc",
+      "code": "home_location",
+      "desc": "추정 집주소: 개포1동, 개포2동 [행정동]",
+      "not": false
+    }
+  ]
+}
+```
+
+### 12.7 예측 모델 필터
+
+```json
+{
+  "$or": [
+    {
+      "data": {"gt": "0.8", "lt": "1"},
+      "dataType": "number",
+      "metaType": "pro",
+      "code": "cpm04",
+      "desc": "이사 확률: 0.8 ~ 1",
+      "not": false
+    }
+  ]
+}
+```
+
+### 12.8 복합 필터 (AND)
+
+```json
+{
+  "$and": [
+    {
+      "data": {"gt": "0.8", "lt": "1"},
+      "dataType": "number",
+      "metaType": "pro",
+      "code": "PF00011-s01",
+      "desc": "부모 추정(초등학생 고학년 부모): 0.8 ~ 1",
+      "not": false
+    },
+    {
+      "data": "Y",
+      "dataType": "boolean",
+      "metaType": "pro",
+      "code": "self_employed_yn",
+      "desc": "자영업자 추정: Y",
+      "not": false
+    },
+    {
+      "data": ["G"],
+      "dataType": "code",
+      "metaType": "svc",
+      "code": "mbr_card_gr_cd",
+      "desc": "멤버십 등급: 골드",
+      "not": false
+    }
+  ]
+}
+```
+
+### 12.9 복합 필터 (중첩)
+
+```json
+{
+  "$or": [
+    {
+      "$and": [
+        {
+          "data": ["G"],
+          "dataType": "code",
+          "metaType": "svc",
+          "code": "mbr_card_gr_cd",
+          "desc": "멤버십 등급: 골드",
+          "not": false
+        },
+        {
+          "data": {"gt": 50, "lt": 60},
+          "dataType": "number",
+          "metaType": "svc",
+          "code": "cust_age_cd",
+          "desc": "연령: 50세 ~ 60세",
+          "not": false
+        }
+      ]
+    },
+    {
+      "data": {"gt": 10, "lt": 11},
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 10세 ~ 11세",
+      "not": false
+    }
+  ]
+}
+```
+
+---
+
+## 13. 메시지 결과 코드
+
+### 13.1 성공 코드
+
+| 코드 | Status Text | 설명 |
+|------|-------------|------|
+| 001000 | Success | 발송 성공 (Submit) |
+| 201000 | Success | 수신 성공 (Delivery) |
+
+### 13.2 주요 실패 코드
+
+| 코드 | Status Text | 설명 |
+|------|-------------|------|
+| 002002 | Address Error | 결번 또는 미등록 CID |
+| 002004 | Multimedia Content refused | 미디어 타입 미지원 |
+| 002007 | Message Format Corrupt | 메시지 포맷 오류 |
+| 002102 | Client Error | 단말 SMS 전송 실패 |
+| 002103 | Client Unavailable | 미지원 단말 |
+| 002104 | Content Size Error | 컨텐츠 크기 초과 |
+| 004005 | Service Error | 서비스 에러 |
+| 004006 | Service Unavailable | 서비스 일시 불가 |
+| 050001 | Missing Authorization header | Authorization 헤더 누락 |
+| 050003 | Invalid token | 토큰 불일치 |
+| 050004 | Token has expired | 토큰 만료 |
+| 054001 | Invalid Contact number | 자사 고객 아님 |
+| 054002 | No Rcs Capability | RCS 미지원 가입자 |
+| 054003 | Unable Sending to Recipient | RCS 전송 불가 |
+| 055706 | footer content syntax Error | footer validation 오류 |
+| 055708 | Exceeded max character of title | title 최대글자수 초과 |
+| 055709 | Exceeded max character of description | description 최대글자수 초과 |
+| 055710 | Exceeded max number of buttons | 최대 버튼수 초과 |
+| 055712 | Exceeded max size of media | 최대 미디어 용량 초과 |
+
+---
+
+## 부록: 캠페인 제작 Flow
+
+### 상태 전이
+
+```
+[임시등록(0)] → [검수요청(1)] → [검수완료(2)] → [승인요청(10)] → [승인완료(11)] → [발송준비(20)] → [진행중(30)] → [종료(40)]
+                     ↓                                ↓
+                [반려(17)] ←───────────────────────────┘
+                     
+[취소(25)] : 검수요청, 검수완료, 승인요청, 승인완료, 반려, 발송준비 상태에서 가능
+[중단(35)] : 진행중 상태에서 가능
+```
+
+### 주요 규칙
+
+1. 캠페인 시작 시간은 등록 시간 + 1시간 이후 (10분 단위)
+2. 9시~19시 사이에만 발송 가능
+3. sndMosu는 sndGoalCnt의 150% 이상, 최대 400,000
+4. 맵틱스 캠페인은 collStartDate 1일 이전 생성 권장
+5. 고언연 검수 요청은 캠페인 시작 2.5일 이전
+
+---
+
+*문서 끝*
