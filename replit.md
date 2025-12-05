@@ -230,6 +230,10 @@ BIZCHAT_CALLBACK_AUTH_KEY=<콜백 인증 키>
   - 발신번호 관리 API (CRUD)
   - BizChat 템플릿 관리 API (CRUD + submit)
   - 발송 시간 유효성 검증 (09:00~20:00, 1시간 여유 필수)
+- **프론트엔드 BizChat 연동** (2024-12-05):
+  - targeting/estimate.ts: BizChat ATS API 연동으로 실시간 타겟 모수 조회 (fallback 포함)
+  - campaign-detail.tsx: 성과 탭에 BizChat 실시간 통계 조회 UI 추가
+  - sender-numbers.tsx: BizChat 등록 발신번호 조회 기능 추가
 
 ## User Preferences
 - Korean language (한국어) for all UI text

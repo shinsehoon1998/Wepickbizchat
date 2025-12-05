@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link, useRoute, useLocation } from "wouter";
 import { 
@@ -14,7 +15,10 @@ import {
   Wallet,
   BarChart3,
   AlertCircle,
-  FileCheck
+  FileCheck,
+  RefreshCw,
+  Download,
+  Loader2
 } from "lucide-react";
 import { formatCurrency, formatNumber, formatDateTime } from "@/lib/authUtils";
 import { CampaignStatusBadge } from "@/components/campaign-status-badge";
@@ -58,11 +62,29 @@ const GENDER_LABELS: Record<string, string> = {
   female: "여성",
 };
 
+interface BizChatStats {
+  success: boolean;
+  result?: {
+    code?: string;
+    data?: {
+      sendCnt?: number;
+      successCnt?: number;
+      failCnt?: number;
+      waitCnt?: number;
+      readCnt?: number;
+      settleCnt?: number;
+    };
+  };
+  error?: string;
+}
+
 export default function CampaignDetail() {
   const [, params] = useRoute("/campaigns/:id");
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const campaignId = params?.id || null;
+  const [bizChatStats, setBizChatStats] = useState<BizChatStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   const { data: campaign, isLoading, error } = useQuery<CampaignDetail>({
     queryKey: ["/api/campaigns", campaignId],
@@ -155,6 +177,48 @@ export default function CampaignDetail() {
       });
     },
   });
+
+  const fetchBizChatStats = async () => {
+    if (!campaign?.bizchatCampaignId) {
+      toast({
+        title: "통계 조회 불가",
+        description: "BizChat 캠페인 ID가 없어요. 캠페인을 먼저 발송해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoadingStats(true);
+    try {
+      const response = await apiRequest("POST", "/api/bizchat/campaigns", {
+        action: "stats",
+        campaignId: campaign.id,
+      });
+      const data = await response.json();
+      setBizChatStats(data);
+      
+      if (data.success) {
+        toast({
+          title: "통계 조회 완료",
+          description: "BizChat 실시간 통계를 가져왔어요.",
+        });
+      } else {
+        toast({
+          title: "통계 조회 실패",
+          description: data.error || "통계를 가져오는데 실패했어요.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "통계 조회 실패",
+        description: "서버와 통신하는 중 오류가 발생했어요.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -600,7 +664,87 @@ export default function CampaignDetail() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="report">
+        <TabsContent value="report" className="space-y-4">
+          {campaign.bizchatCampaignId && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-h3">
+                    <Send className="h-5 w-5 text-primary" />
+                    BizChat 실시간 통계
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchBizChatStats}
+                    disabled={isLoadingStats}
+                    className="gap-2"
+                    data-testid="button-fetch-bizchat-stats"
+                  >
+                    {isLoadingStats ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                    통계 조회
+                  </Button>
+                </div>
+                <CardDescription>
+                  BizChat 캠페인 ID: {campaign.bizchatCampaignId}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {bizChatStats?.success && bizChatStats.result?.data ? (
+                  <div className="grid gap-3 md:grid-cols-6">
+                    <div className="text-center p-3 bg-background rounded-lg border">
+                      <p className="text-2xl font-bold text-primary">
+                        {formatNumber(bizChatStats.result.data.sendCnt || 0)}
+                      </p>
+                      <p className="text-tiny text-muted-foreground">발송</p>
+                    </div>
+                    <div className="text-center p-3 bg-background rounded-lg border">
+                      <p className="text-2xl font-bold text-success">
+                        {formatNumber(bizChatStats.result.data.successCnt || 0)}
+                      </p>
+                      <p className="text-tiny text-muted-foreground">성공</p>
+                    </div>
+                    <div className="text-center p-3 bg-background rounded-lg border">
+                      <p className="text-2xl font-bold text-destructive">
+                        {formatNumber(bizChatStats.result.data.failCnt || 0)}
+                      </p>
+                      <p className="text-tiny text-muted-foreground">실패</p>
+                    </div>
+                    <div className="text-center p-3 bg-background rounded-lg border">
+                      <p className="text-2xl font-bold text-warning">
+                        {formatNumber(bizChatStats.result.data.waitCnt || 0)}
+                      </p>
+                      <p className="text-tiny text-muted-foreground">대기</p>
+                    </div>
+                    <div className="text-center p-3 bg-background rounded-lg border">
+                      <p className="text-2xl font-bold text-chart-5">
+                        {formatNumber(bizChatStats.result.data.readCnt || 0)}
+                      </p>
+                      <p className="text-tiny text-muted-foreground">읽음</p>
+                    </div>
+                    <div className="text-center p-3 bg-background rounded-lg border">
+                      <p className="text-2xl font-bold text-chart-4">
+                        {formatNumber(bizChatStats.result.data.settleCnt ?? 0)}
+                      </p>
+                      <p className="text-tiny text-muted-foreground">정산</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <RefreshCw className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-small">
+                      "통계 조회" 버튼을 눌러 BizChat 실시간 통계를 확인하세요
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

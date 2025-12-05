@@ -11,6 +11,9 @@ import {
   Clock,
   MessageSquare,
   FileText,
+  RefreshCw,
+  Loader2,
+  Cloud,
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -82,6 +85,19 @@ function getExpiryInfo(expiryDate: Date | string | null): { text: string; isExpi
   }
 }
 
+interface BizChatSenderNumber {
+  id?: string;
+  num?: string;
+  name: string;
+  state?: number;
+  comment?: string;
+}
+
+interface BizChatSenderResponse {
+  success: boolean;
+  senderNumbers: BizChatSenderNumber[];
+}
+
 export default function SenderNumbers() {
   const [searchQuery, setSearchQuery] = useState("");
   const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
@@ -95,7 +111,39 @@ export default function SenderNumbers() {
   const [verificationCode, setVerificationCode] = useState("");
   const [newAlias, setNewAlias] = useState("");
   
+  const [bizChatSenders, setBizChatSenders] = useState<BizChatSenderNumber[]>([]);
+  const [isFetchingBizChat, setIsFetchingBizChat] = useState(false);
+  
   const { toast } = useToast();
+  
+  const fetchBizChatSenders = async () => {
+    setIsFetchingBizChat(true);
+    try {
+      const response = await apiRequest("POST", "/api/bizchat/sender", { action: "list" });
+      const data: BizChatSenderResponse = await response.json();
+      if (data.success) {
+        setBizChatSenders(data.senderNumbers || []);
+        toast({
+          title: "BizChat 발신번호 조회 완료",
+          description: `${data.senderNumbers?.length || 0}개의 발신번호를 가져왔어요.`,
+        });
+      } else {
+        toast({
+          title: "조회 실패",
+          description: "BizChat 발신번호를 가져오는데 실패했어요.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "조회 실패",
+        description: "서버와 통신하는 중 오류가 발생했어요.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFetchingBizChat(false);
+    }
+  };
 
   const { data: senderNumbers, isLoading } = useQuery<UserSenderNumber[]>({
     queryKey: ["/api/sender-numbers"],
@@ -479,6 +527,71 @@ export default function SenderNumbers() {
                   </Button>
                 </div>
               )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Cloud className="h-5 w-5 text-primary" />
+              <span className="font-semibold">BizChat 등록 발신번호</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchBizChatSenders}
+              disabled={isFetchingBizChat}
+              className="gap-2"
+              data-testid="button-fetch-bizchat-senders"
+            >
+              {isFetchingBizChat ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              BizChat 조회
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {bizChatSenders.length > 0 ? (
+            <div className="space-y-2">
+              {bizChatSenders.map((sender, idx) => {
+                const senderId = sender.id || sender.num || `idx-${idx}`;
+                return (
+                  <div
+                    key={senderId}
+                    className="flex items-center justify-between p-3 bg-background rounded-lg border"
+                    data-testid={`bizchat-sender-${senderId}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Phone className="h-4 w-4 text-primary" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-small">{sender.name || sender.num || '이름 없음'}</div>
+                        <div className="text-tiny text-muted-foreground">
+                          {sender.num && `번호: ${sender.num}`}
+                          {sender.id && ` | ID: ${sender.id}`}
+                        </div>
+                      </div>
+                    </div>
+                    <Badge variant={sender.state === 1 ? "default" : "secondary"}>
+                      {sender.state === 0 ? "대기" : sender.state === 1 ? "승인" : sender.state === 2 ? "반려" : "등록됨"}
+                    </Badge>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-6 text-muted-foreground">
+              <Cloud className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p className="text-small">
+                "BizChat 조회" 버튼을 눌러 BizChat에 등록된 발신번호를 확인하세요
+              </p>
             </div>
           )}
         </CardContent>
