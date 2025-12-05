@@ -35,8 +35,11 @@ const campaigns = pgTable('campaigns', {
 const reports = pgTable('reports', {
   id: text('id').primaryKey(),
   campaignId: text('campaign_id').notNull(),
-  sent: integer('sent').default(0),
-  delivered: integer('delivered').default(0),
+  sentCount: integer('sent_count').default(0),
+  deliveredCount: integer('delivered_count').default(0),
+  successCount: integer('success_count').default(0),
+  failedCount: integer('failed_count').default(0),
+  clickCount: integer('click_count').default(0),
 });
 
 function getDb() {
@@ -93,8 +96,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const reportResult = await db.select().from(reports).where(eq(reports.campaignId, c.id));
             const report = reportResult[0];
             if (report) {
-              totalSent += report.sent || 0;
-              totalDelivered += report.delivered || 0;
+              totalSent += report.sentCount || 0;
+              totalDelivered += report.deliveredCount || 0;
             }
             if (c.completedAt && (!lastSentAt || c.completedAt > lastSentAt)) {
               lastSentAt = c.completedAt;
