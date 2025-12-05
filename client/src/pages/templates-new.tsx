@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -7,7 +7,7 @@ import { z } from "zod";
 import { 
   ArrowLeft, 
   MessageSquare, 
-  Image, 
+  Image as ImageIcon, 
   Smartphone,
   Eye,
   Send,
@@ -16,6 +16,11 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  Upload,
+  X,
+  Loader2,
+  Info,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -41,6 +46,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Template } from "@shared/schema";
 
 const templateFormSchema = z.object({
@@ -48,9 +54,11 @@ const templateFormSchema = z.object({
   messageType: z.enum(["LMS", "MMS", "RCS"], {
     required_error: "메시지 유형을 선택해주세요",
   }),
-  title: z.string().max(60, "제목은 60자 이하로 입력해주세요").optional(),
+  rcsType: z.number().optional(),
+  title: z.string().max(30, "제목은 30자 이하로 입력해주세요").optional(),
   content: z.string().min(1, "메시지 내용을 입력해주세요").max(2000),
-  imageUrl: z.string().url("올바른 이미지 URL을 입력해주세요").optional().or(z.literal("")),
+  imageUrl: z.string().optional().or(z.literal("")),
+  imageFileId: z.string().optional().or(z.literal("")),
 });
 
 type TemplateFormValues = z.infer<typeof templateFormSchema>;
@@ -73,21 +81,37 @@ function getStatusBadge(status: string) {
   }
 }
 
+const RCS_TYPES = [
+  { value: 0, label: "스탠다드", maxChars: 1100, imageSpec: "400x240 또는 500x300, 최대 0.3MB" },
+  { value: 1, label: "LMS", maxChars: 1100, imageSpec: "이미지 없음" },
+  { value: 2, label: "슬라이드", maxChars: 300, imageSpec: "464x336, 슬라이드당 최대 300KB (총 1MB)" },
+  { value: 3, label: "이미지 강조 A", maxChars: 1100, imageSpec: "900x1200, 최대 1MB" },
+  { value: 4, label: "이미지 강조 B", maxChars: 1100, imageSpec: "900x900, 최대 1MB" },
+  { value: 5, label: "상품 소개 (세로)", maxChars: 1100, imageSpec: "900x560, 최대 1MB" },
+];
+
+const MMS_IMAGE_SPEC = {
+  format: "JPG",
+  maxSize: "300KB (최대 1MB)",
+  resolution: "320x240 권장 (최대 2000x2000)",
+};
+
 export default function TemplatesNew() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showPreview, setShowPreview] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFileId, setImageFileId] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Check for view/edit mode from URL
   const [, viewParams] = useRoute("/templates/:id");
   const [, editParams] = useRoute("/templates/:id/edit");
   const rawTemplateId = viewParams?.id || editParams?.id || null;
-  // Exclude "new" as a valid template ID
   const templateId = rawTemplateId && rawTemplateId !== "new" ? rawTemplateId : null;
   const isEditMode = !!editParams?.id && editParams?.id !== "new";
   const isViewMode = !!viewParams?.id && viewParams?.id !== "new" && !editParams?.id;
 
-  // Fetch existing template if in view/edit mode
   const { data: existingTemplate, isLoading: templateLoading } = useQuery<Template>({
     queryKey: ["/api/templates", templateId],
     enabled: !!templateId && templateId !== "new",
@@ -98,23 +122,31 @@ export default function TemplatesNew() {
     defaultValues: {
       name: "",
       messageType: "LMS",
+      rcsType: 0,
       title: "",
       content: "",
       imageUrl: "",
+      imageFileId: "",
     },
   });
 
-  // Populate form with existing data
   useEffect(() => {
     if (existingTemplate) {
       form.reset({
         name: existingTemplate.name,
         messageType: existingTemplate.messageType as "LMS" | "MMS" | "RCS",
+        rcsType: existingTemplate.rcsType || 0,
         title: existingTemplate.title || "",
         content: existingTemplate.content,
         imageUrl: existingTemplate.imageUrl || "",
+        imageFileId: existingTemplate.imageFileId || "",
       });
-      // Auto-show preview in view mode
+      if (existingTemplate.imageUrl) {
+        setImagePreview(existingTemplate.imageUrl);
+      }
+      if (existingTemplate.imageFileId) {
+        setImageFileId(existingTemplate.imageFileId);
+      }
       if (isViewMode) {
         setShowPreview(true);
       }
@@ -123,12 +155,118 @@ export default function TemplatesNew() {
 
   const watchedValues = form.watch();
 
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const messageType = watchedValues.messageType;
+    const rcsType = watchedValues.rcsType;
+
+    const validTypes = messageType === "MMS" 
+      ? ["image/jpeg"] 
+      : ["image/jpeg", "image/png"];
+    
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: "지원하지 않는 파일 형식",
+        description: messageType === "MMS" ? "MMS는 JPG 파일만 지원해요" : "JPG 또는 PNG 파일만 지원해요",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const maxSize = messageType === "MMS" ? 1024 * 1024 : 1024 * 1024;
+    if (file.size > maxSize) {
+      toast({
+        title: "파일 크기 초과",
+        description: `파일 크기가 ${Math.round(maxSize / 1024)}KB를 초과해요`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64Data = e.target?.result as string;
+        setImagePreview(base64Data);
+        form.setValue("imageUrl", base64Data);
+
+        try {
+          const token = localStorage.getItem("supabase_token");
+          const response = await fetch("/api/bizchat/file", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              fileData: base64Data,
+              fileName: file.name,
+              fileType: file.type,
+              type: 2,
+              rcs: messageType === "RCS" ? 1 : 0,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (result.success && result.fileId) {
+            setImageFileId(result.fileId);
+            form.setValue("imageFileId", result.fileId);
+            toast({
+              title: "이미지 업로드 완료",
+              description: "BizChat 서버에 이미지가 업로드되었어요",
+            });
+          } else {
+            toast({
+              title: "이미지 업로드 실패",
+              description: result.error || "다시 시도해주세요",
+              variant: "destructive",
+            });
+          }
+        } catch (error) {
+          console.error("Image upload error:", error);
+          toast({
+            title: "이미지 업로드 실패",
+            description: "서버 연결에 실패했어요. 나중에 다시 시도해주세요",
+            variant: "destructive",
+          });
+        }
+
+        setIsUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      setIsUploading(false);
+      toast({
+        title: "이미지 처리 실패",
+        description: "파일을 읽을 수 없어요",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const removeImage = () => {
+    setImagePreview(null);
+    setImageFileId(null);
+    form.setValue("imageUrl", "");
+    form.setValue("imageFileId", "");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const createMutation = useMutation({
     mutationFn: async (data: TemplateFormValues) => {
       const cleanedData = {
         ...data,
         imageUrl: data.imageUrl || undefined,
+        imageFileId: data.imageFileId || undefined,
         title: data.title || undefined,
+        rcsType: data.messageType === "RCS" ? data.rcsType : undefined,
       };
       return apiRequest("POST", "/api/templates", cleanedData);
     },
@@ -154,7 +292,9 @@ export default function TemplatesNew() {
       const cleanedData = {
         ...data,
         imageUrl: data.imageUrl || undefined,
+        imageFileId: data.imageFileId || undefined,
         title: data.title || undefined,
+        rcsType: data.messageType === "RCS" ? data.rcsType : undefined,
       };
       return apiRequest("PATCH", `/api/templates/${templateId}`, cleanedData);
     },
@@ -184,7 +324,6 @@ export default function TemplatesNew() {
     }
   };
 
-  // Show loading state when fetching template
   if (templateLoading) {
     return (
       <div className="animate-fade-in space-y-6">
@@ -196,8 +335,8 @@ export default function TemplatesNew() {
           </div>
         </div>
         <div className="grid lg:grid-cols-2 gap-6">
-          <Skeleton className="h-[500px]" />
-          <Skeleton className="h-[500px]" />
+          <Skeleton className="h-[600px]" />
+          <Skeleton className="h-[600px]" />
         </div>
       </div>
     );
@@ -208,7 +347,7 @@ export default function TemplatesNew() {
       case "LMS":
         return <MessageSquare className="h-5 w-5" />;
       case "MMS":
-        return <Image className="h-5 w-5" />;
+        return <ImageIcon className="h-5 w-5" />;
       case "RCS":
         return <Smartphone className="h-5 w-5" />;
       default:
@@ -229,17 +368,35 @@ export default function TemplatesNew() {
     }
   };
 
-  const getMaxContentLength = (type: string) => {
-    switch (type) {
-      case "LMS":
-        return 2000;
-      case "MMS":
-        return 1000;
-      case "RCS":
-        return 1000;
-      default:
-        return 2000;
+  const getMaxContentLength = (type: string, rcsType?: number) => {
+    if (type === "LMS") return 2000;
+    if (type === "MMS") return 1000;
+    if (type === "RCS") {
+      const rcsSpec = RCS_TYPES.find(t => t.value === rcsType);
+      return rcsSpec?.maxChars || 1100;
     }
+    return 2000;
+  };
+
+  const needsImage = (type: string, rcsType?: number) => {
+    if (type === "MMS") return true;
+    if (type === "RCS" && rcsType !== 1) return true;
+    return false;
+  };
+
+  const getImageSpec = () => {
+    if (watchedValues.messageType === "MMS") {
+      return MMS_IMAGE_SPEC;
+    }
+    if (watchedValues.messageType === "RCS") {
+      const rcsSpec = RCS_TYPES.find(t => t.value === watchedValues.rcsType);
+      return rcsSpec ? { 
+        format: "JPG/PNG", 
+        maxSize: rcsSpec.imageSpec.includes("MB") ? rcsSpec.imageSpec.split(",")[1]?.trim() || "1MB" : "1MB",
+        resolution: rcsSpec.imageSpec 
+      } : null;
+    }
+    return null;
   };
 
   const pageTitle = isViewMode 
@@ -254,9 +411,10 @@ export default function TemplatesNew() {
     ? "템플릿 정보를 수정하세요"
     : "메시지 템플릿을 작성하고 검수를 받아보세요";
 
-  // Check if template can be edited (only draft or rejected)
   const canEdit = existingTemplate && (existingTemplate.status === "draft" || existingTemplate.status === "rejected");
   const isPending = createMutation.isPending || updateMutation.isPending;
+  const showImageUpload = needsImage(watchedValues.messageType, watchedValues.rcsType);
+  const imageSpec = getImageSpec();
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -334,7 +492,19 @@ export default function TemplatesNew() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>메시지 유형</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isViewMode}>
+                      <Select 
+                        onValueChange={(value) => {
+                          field.onChange(value);
+                          if (value !== "RCS") {
+                            form.setValue("rcsType", undefined);
+                          } else {
+                            form.setValue("rcsType", 0);
+                          }
+                          removeImage();
+                        }} 
+                        defaultValue={field.value} 
+                        disabled={isViewMode}
+                      >
                         <FormControl>
                           <SelectTrigger data-testid="select-message-type" disabled={isViewMode}>
                             <SelectValue placeholder="메시지 유형 선택" />
@@ -349,7 +519,7 @@ export default function TemplatesNew() {
                           </SelectItem>
                           <SelectItem value="MMS">
                             <div className="flex items-center gap-2">
-                              <Image className="h-4 w-4" />
+                              <ImageIcon className="h-4 w-4" />
                               MMS (이미지 문자)
                             </div>
                           </SelectItem>
@@ -363,13 +533,59 @@ export default function TemplatesNew() {
                       </Select>
                       {!isViewMode && (
                         <FormDescription>
-                          LMS: 2,000자, MMS/RCS: 1,000자 제한
+                          {watchedValues.messageType === "LMS" && "텍스트 전용 장문 메시지 (최대 2,000자)"}
+                          {watchedValues.messageType === "MMS" && "이미지 + 텍스트 (최대 1,000자)"}
+                          {watchedValues.messageType === "RCS" && "풍부한 미디어 메시지 (RCS 미지원 시 LMS/MMS로 대체 발송)"}
                         </FormDescription>
                       )}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+                {watchedValues.messageType === "RCS" && (
+                  <FormField
+                    control={form.control}
+                    name="rcsType"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>RCS 메시지 타입</FormLabel>
+                        <Select 
+                          onValueChange={(value) => {
+                            field.onChange(parseInt(value));
+                            removeImage();
+                          }} 
+                          value={field.value?.toString()} 
+                          disabled={isViewMode}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-rcs-type" disabled={isViewMode}>
+                              <SelectValue placeholder="RCS 타입 선택" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {RCS_TYPES.map((type) => (
+                              <SelectItem key={type.value} value={type.value.toString()}>
+                                <div className="flex flex-col">
+                                  <span>{type.label}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {type.imageSpec === "이미지 없음" ? "텍스트 전용" : type.imageSpec}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {!isViewMode && (
+                          <FormDescription>
+                            메시지 레이아웃과 이미지 규격이 타입별로 다릅니다
+                          </FormDescription>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
 
                 <FormField
                   control={form.control}
@@ -380,7 +596,7 @@ export default function TemplatesNew() {
                       <FormControl>
                         <Input
                           placeholder="예: 특별 할인 안내"
-                          maxLength={60}
+                          maxLength={30}
                           data-testid="input-template-title"
                           disabled={isViewMode}
                           {...field}
@@ -388,7 +604,7 @@ export default function TemplatesNew() {
                       </FormControl>
                       {!isViewMode && (
                         <FormDescription>
-                          최대 60자까지 입력 가능해요
+                          최대 30자까지 입력 가능해요
                         </FormDescription>
                       )}
                       <FormMessage />
@@ -406,51 +622,128 @@ export default function TemplatesNew() {
                         <Textarea
                           placeholder="메시지 내용을 입력하세요..."
                           className="min-h-[200px] resize-none"
-                          maxLength={getMaxContentLength(watchedValues.messageType)}
+                          maxLength={getMaxContentLength(watchedValues.messageType, watchedValues.rcsType)}
                           data-testid="input-template-content"
                           disabled={isViewMode}
                           {...field}
                         />
                       </FormControl>
                       <FormDescription>
-                        {field.value.length} / {getMaxContentLength(watchedValues.messageType)}자
+                        {field.value.length} / {getMaxContentLength(watchedValues.messageType, watchedValues.rcsType)}자
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                {(watchedValues.messageType === "MMS" || watchedValues.messageType === "RCS") && (
-                  <FormField
-                    control={form.control}
-                    name="imageUrl"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>이미지 URL (선택)</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="https://example.com/image.jpg"
-                            data-testid="input-template-image"
-                            disabled={isViewMode}
-                            {...field}
-                          />
-                        </FormControl>
-                        {!isViewMode && (
-                          <FormDescription>
-                            MMS/RCS 메시지에 포함할 이미지 URL을 입력해주세요
-                          </FormDescription>
-                        )}
-                        <FormMessage />
-                      </FormItem>
+                {showImageUpload && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <FormLabel>이미지 {watchedValues.messageType === "MMS" && "(필수)"}</FormLabel>
+                      {imageFileId && (
+                        <Badge variant="outline" className="gap-1 text-xs">
+                          <CheckCircle className="h-3 w-3 text-green-500" />
+                          업로드 완료
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    {imageSpec && (
+                      <Alert className="bg-muted/50">
+                        <Info className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          <strong>이미지 규격:</strong> {imageSpec.resolution}
+                          {imageSpec.format && ` (${imageSpec.format})`}
+                        </AlertDescription>
+                      </Alert>
                     )}
-                  />
+
+                    {!isViewMode && (
+                      <div className="relative">
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept={watchedValues.messageType === "MMS" ? "image/jpeg" : "image/jpeg,image/png"}
+                          onChange={handleImageUpload}
+                          className="hidden"
+                          data-testid="input-image-file"
+                        />
+                        
+                        {!imagePreview ? (
+                          <div
+                            onClick={() => fileInputRef.current?.click()}
+                            className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
+                          >
+                            {isUploading ? (
+                              <div className="flex flex-col items-center gap-2">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                <p className="text-sm text-muted-foreground">업로드 중...</p>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center gap-2">
+                                <Upload className="h-8 w-8 text-muted-foreground" />
+                                <p className="text-sm text-muted-foreground">
+                                  클릭하여 이미지를 업로드하세요
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {watchedValues.messageType === "MMS" ? "JPG 파일만 가능" : "JPG, PNG 파일 가능"}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="relative rounded-lg overflow-hidden border">
+                            <img
+                              src={imagePreview}
+                              alt="미리보기"
+                              className="w-full h-48 object-cover"
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2"
+                              onClick={removeImage}
+                              data-testid="button-remove-image"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                            {isUploading && (
+                              <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                <Loader2 className="h-8 w-8 animate-spin text-white" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {isViewMode && imagePreview && (
+                      <div className="rounded-lg overflow-hidden border">
+                        <img
+                          src={imagePreview}
+                          alt="첨부 이미지"
+                          className="w-full h-48 object-cover"
+                        />
+                      </div>
+                    )}
+
+                    {watchedValues.messageType === "MMS" && !imagePreview && !isViewMode && (
+                      <Alert variant="destructive" className="bg-destructive/10">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription className="text-xs">
+                          MMS 메시지는 이미지가 필수입니다
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
                 )}
 
                 {!isViewMode && (
                   <div className="flex gap-3 pt-4">
                     <Button
                       type="submit"
-                      disabled={isPending}
+                      disabled={isPending || isUploading}
                       className="gap-2 flex-1"
                       data-testid="button-save-template"
                     >
@@ -490,6 +783,11 @@ export default function TemplatesNew() {
                   <div className="flex items-center gap-2 text-small text-muted-foreground">
                     {getMessageTypeIcon(watchedValues.messageType)}
                     <span>{getMessageTypeLabel(watchedValues.messageType)}</span>
+                    {watchedValues.messageType === "RCS" && (
+                      <Badge variant="secondary" className="text-xs">
+                        {RCS_TYPES.find(t => t.value === watchedValues.rcsType)?.label || "스탠다드"}
+                      </Badge>
+                    )}
                   </div>
                   
                   {watchedValues.title && (
@@ -498,15 +796,12 @@ export default function TemplatesNew() {
                     </div>
                   )}
                   
-                  {watchedValues.imageUrl && (
+                  {imagePreview && (
                     <div className="rounded-lg overflow-hidden bg-muted aspect-video flex items-center justify-center">
                       <img 
-                        src={watchedValues.imageUrl} 
+                        src={imagePreview} 
                         alt="미리보기" 
                         className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
                       />
                     </div>
                   )}

@@ -208,9 +208,11 @@ export async function registerRoutes(
   const createTemplateSchema = z.object({
     name: z.string().min(1).max(200),
     messageType: z.enum(["LMS", "MMS", "RCS"]),
-    title: z.string().max(60).optional(),
+    rcsType: z.number().optional(),
+    title: z.string().max(30).optional(),
     content: z.string().min(1).max(2000),
     imageUrl: z.string().optional(),
+    imageFileId: z.string().optional(),
   });
 
   app.post("/api/templates", isAuthenticated, async (req, res) => {
@@ -222,9 +224,11 @@ export async function registerRoutes(
         userId,
         name: data.name,
         messageType: data.messageType,
+        rcsType: data.rcsType,
         title: data.title,
         content: data.content,
         imageUrl: data.imageUrl,
+        imageFileId: data.imageFileId,
         status: "draft",
       });
       
