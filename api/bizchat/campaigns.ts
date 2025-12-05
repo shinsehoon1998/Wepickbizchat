@@ -386,6 +386,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ error: 'Campaign not registered to BizChat' });
           }
 
+          const approvalTimeValidation = validateSendTime(campaign.atsSndStartDate || campaign.scheduledAt);
+          if (!approvalTimeValidation.valid) {
+            return res.status(400).json({ error: approvalTimeValidation.error });
+          }
+
           const result = await requestCampaignApproval(campaign.bizchatCampaignId, useProduction);
           
           if (result.data.code !== 'S000001') {
@@ -421,6 +426,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
           if (mdnList.length > 20) {
             return res.status(400).json({ error: 'Maximum 20 numbers for test send' });
+          }
+
+          if (sendTime) {
+            const testTimeValidation = validateSendTime(new Date(sendTime * 1000));
+            if (!testTimeValidation.valid) {
+              return res.status(400).json({ error: testTimeValidation.error });
+            }
           }
 
           const result = await testSendCampaign(campaign.bizchatCampaignId, mdnList, sendTime, useProduction);
