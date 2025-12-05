@@ -1486,25 +1486,24 @@ export async function registerRoutes(
         ? process.env.BIZCHAT_PROD_API_KEY
         : process.env.BIZCHAT_DEV_API_KEY;
 
+      // 실제 BizChat 발신번호 코드 매핑 (API 문서 기준)
+      // 캠페인 생성 시 sndNum에 id(발신번호코드)를 사용해야 함
+      const BIZCHAT_SENDER_NUMBERS = [
+        { id: "001001", num: "16700823", name: "SK텔레콤 혜택 알림", state: 1 },
+        { id: "001005", num: "16702305", name: "SK텔레콤 우리 동네 혜택 알림", state: 1 },
+      ];
+
       if (!apiKey) {
         console.log("[BizChat Sender] No API key configured, returning simulated data");
         return res.status(200).json({
           success: true,
           action: "list",
-          senderNumbers: [
-            { id: "1", num: "021234567", name: "영업팀 대표번호", state: 1 },
-            { id: "2", num: "16005678", name: "고객센터", state: 1 },
-            { id: "3", num: "0323456789", name: "지점 연락처", state: 0 },
-          ],
+          senderNumbers: BIZCHAT_SENDER_NUMBERS,
           message: "Using simulated data (no API key configured)",
         });
       }
 
-      const FALLBACK_SENDER_NUMBERS = [
-        { id: "1", num: "021234567", name: "영업팀 대표번호", state: 1 },
-        { id: "2", num: "16005678", name: "고객센터", state: 1 },
-        { id: "3", num: "0323456789", name: "지점 연락처", state: 1 },
-      ];
+      const FALLBACK_SENDER_NUMBERS = BIZCHAT_SENDER_NUMBERS;
 
       if (action === "list") {
         const tid = Date.now().toString();
@@ -1561,13 +1560,13 @@ export async function registerRoutes(
       res.status(400).json({ error: "Invalid action. Only 'list' is supported." });
     } catch (error) {
       console.error("[BizChat Sender] Error:", error);
+      // 에러 발생 시에도 실제 BizChat 발신번호 코드 반환
       return res.status(200).json({
         success: true,
         action: "list",
         senderNumbers: [
-          { id: "1", num: "021234567", name: "영업팀 대표번호", state: 1 },
-          { id: "2", num: "16005678", name: "고객센터", state: 1 },
-          { id: "3", num: "0323456789", name: "지점 연락처", state: 1 },
+          { id: "001001", num: "16700823", name: "SK텔레콤 혜택 알림", state: 1 },
+          { id: "001005", num: "16702305", name: "SK텔레콤 우리 동네 혜택 알림", state: 1 },
         ],
         message: "Using fallback data (error occurred)",
       });
