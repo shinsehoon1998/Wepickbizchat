@@ -58,36 +58,6 @@ export const templates = pgTable("templates", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Sender Numbers table (발신번호 코드 관리 - 시스템 레벨)
-export const senderNumbers = pgTable("sender_numbers", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  code: varchar("code", { length: 20 }).notNull().unique(), // 001001 등
-  name: varchar("name", { length: 100 }).notNull(),
-  phoneNumber: varchar("phone_number", { length: 20 }).notNull(),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// User Sender Numbers table (사용자별 발신번호 등록/인증)
-// 상태: pending(인증대기), active(활성화), expired(만료됨)
-// 인증방법: sms(문자본인인증), document(증빙서류제출)
-export const userSenderNumbers = pgTable("user_sender_numbers", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").references(() => users.id).notNull(),
-  phoneNumber: varchar("phone_number", { length: 20 }).notNull(),
-  alias: varchar("alias", { length: 100 }), // 별칭
-  status: varchar("status", { length: 20 }).default("pending").notNull(), // pending, active, expired
-  verificationMethod: varchar("verification_method", { length: 20 }), // sms, document
-  verificationCode: varchar("verification_code", { length: 10 }), // SMS 인증 코드
-  verificationExpiry: timestamp("verification_expiry"), // 인증 코드 만료 시간
-  isCompanyOwned: boolean("is_company_owned").default(false), // 본인/자회사 소유 여부
-  expiryDate: timestamp("expiry_date"), // 인증 만료일
-  lastActivityNote: text("last_activity_note"), // 최근 이력 메모
-  verifiedAt: timestamp("verified_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
 // Files table (업로드된 파일 관리)
 export const files = pgTable("files", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -285,8 +255,6 @@ export const usersRelations = relations(users, ({ many }) => ({
   geofences: many(geofences),
 }));
 
-export const senderNumbersRelations = relations(senderNumbers, ({ many }) => ({}));
-
 export const filesRelations = relations(files, ({ one }) => ({
   user: one(users, {
     fields: [files.userId],
@@ -378,18 +346,6 @@ export const insertCampaignSchema = createInsertSchema(campaigns).omit({
   testSentAt: true,
 });
 
-export const insertSenderNumberSchema = createInsertSchema(senderNumbers).omit({
-  id: true,
-  createdAt: true,
-});
-
-export const insertUserSenderNumberSchema = createInsertSchema(userSenderNumbers).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  verifiedAt: true,
-});
-
 export const insertFileSchema = createInsertSchema(files).omit({
   id: true,
   createdAt: true,
@@ -450,12 +406,6 @@ export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
 
 export type Report = typeof reports.$inferSelect;
 export type InsertReport = z.infer<typeof insertReportSchema>;
-
-export type SenderNumber = typeof senderNumbers.$inferSelect;
-export type InsertSenderNumber = z.infer<typeof insertSenderNumberSchema>;
-
-export type UserSenderNumber = typeof userSenderNumbers.$inferSelect;
-export type InsertUserSenderNumber = z.infer<typeof insertUserSenderNumberSchema>;
 
 export type File = typeof files.$inferSelect;
 export type InsertFile = z.infer<typeof insertFileSchema>;

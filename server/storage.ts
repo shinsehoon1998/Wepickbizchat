@@ -6,8 +6,6 @@ import {
   transactions,
   reports,
   templates,
-  senderNumbers,
-  userSenderNumbers,
   files,
   geofences,
   atsMetaCache,
@@ -25,10 +23,6 @@ import {
   type InsertReport,
   type Template,
   type InsertTemplate,
-  type SenderNumber,
-  type InsertSenderNumber,
-  type UserSenderNumber,
-  type InsertUserSenderNumber,
   type File,
   type InsertFile,
   type Geofence,
@@ -90,19 +84,6 @@ export interface IStorage {
     totalClicks: number;
     successRate: number;
   }>;
-  
-  // Sender Numbers (System level)
-  getSenderNumbers(): Promise<SenderNumber[]>;
-  getSenderNumber(id: string): Promise<SenderNumber | undefined>;
-  createSenderNumber(senderNumber: InsertSenderNumber): Promise<SenderNumber>;
-  updateSenderNumber(id: string, senderNumber: Partial<InsertSenderNumber>): Promise<SenderNumber | undefined>;
-  
-  // User Sender Numbers
-  getUserSenderNumbers(userId: string): Promise<UserSenderNumber[]>;
-  getUserSenderNumber(id: string): Promise<UserSenderNumber | undefined>;
-  createUserSenderNumber(data: InsertUserSenderNumber): Promise<UserSenderNumber>;
-  updateUserSenderNumber(id: string, data: Partial<UserSenderNumber>): Promise<UserSenderNumber | undefined>;
-  deleteUserSenderNumber(id: string): Promise<boolean>;
   
   // Files
   getFiles(userId: string): Promise<File[]>;
@@ -404,67 +385,6 @@ export class DatabaseStorage implements IStorage {
       totalClicks,
       successRate,
     };
-  }
-
-  async getSenderNumbers(): Promise<SenderNumber[]> {
-    const numbers = await db
-      .select()
-      .from(senderNumbers)
-      .where(eq(senderNumbers.isActive, true))
-      .orderBy(senderNumbers.code);
-    return numbers;
-  }
-
-  async getSenderNumber(id: string): Promise<SenderNumber | undefined> {
-    const [number] = await db.select().from(senderNumbers).where(eq(senderNumbers.id, id));
-    return number || undefined;
-  }
-
-  async createSenderNumber(numberData: InsertSenderNumber): Promise<SenderNumber> {
-    const [number] = await db.insert(senderNumbers).values(numberData).returning();
-    return number;
-  }
-
-  async updateSenderNumber(id: string, numberData: Partial<InsertSenderNumber>): Promise<SenderNumber | undefined> {
-    const [number] = await db
-      .update(senderNumbers)
-      .set(numberData)
-      .where(eq(senderNumbers.id, id))
-      .returning();
-    return number || undefined;
-  }
-
-  async getUserSenderNumbers(userId: string): Promise<UserSenderNumber[]> {
-    const numbers = await db
-      .select()
-      .from(userSenderNumbers)
-      .where(eq(userSenderNumbers.userId, userId))
-      .orderBy(desc(userSenderNumbers.createdAt));
-    return numbers;
-  }
-
-  async getUserSenderNumber(id: string): Promise<UserSenderNumber | undefined> {
-    const [number] = await db.select().from(userSenderNumbers).where(eq(userSenderNumbers.id, id));
-    return number || undefined;
-  }
-
-  async createUserSenderNumber(data: InsertUserSenderNumber): Promise<UserSenderNumber> {
-    const [number] = await db.insert(userSenderNumbers).values(data).returning();
-    return number;
-  }
-
-  async updateUserSenderNumber(id: string, data: Partial<UserSenderNumber>): Promise<UserSenderNumber | undefined> {
-    const [number] = await db
-      .update(userSenderNumbers)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(userSenderNumbers.id, id))
-      .returning();
-    return number || undefined;
-  }
-
-  async deleteUserSenderNumber(id: string): Promise<boolean> {
-    const result = await db.delete(userSenderNumbers).where(eq(userSenderNumbers.id, id));
-    return result.rowCount ? result.rowCount > 0 : false;
   }
 
   async getFiles(userId: string): Promise<File[]> {
