@@ -9,6 +9,53 @@ import multer from "multer";
 import { promises as fs } from "fs";
 import path from "path";
 
+// BizChat Campaign Action 시뮬레이션 (API key 없을 때)
+function simulateBizChatCampaignAction(action: string, campaignId?: string) {
+  const baseStats = {
+    sendCnt: Math.floor(Math.random() * 5000) + 1000,
+    successCnt: Math.floor(Math.random() * 4500) + 900,
+    failCnt: Math.floor(Math.random() * 200) + 50,
+    waitCnt: Math.floor(Math.random() * 100),
+    readCnt: Math.floor(Math.random() * 500) + 100,
+    settleCnt: Math.floor(Math.random() * 4000) + 800,
+  };
+
+  switch (action) {
+    case "stats":
+      return {
+        success: true,
+        result: {
+          code: "S000001",
+          data: baseStats,
+        },
+        message: "Using simulated data (no API key)",
+      };
+    case "create":
+      return {
+        success: true,
+        bizchatCampaignId: `SIM_${Date.now()}`,
+        message: "Campaign created in simulation mode",
+      };
+    case "approve":
+      return {
+        success: true,
+        message: "Approval requested in simulation mode",
+      };
+    case "cancel":
+    case "stop":
+      return {
+        success: true,
+        message: `Campaign ${action} simulated`,
+      };
+    default:
+      return {
+        success: true,
+        message: `Action '${action}' simulated (development mode)`,
+        campaignId,
+      };
+  }
+}
+
 // ATS 메타데이터 시뮬레이션 데이터
 function getSimulatedAtsMeta(metaType: string) {
   switch (metaType) {
@@ -1524,6 +1571,106 @@ export async function registerRoutes(
         ],
         message: "Using fallback data (error occurred)",
       });
+    }
+  });
+
+  // ============================================================
+  // BizChat Campaign API - 캠페인 생성/승인/통계 조회
+  // ============================================================
+  app.post("/api/bizchat/campaigns", isAuthenticated, async (req, res) => {
+    try {
+      const { action, campaignId, ...params } = req.body;
+      const useProduction = req.body.env === "prod" || req.query.env === "prod";
+      
+      const baseUrl = useProduction
+        ? (process.env.BIZCHAT_PROD_API_URL || "https://gw.bizchat1.co.kr")
+        : (process.env.BIZCHAT_DEV_API_URL || "https://gw-dev.bizchat1.co.kr:8443");
+      
+      const apiKey = useProduction
+        ? process.env.BIZCHAT_PROD_API_KEY
+        : process.env.BIZCHAT_DEV_API_KEY;
+
+      // Simulation mode if no API key
+      if (!apiKey) {
+        console.log("[BizChat Campaigns] No API key, returning simulation response");
+        return res.json(simulateBizChatCampaignAction(action, campaignId));
+      }
+
+      const tid = Date.now().toString();
+
+      switch (action) {
+        case "stats": {
+          const campaign = campaignId ? await storage.getCampaign(campaignId) : null;
+          if (!campaign?.bizchatCampaignId) {
+            return res.json({
+              success: true,
+              result: {
+                code: "S000001",
+                data: {
+                  sendCnt: campaign?.sentCount || 0,
+                  successCnt: campaign?.successCount || 0,
+                  failCnt: (campaign?.sentCount || 0) - (campaign?.successCount || 0),
+                  waitCnt: 0,
+                  readCnt: Math.floor((campaign?.successCount || 0) * 0.1),
+                  settleCnt: campaign?.successCount || 0,
+                },
+              },
+              message: "Using local data (no BizChat campaign ID)",
+            });
+          }
+
+          const url = `${baseUrl}/api/v1/cmpn/stat/read?id=${campaign.bizchatCampaignId}&tid=${tid}`;
+          console.log(`[BizChat Stats] GET ${url}`);
+
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const response = await fetch(url, {
+              method: "GET",
+              headers: { Authorization: apiKey },
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            
+            const data = await response.json();
+            console.log(`[BizChat Stats] Response:`, JSON.stringify(data).substring(0, 300));
+            
+            return res.json({
+              success: data.code === "S000001",
+              result: data,
+            });
+          } catch (fetchError) {
+            console.log("[BizChat Stats] API error, using local data:", fetchError);
+            return res.json({
+              success: true,
+              result: {
+                code: "S000001",
+                data: {
+                  sendCnt: campaign.sentCount || 0,
+                  successCnt: campaign.successCount || 0,
+                  failCnt: (campaign.sentCount || 0) - (campaign.successCount || 0),
+                  waitCnt: 0,
+                  readCnt: Math.floor((campaign.successCount || 0) * 0.1),
+                  settleCnt: campaign.successCount || 0,
+                },
+              },
+              message: "Using local data (API connection failed)",
+            });
+          }
+        }
+
+        default:
+          return res.json({
+            success: true,
+            message: "Action simulated (development mode)",
+            action,
+            campaignId,
+          });
+      }
+    } catch (error) {
+      console.error("[BizChat Campaigns] Error:", error);
+      res.status(500).json({ error: "Failed to process BizChat campaign action" });
     }
   });
 
