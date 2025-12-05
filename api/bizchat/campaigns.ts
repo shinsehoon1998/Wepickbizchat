@@ -84,6 +84,34 @@ function toUnixTimestamp(date: Date | string | null): number | undefined {
   return Math.floor(d.getTime() / 1000);
 }
 
+// 발송 시간 유효성 검증 (09:00~20:00, 1시간 전 승인 요청 필요)
+function validateSendTime(sendDate: Date | string | null): { valid: boolean; error?: string } {
+  if (!sendDate) {
+    return { valid: true };
+  }
+  
+  const targetDate = typeof sendDate === 'string' ? new Date(sendDate) : sendDate;
+  const now = new Date();
+  
+  const targetHour = targetDate.getHours();
+  if (targetHour < 9 || targetHour >= 20) {
+    return { 
+      valid: false, 
+      error: '발송 시간은 09:00~20:00 사이여야 합니다' 
+    };
+  }
+  
+  const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+  if (targetDate < oneHourFromNow) {
+    return { 
+      valid: false, 
+      error: '발송 시간은 현재 시간으로부터 최소 1시간 이후여야 합니다' 
+    };
+  }
+  
+  return { valid: true };
+}
+
 // BizChat API 호출 (v0.29.0 규격)
 async function callBizChatAPI(
   endpoint: string,
@@ -262,6 +290,16 @@ async function stopCampaign(bizchatCampaignId: string, useProduction: boolean = 
   return callBizChatAPI(`/api/v1/cmpn/stop?id=${bizchatCampaignId}`, 'POST', {}, useProduction);
 }
 
+// BizChat 캠페인 MDN 목록 조회 (GET /api/v1/cmpn/mdn)
+async function getCampaignMdnList(bizchatCampaignId: string, pageNumber: number = 1, pageSize: number = 100, useProduction: boolean = false) {
+  return callBizChatAPI(`/api/v1/cmpn/mdn?id=${bizchatCampaignId}&pageNumber=${pageNumber}&pageSize=${pageSize}`, 'GET', undefined, useProduction);
+}
+
+// BizChat 캠페인 결과 조회 (GET /api/v1/cmpn/result)
+async function getCampaignResult(bizchatCampaignId: string, useProduction: boolean = false) {
+  return callBizChatAPI(`/api/v1/cmpn/result?id=${bizchatCampaignId}`, 'GET', undefined, useProduction);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -306,6 +344,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case 'create': {
           if (campaign.bizchatCampaignId) {
             return res.status(400).json({ error: 'Campaign already registered to BizChat' });
+          }
+
+          const sendTimeValidation = validateSendTime(campaign.atsSndStartDate || campaign.scheduledAt);
+          if (!sendTimeValidation.valid) {
+            return res.status(400).json({ error: sendTimeValidation.error });
           }
 
           const result = await createCampaignInBizChat(campaign, message, useProduction);
@@ -451,10 +494,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
 
+        case 'mdn': {
+          if (!campaign.bizchatCampaignId) {
+            return res.status(400).json({ error: 'Campaign not registered to BizChat' });
+          }
+
+          const pageNumber = req.body.pageNumber || 1;
+          const pageSize = req.body.pageSize || 100;
+          const result = await getCampaignMdnList(campaign.bizchatCampaignId, pageNumber, pageSize, useProduction);
+          
+          return res.status(200).json({
+            success: result.data.code === 'S000001',
+            action: 'mdn',
+            pageNumber,
+            pageSize,
+            result: result.data,
+          });
+        }
+
+        case 'result': {
+          if (!campaign.bizchatCampaignId) {
+            return res.status(400).json({ error: 'Campaign not registered to BizChat' });
+          }
+
+          const result = await getCampaignResult(campaign.bizchatCampaignId, useProduction);
+          
+          return res.status(200).json({
+            success: result.data.code === 'S000001',
+            action: 'result',
+            result: result.data,
+          });
+        }
+
         default:
           return res.status(400).json({ 
             error: 'Invalid action',
-            validActions: ['create', 'approve', 'test', 'stats', 'cancel', 'stop'],
+            validActions: ['create', 'approve', 'test', 'stats', 'cancel', 'stop', 'mdn', 'result'],
           });
       }
 
