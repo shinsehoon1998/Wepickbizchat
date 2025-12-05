@@ -45,6 +45,18 @@ const targeting = pgTable('targeting', {
   ageMin: integer('age_min'),
   ageMax: integer('age_max'),
   regions: text('regions').array(),
+  districts: text('districts').array(),
+  carrierTypes: text('carrier_types').array(),
+  deviceTypes: text('device_types').array(),
+  shopping11stCategories: text('shopping_11st_categories').array(),
+  webappCategories: text('webapp_categories').array(),
+  callUsageTypes: text('call_usage_types').array(),
+  locationTypes: text('location_types').array(),
+  mobilityPatterns: text('mobility_patterns').array(),
+  geofenceIds: text('geofence_ids').array(),
+  atsQuery: text('ats_query'),
+  estimatedCount: integer('estimated_count'),
+  createdAt: timestamp('created_at').defaultNow(),
 });
 
 const reports = pgTable('reports', {
