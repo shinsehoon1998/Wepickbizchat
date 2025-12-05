@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { neon, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { eq } from 'drizzle-orm';
-import { pgTable, text, integer, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, timestamp, numeric } from 'drizzle-orm/pg-core';
 
 neonConfig.fetchConnectionCache = true;
 
@@ -14,11 +14,18 @@ const campaigns = pgTable('campaigns', {
   templateId: text('template_id'),
   messageType: text('message_type'),
   sndNum: text('snd_num'),
-  statusCode: text('status_code').default('00'),
-  status: text('status').default('작성중'),
+  statusCode: integer('status_code').default(0),
+  status: text('status').default('draft'),
   targetCount: integer('target_count'),
-  budget: text('budget'),
+  sentCount: integer('sent_count'),
+  successCount: integer('success_count'),
+  clickCount: integer('click_count'),
+  budget: numeric('budget'),
+  costPerMessage: numeric('cost_per_message'),
   scheduledAt: timestamp('scheduled_at'),
+  completedAt: timestamp('completed_at'),
+  rejectionReason: text('rejection_reason'),
+  bizchatCampaignId: text('bizchat_campaign_id'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -43,10 +50,15 @@ const targeting = pgTable('targeting', {
 const reports = pgTable('reports', {
   id: text('id').primaryKey(),
   campaignId: text('campaign_id').notNull(),
-  sent: integer('sent').default(0),
-  delivered: integer('delivered').default(0),
-  failed: integer('failed').default(0),
-  clicked: integer('clicked').default(0),
+  sentCount: integer('sent_count').default(0),
+  deliveredCount: integer('delivered_count').default(0),
+  successCount: integer('success_count').default(0),
+  failedCount: integer('failed_count').default(0),
+  clickCount: integer('click_count').default(0),
+  optOutCount: integer('opt_out_count').default(0),
+  conversionRate: numeric('conversion_rate'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
 });
 
 function getDb() {

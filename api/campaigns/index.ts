@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { neon, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { eq, desc } from 'drizzle-orm';
-import { pgTable, text, integer, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, timestamp, numeric } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
 
@@ -12,7 +12,7 @@ neonConfig.fetchConnectionCache = true;
 const users = pgTable('users', {
   id: text('id').primaryKey(),
   email: text('email'),
-  balance: text('balance').default('0').notNull(),
+  balance: numeric('balance').default('0').notNull(),
 });
 
 const campaigns = pgTable('campaigns', {
@@ -22,10 +22,13 @@ const campaigns = pgTable('campaigns', {
   templateId: text('template_id'),
   messageType: text('message_type'),
   sndNum: text('snd_num'),
-  statusCode: text('status_code').default('00'),
-  status: text('status').default('작성중'),
+  statusCode: integer('status_code').default(0),
+  status: text('status').default('draft'),
   targetCount: integer('target_count'),
-  budget: text('budget'),
+  sentCount: integer('sent_count'),
+  successCount: integer('success_count'),
+  budget: numeric('budget'),
+  costPerMessage: numeric('cost_per_message'),
   scheduledAt: timestamp('scheduled_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -143,10 +146,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         templateId: data.templateId,
         messageType: data.messageType,
         sndNum: data.sndNum,
-        statusCode: '00',
-        status: '작성중',
+        statusCode: 0,
+        status: 'draft',
         targetCount: data.targetCount,
         budget: data.budget.toString(),
+        costPerMessage: '50',
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
       }).returning();
 

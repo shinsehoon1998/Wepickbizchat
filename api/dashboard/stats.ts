@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { neon, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { eq } from 'drizzle-orm';
-import { pgTable, text, integer, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, timestamp, numeric } from 'drizzle-orm/pg-core';
 
 neonConfig.fetchConnectionCache = true;
 
@@ -11,11 +11,15 @@ const campaigns = pgTable('campaigns', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
   name: text('name').notNull(),
-  messageType: text('message_type').notNull(),
-  statusCode: integer('status_code').default(5),
+  messageType: text('message_type'),
+  statusCode: integer('status_code').default(0),
+  status: text('status').default('draft'),
   templateId: text('template_id'),
-  budget: text('budget'),
+  budget: numeric('budget'),
   targetCount: integer('target_count'),
+  sentCount: integer('sent_count'),
+  successCount: integer('success_count'),
+  clickCount: integer('click_count'),
   completedAt: timestamp('completed_at'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -24,10 +28,12 @@ const campaigns = pgTable('campaigns', {
 const reports = pgTable('reports', {
   id: text('id').primaryKey(),
   campaignId: text('campaign_id').notNull(),
-  sent: integer('sent').default(0),
-  delivered: integer('delivered').default(0),
-  failed: integer('failed').default(0),
-  clicked: integer('clicked').default(0),
+  sentCount: integer('sent_count').default(0),
+  deliveredCount: integer('delivered_count').default(0),
+  successCount: integer('success_count').default(0),
+  failedCount: integer('failed_count').default(0),
+  clickCount: integer('click_count').default(0),
+  optOutCount: integer('opt_out_count').default(0),
   createdAt: timestamp('created_at').defaultNow(),
 });
 
@@ -111,12 +117,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (campaign.statusCode === 20 || campaign.statusCode === 30) {
         activeCampaigns++;
       }
+      totalSent += campaign.sentCount || 0;
+      totalSuccess += campaign.successCount || 0;
+      totalClicks += campaign.clickCount || 0;
+      
       const reportResult = await db.select().from(reports).where(eq(reports.campaignId, campaign.id));
       const report = reportResult[0];
       if (report) {
-        totalSent += report.sent || 0;
-        totalSuccess += report.delivered || 0;
-        totalClicks += report.clicked || 0;
+        totalSent += report.sentCount || 0;
+        totalSuccess += report.deliveredCount || 0;
+        totalClicks += report.clickCount || 0;
       }
     }
 
