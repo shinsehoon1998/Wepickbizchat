@@ -186,12 +186,13 @@ SK텔레콤 BizChat 3rd Party API와 연동하여 실제 문자 광고 발송을
 
 ### API Endpoints
 - **POST /api/bizchat/test** - API 연결 테스트 (발신번호/캠페인/ATS 메타)
-- **POST /api/bizchat/campaigns** - 캠페인 관리 (생성/수정/승인요청/취소/중단/통계/MDN조회/결과조회)
+- **POST /api/bizchat/campaigns** - 캠페인 관리 (create/update/approve/test/testCancel/testResult/stats/cancel/stop/delete/mdn/result/verifyMdn/list)
 - **POST /api/bizchat/callback/state** - 캠페인 상태 변경 콜백
 - **POST /api/bizchat/ats** - ATS 타겟 모수 조회 (meta/count/filter)
 - **POST /api/bizchat/file** - 파일 업로드 (MMS 이미지)
 - **POST /api/bizchat/sender** - 발신번호 조회 (읽기 전용, BizChat에서 관리되는 발신번호 목록 조회)
 - **POST /api/bizchat/template** - BizChat 템플릿 관리 (list/create/read/update/delete/submit)
+- **POST /api/bizchat/ai** - AI 문구 생성/검증/고언연 검수 (generate/check/gounInspect/gounResult)
 
 ### Environment Variables (BizChat)
 ```
@@ -203,13 +204,33 @@ BIZCHAT_CALLBACK_AUTH_KEY=<콜백 인증 키>
 ### API 규격 (v0.29.0)
 - 모든 API 요청에 `tid` Query Parameter 필수 (밀리초 타임스탬프)
 - 성공 응답 코드: `S000001`
-- 캠페인 상태 코드: 0=임시등록, 10=승인요청, 11=승인완료, 17=반려, 30=진행중, 40=종료
+- 캠페인 상태 코드: 0=임시등록, 1=검수요청, 2=검수완료, 10=승인요청, 11=승인완료, 17=반려, 20=발송준비, 25=취소, 30=진행중, 35=중단, 40=종료
 - 콜백 페이로드: `{id, state, stateUpdateDate, stateReason}`
+- 발송 시간 규칙: 09:00~20:00, 최소 1시간 전, 10분 단위 정각 (예: 11:20, 11:30)
+- 수정 가능 상태: 임시등록(0), 검수완료(2), 반려(17)
 
 ### 캠페인 발송 플로우
 1. 캠페인 저장 → 로컬 DB에 저장
 2. 발송 요청 (`/api/campaigns/:id/submit`) → BizChat 캠페인 생성 + 승인 요청
 3. 상태 콜백 → BizChat에서 상태 변경 시 `/api/bizchat/callback/state` 호출
+
+### 캠페인 액션 상세
+- **create**: BizChat에 캠페인 생성 (발송 시간 검증 포함)
+- **update**: 캠페인 수정 (상태 0,2,17만 가능, 발송 시간 검증)
+- **approve**: 승인 요청
+- **test/testCancel/testResult**: 테스트 발송/취소/결과조회
+- **stats**: 실시간 통계 조회
+- **cancel/stop**: 캠페인 취소/중단
+- **delete**: 캠페인 삭제 (상태 0만 가능)
+- **mdn/result**: MDN 목록/발송 결과 조회
+- **verifyMdn**: MDN 파일 검증 (rcvType=10)
+- **list**: BizChat측 캠페인 목록 조회
+
+### AI 기능
+- **generate**: 가이드라인(10자+)을 입력하면 광고 문구 자동 생성
+- **check**: 제목/본문 검증 및 수정 제안 (차이점 delta 포함)
+- **gounInspect**: 고언연 검수 요청 (캠페인 시작 2.5일 전 필요)
+- **gounResult**: 고언연 검수 결과 확인
 
 ## Recent Changes
 - Migrated from Express.js to Vercel Serverless Functions
@@ -238,6 +259,13 @@ BIZCHAT_CALLBACK_AUTH_KEY=<콜백 인증 키>
   - senderNumbers/userSenderNumbers 테이블 및 관련 코드 삭제
   - sender-numbers.tsx: BizChat 발신번호 조회 전용 페이지로 변경
   - campaigns-new.tsx: BizChat API를 통한 발신번호 선택 연동
+- **BizChat API v0.29.0 완전 준수** (2024-12-05):
+  - 캠페인 수정(update) 액션 추가 (상태 0,2,17 검증)
+  - 발송 시간 10분 단위 정각 검증 추가
+  - delete, testCancel, testResult, verifyMdn, list 액션 추가
+  - 캠페인 생성 파라미터 확장 (sndMosuDesc, sndMosuQuery, retarget, coupon, Maptics 등)
+  - AI API 엔드포인트 추가 (generate/check/gounInspect/gounResult)
+  - 모든 핸들러 BizChat 에러 코드 전파 개선
 
 ## User Preferences
 - Korean language (한국어) for all UI text
