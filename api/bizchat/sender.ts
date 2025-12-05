@@ -91,10 +91,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     switch (action) {
       case 'list': {
         const result = await callBizChatAPI('/api/v1/sndnum/list', 'POST', {}, useProduction);
+        
+        // BizChat API 응답에서 발신번호 목록 추출 및 정규화
+        // 발신번호코드(id)와 발신번호(num)를 명확히 구분
+        // 예: { id: "001001", num: "16700823", name: "SK텔레콤 혜택 알림" }
+        const rawList = result.data.data?.list || [];
+        const senderNumbers = rawList.map((item: any) => ({
+          id: item.id,           // 발신번호코드 (캠페인 생성 시 sndNum에 사용)
+          code: item.id,         // 발신번호코드 (별칭)
+          num: item.num,         // 실제 발신번호
+          number: item.num,      // 실제 발신번호 (별칭)
+          name: item.name || '', // 발신번호 이름
+          displayName: item.name ? `${item.name} (${item.num})` : item.num,
+          comment: item.comment || '',
+          state: item.state,     // 상태
+          regDate: item.regDate, // 등록일
+        }));
+
         return res.status(200).json({
           success: result.data.code === 'S000001',
           action: 'list',
-          senderNumbers: result.data.data?.list || [],
+          senderNumbers,
+          // 캠페인 생성 시 사용법 안내
+          usage: {
+            note: '캠페인 생성 시 sndNum 필드에 발신번호코드(id/code)를 사용하세요',
+            example: 'sndNum: "001001" (SK텔레콤 혜택 알림 - 16700823)',
+          },
           rawResponse: result.data,
         });
       }

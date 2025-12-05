@@ -266,6 +266,8 @@ BIZCHAT_CALLBACK_AUTH_KEY=<콜백 인증 키>
   - 캠페인 생성 파라미터 확장 (sndMosuDesc, sndMosuQuery, retarget, coupon, Maptics 등)
   - AI API 엔드포인트 추가 (generate/check/gounInspect/gounResult)
   - 모든 핸들러 BizChat 에러 코드 전파 개선
+  - 발신번호 코드 매핑 완벽 구현 (001001=16700823, 001005=16702305)
+  - 테스트 발송 MDN 형식 검증 및 에러 처리 개선
 
 ## User Preferences
 - Korean language (한국어) for all UI text

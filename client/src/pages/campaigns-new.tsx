@@ -58,10 +58,13 @@ import TargetingAdvanced from "@/components/targeting-advanced";
 import type { Template } from "@shared/schema";
 
 interface BizChatSenderNumber {
-  id?: string;
-  num?: string;
-  name: string;
-  state?: number;
+  id?: string;           // 발신번호코드 (캠페인 생성 시 sndNum에 사용)
+  code?: string;         // 발신번호코드 (별칭)
+  num?: string;          // 실제 발신번호
+  number?: string;       // 실제 발신번호 (별칭)
+  name: string;          // 발신번호 이름
+  displayName?: string;  // 표시용 이름
+  state?: number;        // 상태 (1: 승인됨)
 }
 
 const campaignSchema = z.object({
@@ -142,10 +145,11 @@ export default function CampaignsNew() {
   const [senderNumbers, setSenderNumbers] = useState<BizChatSenderNumber[]>([]);
   const [senderNumbersLoading, setSenderNumbersLoading] = useState(true);
 
+  // 실제 BizChat 발신번호 코드 매핑 (API 문서 기준)
+  // 발신번호코드(id)를 캠페인 생성 시 sndNum으로 사용해야 함
   const FALLBACK_SENDER_NUMBERS: BizChatSenderNumber[] = [
-    { id: "1", num: "021234567", name: "영업팀 대표번호", state: 1 },
-    { id: "2", num: "16005678", name: "고객센터", state: 1 },
-    { id: "3", num: "0323456789", name: "지점 연락처", state: 1 },
+    { id: "001001", num: "16700823", name: "SK텔레콤 혜택 알림", state: 1 },
+    { id: "001005", num: "16702305", name: "SK텔레콤 우리 동네 혜택 알림", state: 1 },
   ];
 
   useEffect(() => {
@@ -561,10 +565,14 @@ export default function CampaignsNew() {
                             <SelectContent>
                               {senderNumbers?.length > 0 ? (
                                 senderNumbers.map((sender, idx) => {
-                                  const senderCode = sender.num || sender.id || `sender-${idx}`;
+                                  // BizChat API에서는 발신번호코드(id)를 sndNum으로 사용해야 함
+                                  // 예: id="001001" → sndNum="001001" (실제 번호: 16700823)
+                                  const senderCode = sender.id || sender.code || `sender-${idx}`;
+                                  const displayNumber = sender.num || sender.number || '';
+                                  const displayName = sender.name || sender.displayName || '';
                                   return (
                                     <SelectItem key={senderCode} value={senderCode}>
-                                      {sender.name} {sender.num ? `(${sender.num})` : ''}
+                                      {displayName} {displayNumber ? `(${displayNumber})` : ''}
                                     </SelectItem>
                                   );
                                 })

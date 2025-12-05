@@ -613,11 +613,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
 
           if (!mdnList || !Array.isArray(mdnList) || mdnList.length === 0) {
-            return res.status(400).json({ error: 'mdn array is required for test send' });
+            return res.status(400).json({ 
+              error: 'mdn array is required for test send',
+              example: { mdnList: ['01012345678', '01087654321'] },
+            });
           }
 
           if (mdnList.length > 20) {
-            return res.status(400).json({ error: 'Maximum 20 numbers for test send' });
+            return res.status(400).json({ 
+              error: 'Maximum 20 numbers for test send',
+              maxMdnCount: 20,
+              providedCount: mdnList.length,
+            });
+          }
+
+          // MDN 형식 검증 (숫자만 허용)
+          const invalidMdns = mdnList.filter((mdn: string) => !/^\d{10,11}$/.test(mdn.replace(/[^0-9]/g, '')));
+          if (invalidMdns.length > 0) {
+            return res.status(400).json({
+              error: 'Invalid phone number format',
+              invalidNumbers: invalidMdns,
+              format: '10-11 digits without dashes (e.g., 01012345678)',
+            });
           }
 
           if (sendTime) {
@@ -627,11 +644,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             }
           }
 
-          const result = await testSendCampaign(campaign.bizchatCampaignId, mdnList, sendTime, useProduction);
+          // MDN 정규화 (하이픈 제거)
+          const normalizedMdnList = mdnList.map((mdn: string) => mdn.replace(/[^0-9]/g, ''));
+          const result = await testSendCampaign(campaign.bizchatCampaignId, normalizedMdnList, sendTime, useProduction);
           
+          if (result.data.code !== 'S000001') {
+            return res.status(400).json({
+              success: false,
+              action: 'test',
+              error: 'Failed to send test message',
+              bizchatCode: result.data.code,
+              bizchatMessage: result.data.msg,
+              bizchatError: result.data,
+            });
+          }
+
           return res.status(200).json({
-            success: result.data.code === 'S000001',
+            success: true,
             action: 'test',
+            message: `테스트 발송이 요청되었습니다 (${normalizedMdnList.length}건)`,
+            mdnCount: normalizedMdnList.length,
             result: result.data,
           });
         }
