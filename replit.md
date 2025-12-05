@@ -214,17 +214,21 @@ BIZCHAT_CALLBACK_AUTH_KEY=<콜백 인증 키>
 2. 발송 요청 (`/api/campaigns/:id/submit`) → BizChat 캠페인 생성 + 승인 요청
 3. 상태 콜백 → BizChat에서 상태 변경 시 `/api/bizchat/callback/state` 호출
 
-### 캠페인 액션 상세
-- **create**: BizChat에 캠페인 생성 (발송 시간 검증 포함)
-- **update**: 캠페인 수정 (상태 0,2,17만 가능, 발송 시간 검증)
-- **approve**: 승인 요청
-- **test/testCancel/testResult**: 테스트 발송/취소/결과조회
-- **stats**: 실시간 통계 조회
-- **cancel/stop**: 캠페인 취소/중단
-- **delete**: 캠페인 삭제 (상태 0만 가능)
+### 캠페인 액션 상세 (v0.29.0 완전 준수)
+- **create**: BizChat에 캠페인 생성 (발송 시간 검증 포함) - 7.1
+- **read**: 캠페인 단일 조회 (GET /api/v1/cmpn) - 7.2
+- **update**: 캠페인 수정 (상태 0,2,17만 가능, 발송 시간 검증) - 7.3
+- **delete**: 캠페인 삭제 (상태 0만 가능, 최대 10개) - 7.4
+- **list**: BizChat측 캠페인 목록 조회 (페이지네이션) - 7.5
+- **cancel**: 캠페인 취소 (시작 1시간 전 가능) - 7.6
+- **stop**: 진행 중인 캠페인 중단 - 7.7
+- **test**: 테스트 발송 (최대 20명) - 7.8
+- **testCancel**: 예약된 테스트 발송 취소 - 7.9
+- **testResult**: 테스트 발송 결과 조회 - 7.10
+- **verifyMdn**: MDN 파일 검증 (rcvType=10) - 7.11
+- **stats**: 실시간 통계 조회 (5분 주기 갱신) - 7.12
+- **approve**: 승인 요청 - 7.14
 - **mdn/result**: MDN 목록/발송 결과 조회
-- **verifyMdn**: MDN 파일 검증 (rcvType=10)
-- **list**: BizChat측 캠페인 목록 조회
 
 ### AI 기능
 - **generate**: 가이드라인(10자+)을 입력하면 광고 문구 자동 생성
