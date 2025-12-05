@@ -242,6 +242,9 @@ export default function Templates() {
                       <Badge variant="outline" className="text-tiny shrink-0">
                         {getMessageTypeLabel(template.messageType)}
                       </Badge>
+                      <span className="text-tiny text-muted-foreground font-mono" data-testid={`text-template-id-${template.id}`}>
+                        ID: {template.id}
+                      </span>
                     </div>
                     <div className="flex items-center gap-4 text-small text-muted-foreground">
                       <span className="truncate max-w-[200px]">{template.content.substring(0, 50)}...</span>
@@ -284,6 +287,7 @@ export default function Templates() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           className="cursor-pointer gap-2"
+                          onClick={() => navigate(`/templates/${template.id}`)}
                           data-testid={`button-view-template-${template.id}`}
                         >
                           <Eye className="h-4 w-4" />
@@ -293,6 +297,7 @@ export default function Templates() {
                           <>
                             <DropdownMenuItem
                               className="cursor-pointer gap-2"
+                              onClick={() => navigate(`/templates/${template.id}/edit`)}
                               data-testid={`button-edit-template-${template.id}`}
                             >
                               <Pencil className="h-4 w-4" />
