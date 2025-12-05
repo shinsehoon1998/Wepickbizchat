@@ -18,7 +18,11 @@ import {
   FileCheck,
   RefreshCw,
   Download,
-  Loader2
+  Loader2,
+  TestTube,
+  Phone,
+  Ban,
+  List
 } from "lucide-react";
 import { formatCurrency, formatNumber, formatDateTime } from "@/lib/authUtils";
 import { CampaignStatusBadge } from "@/components/campaign-status-badge";
@@ -29,6 +33,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
@@ -78,6 +85,37 @@ interface BizChatStats {
   error?: string;
 }
 
+interface TestResult {
+  recvMdn: string;
+  customerReserveTime?: string;
+  svcStatus?: string;      // 발송 코드
+  svcStatus2?: string;     // 수신 코드 (201000=성공)
+  sendTime?: number;
+}
+
+interface TestResultResponse {
+  success: boolean;
+  action: string;
+  result?: {
+    code?: string;
+    data?: {
+      list?: TestResult[];
+    };
+  };
+  error?: string;
+}
+
+// 발송/수신 상태 코드 레이블
+const TEST_STATUS_LABELS: Record<string, string> = {
+  '001000': '발송 완료',
+  '001001': '발송 대기',
+  '001002': '발송 중',
+  '001003': '발송 실패',
+  '201000': '수신 성공',
+  '201001': '수신 대기',
+  '201002': '수신 실패',
+};
+
 export default function CampaignDetail() {
   const [, params] = useRoute("/campaigns/:id");
   const [, navigate] = useLocation();
@@ -85,6 +123,11 @@ export default function CampaignDetail() {
   const campaignId = params?.id || null;
   const [bizChatStats, setBizChatStats] = useState<BizChatStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+
+  // 테스트 발송 관련 상태
+  const [testMdnInput, setTestMdnInput] = useState('');
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [isLoadingTestResults, setIsLoadingTestResults] = useState(false);
 
   const { data: campaign, isLoading, error } = useQuery<CampaignDetail>({
     queryKey: ["/api/campaigns", campaignId],
@@ -219,6 +262,159 @@ export default function CampaignDetail() {
       setIsLoadingStats(false);
     }
   };
+
+  // 테스트 발송 함수
+  const handleTestSend = async () => {
+    if (!campaign?.bizchatCampaignId) {
+      toast({
+        title: "테스트 발송 불가",
+        description: "BizChat에 캠페인이 등록되지 않았어요. 먼저 캠페인을 등록해주세요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // MDN 파싱 (쉼표, 줄바꿈, 공백으로 구분)
+    const mdnList = testMdnInput
+      .split(/[,\n\s]+/)
+      .map(mdn => mdn.trim().replace(/[^0-9]/g, ''))
+      .filter(mdn => mdn.length >= 10 && mdn.length <= 11);
+
+    if (mdnList.length === 0) {
+      toast({
+        title: "전화번호를 입력해주세요",
+        description: "테스트 발송할 전화번호를 입력해주세요 (예: 01012345678)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (mdnList.length > 20) {
+      toast({
+        title: "전화번호가 너무 많아요",
+        description: "테스트 발송은 최대 20개까지만 가능해요",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await apiRequest("POST", "/api/bizchat/campaigns", {
+        action: "test",
+        campaignId: campaign.id,
+        mdnList,
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        toast({
+          title: "테스트 발송 요청 완료",
+          description: `${mdnList.length}건의 테스트 메시지 발송이 요청되었어요.`,
+        });
+        setTestMdnInput('');
+        // 결과 조회
+        handleFetchTestResults();
+      } else {
+        toast({
+          title: "테스트 발송 실패",
+          description: data.error || data.bizchatMessage || "발송에 실패했어요",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "테스트 발송 실패",
+        description: "서버와 통신하는 중 오류가 발생했어요.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // 테스트 발송 취소 함수
+  const handleTestCancel = async () => {
+    if (!campaign?.bizchatCampaignId) {
+      toast({
+        title: "취소 불가",
+        description: "BizChat 캠페인 ID가 없어요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const response = await apiRequest("POST", "/api/bizchat/campaigns", {
+        action: "testCancel",
+        campaignId: campaign.id,
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        toast({
+          title: "테스트 발송 취소 완료",
+          description: "예약된 테스트 발송이 모두 취소되었어요.",
+        });
+        handleFetchTestResults();
+      } else {
+        toast({
+          title: "테스트 발송 취소 실패",
+          description: data.error || data.bizchatMessage || "취소에 실패했어요",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "취소 실패",
+        description: "서버와 통신하는 중 오류가 발생했어요.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // 테스트 결과 조회 함수
+  const handleFetchTestResults = async () => {
+    if (!campaign?.bizchatCampaignId) {
+      toast({
+        title: "조회 불가",
+        description: "BizChat 캠페인 ID가 없어요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoadingTestResults(true);
+    try {
+      const response = await apiRequest("POST", "/api/bizchat/campaigns", {
+        action: "testResult",
+        campaignId: campaign.id,
+      });
+      const data: TestResultResponse = await response.json();
+
+      if (data.success && data.result?.data?.list) {
+        setTestResults(data.result.data.list);
+        toast({
+          title: "테스트 결과 조회 완료",
+          description: `${data.result.data.list.length}건의 테스트 발송 기록을 가져왔어요.`,
+        });
+      } else {
+        setTestResults([]);
+        toast({
+          title: "테스트 결과 조회",
+          description: data.error || "테스트 발송 기록이 없어요.",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "조회 실패",
+        description: "서버와 통신하는 중 오류가 발생했어요.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingTestResults(false);
+    }
+  };
+
+  // 테스트 발송 가능 여부 체크 (isTmp=0이고 BizChat에 등록된 캠페인만)
+  const canTestSend = campaign?.bizchatCampaignId && campaign?.statusCode !== undefined && campaign.statusCode >= 0;
 
   if (isLoading) {
     return (
@@ -441,6 +637,7 @@ export default function CampaignDetail() {
           <TabsTrigger value="overview" data-testid="tab-overview">개요</TabsTrigger>
           <TabsTrigger value="message" data-testid="tab-message">메시지</TabsTrigger>
           <TabsTrigger value="targeting" data-testid="tab-targeting">타겟팅</TabsTrigger>
+          <TabsTrigger value="test" data-testid="tab-test">테스트</TabsTrigger>
           <TabsTrigger value="report" data-testid="tab-report">성과</TabsTrigger>
         </TabsList>
 
@@ -658,6 +855,151 @@ export default function CampaignDetail() {
                   icon={Target}
                   title="타겟팅이 없어요"
                   description="캠페인에 타겟팅이 설정되지 않았어요"
+                />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="test" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TestTube className="h-5 w-5 text-primary" />
+                테스트 발송
+              </CardTitle>
+              <CardDescription>
+                본 발송 전에 최대 20명에게 테스트 메시지를 발송해볼 수 있어요
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {canTestSend ? (
+                <>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="test-mdn-input">테스트 발송 전화번호</Label>
+                      <Textarea
+                        id="test-mdn-input"
+                        placeholder="01012345678, 01087654321&#10;(쉼표, 줄바꿈으로 여러 개 입력 가능, 최대 20개)"
+                        value={testMdnInput}
+                        onChange={(e) => setTestMdnInput(e.target.value)}
+                        className="min-h-[100px]"
+                        data-testid="input-test-mdn"
+                      />
+                      <p className="text-tiny text-muted-foreground">
+                        {testMdnInput.split(/[,\n\s]+/).filter(m => m.trim().length >= 10).length} / 20개 입력됨
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 flex-wrap">
+                      <Button 
+                        onClick={handleTestSend}
+                        disabled={!testMdnInput.trim()}
+                        className="gap-2"
+                        data-testid="button-test-send"
+                      >
+                        <Send className="h-4 w-4" />
+                        테스트 발송
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        onClick={handleTestCancel}
+                        className="gap-2"
+                        data-testid="button-test-cancel"
+                      >
+                        <Ban className="h-4 w-4" />
+                        예약 취소
+                      </Button>
+                      <Button 
+                        variant="ghost"
+                        onClick={handleFetchTestResults}
+                        disabled={isLoadingTestResults}
+                        className="gap-2"
+                        data-testid="button-test-refresh"
+                      >
+                        {isLoadingTestResults ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        결과 새로고침
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-medium flex items-center gap-2">
+                        <List className="h-4 w-4" />
+                        테스트 발송 결과
+                      </h4>
+                      <Badge variant="outline">
+                        {testResults.length}건
+                      </Badge>
+                    </div>
+
+                    {testResults.length > 0 ? (
+                      <div className="rounded-md border">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>수신번호</TableHead>
+                              <TableHead>발송시간</TableHead>
+                              <TableHead>발송상태</TableHead>
+                              <TableHead>수신상태</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {testResults.map((result, idx) => (
+                              <TableRow key={idx} data-testid={`row-test-result-${idx}`}>
+                                <TableCell className="font-mono">
+                                  {result.recvMdn.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')}
+                                </TableCell>
+                                <TableCell className="text-small text-muted-foreground">
+                                  {result.customerReserveTime 
+                                    ? `${result.customerReserveTime.slice(0,4)}-${result.customerReserveTime.slice(4,6)}-${result.customerReserveTime.slice(6,8)} ${result.customerReserveTime.slice(8,10)}:${result.customerReserveTime.slice(10,12)}`
+                                    : '-'}
+                                </TableCell>
+                                <TableCell>
+                                  <Badge 
+                                    variant={result.svcStatus === '001000' ? 'default' : 'secondary'}
+                                    data-testid={`badge-send-status-${idx}`}
+                                  >
+                                    {TEST_STATUS_LABELS[result.svcStatus || ''] || result.svcStatus || '대기'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge 
+                                    variant={result.svcStatus2 === '201000' ? 'default' : 'secondary'}
+                                    className={result.svcStatus2 === '201000' ? 'bg-success text-success-foreground' : ''}
+                                    data-testid={`badge-recv-status-${idx}`}
+                                  >
+                                    {TEST_STATUS_LABELS[result.svcStatus2 || ''] || result.svcStatus2 || '대기'}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <EmptyState
+                        icon={TestTube}
+                        title="테스트 발송 기록이 없어요"
+                        description="테스트 발송을 하면 여기에서 결과를 확인할 수 있어요"
+                      />
+                    )}
+                  </div>
+                </>
+              ) : (
+                <EmptyState
+                  icon={AlertCircle}
+                  title="테스트 발송을 할 수 없어요"
+                  description={
+                    !campaign?.bizchatCampaignId 
+                      ? "BizChat에 캠페인을 먼저 등록해주세요" 
+                      : "캠페인 상태가 테스트 발송을 허용하지 않아요"
+                  }
                 />
               )}
             </CardContent>
