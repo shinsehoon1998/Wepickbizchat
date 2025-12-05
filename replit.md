@@ -190,7 +190,7 @@ SK텔레콤 BizChat 3rd Party API와 연동하여 실제 문자 광고 발송을
 - **POST /api/bizchat/callback/state** - 캠페인 상태 변경 콜백
 - **POST /api/bizchat/ats** - ATS 타겟 모수 조회 (meta/count/filter)
 - **POST /api/bizchat/file** - 파일 업로드 (MMS 이미지)
-- **POST /api/bizchat/sender** - 발신번호 관리 (list/create/read/update/delete)
+- **POST /api/bizchat/sender** - 발신번호 조회 (읽기 전용, BizChat에서 관리되는 발신번호 목록 조회)
 - **POST /api/bizchat/template** - BizChat 템플릿 관리 (list/create/read/update/delete/submit)
 
 ### Environment Variables (BizChat)
@@ -227,13 +227,17 @@ BIZCHAT_CALLBACK_AUTH_KEY=<콜백 인증 키>
   - ATS 타겟 모수 조회 API (meta/count/filter)
   - 캠페인 MDN 목록 및 결과 조회 API
   - 파일 업로드 API (MMS 이미지)
-  - 발신번호 관리 API (CRUD)
   - BizChat 템플릿 관리 API (CRUD + submit)
   - 발송 시간 유효성 검증 (09:00~20:00, 1시간 여유 필수)
 - **프론트엔드 BizChat 연동** (2024-12-05):
   - targeting/estimate.ts: BizChat ATS API 연동으로 실시간 타겟 모수 조회 (fallback 포함)
   - campaign-detail.tsx: 성과 탭에 BizChat 실시간 통계 조회 UI 추가
   - sender-numbers.tsx: BizChat 등록 발신번호 조회 기능 추가
+- **발신번호 아키텍처 개선** (2024-12-05):
+  - 로컬 발신번호 CRUD 제거 (BizChat에서 관리되는 발신번호만 사용)
+  - senderNumbers/userSenderNumbers 테이블 및 관련 코드 삭제
+  - sender-numbers.tsx: BizChat 발신번호 조회 전용 페이지로 변경
+  - campaigns-new.tsx: BizChat API를 통한 발신번호 선택 연동
 
 ## User Preferences
 - Korean language (한국어) for all UI text

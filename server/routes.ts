@@ -1363,5 +1363,68 @@ export async function registerRoutes(
     }
   });
 
+  // ============================================================
+  // BizChat Sender API - BizChat 발신번호 조회 (읽기 전용)
+  // ============================================================
+  app.post("/api/bizchat/sender", isAuthenticated, async (req, res) => {
+    try {
+      const action = req.body.action || "list";
+      const useProduction = req.body.env === "prod" || req.query.env === "prod";
+
+      const baseUrl = useProduction
+        ? (process.env.BIZCHAT_PROD_API_URL || "https://gw.bizchat1.co.kr")
+        : (process.env.BIZCHAT_DEV_API_URL || "https://gw-dev.bizchat1.co.kr:8443");
+      
+      const apiKey = useProduction
+        ? process.env.BIZCHAT_PROD_API_KEY
+        : process.env.BIZCHAT_DEV_API_KEY;
+
+      if (!apiKey) {
+        console.log("[BizChat Sender] No API key configured, returning simulated data");
+        return res.status(200).json({
+          success: true,
+          action: "list",
+          senderNumbers: [
+            { id: "1", num: "021234567", name: "영업팀 대표번호", state: 1 },
+            { id: "2", num: "16005678", name: "고객센터", state: 1 },
+            { id: "3", num: "0323456789", name: "지점 연락처", state: 0 },
+          ],
+          message: "Using simulated data (no API key configured)",
+        });
+      }
+
+      if (action === "list") {
+        const tid = Date.now().toString();
+        const url = `${baseUrl}/api/v1/sndnum/list?tid=${tid}`;
+        
+        console.log(`[BizChat Sender] POST ${url}`);
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: apiKey,
+          },
+          body: JSON.stringify({}),
+        });
+
+        const data = await response.json();
+        console.log(`[BizChat Sender] Response:`, JSON.stringify(data).substring(0, 300));
+
+        return res.status(200).json({
+          success: data.code === "S000001",
+          action: "list",
+          senderNumbers: data.data?.list || [],
+          rawResponse: data,
+        });
+      }
+
+      res.status(400).json({ error: "Invalid action. Only 'list' is supported." });
+    } catch (error) {
+      console.error("[BizChat Sender] Error:", error);
+      res.status(500).json({ error: "Failed to fetch sender numbers from BizChat" });
+    }
+  });
+
   return httpServer;
 }
