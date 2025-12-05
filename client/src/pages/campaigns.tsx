@@ -280,7 +280,7 @@ export default function Campaigns() {
                             <span>상세 보기</span>
                           </Link>
                         </DropdownMenuItem>
-                        {campaign.statusCode === CAMPAIGN_STATUS.DRAFT && (
+                        {(campaign.statusCode === CAMPAIGN_STATUS.DRAFT || campaign.statusCode === CAMPAIGN_STATUS.APPROVAL_REQUESTED) && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 

@@ -162,7 +162,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (campaign.bizchatCampaignId) {
         try {
-          const deleteResponse = await fetch(`${req.headers.origin || ''}/api/bizchat/campaigns`, {
+          const host = req.headers.host || process.env.VERCEL_URL || 'localhost:5000';
+          const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
+          const protocol = req.headers['x-forwarded-proto'] || (isLocalhost ? 'http' : 'https');
+          const baseUrl = `${protocol}://${host}`;
+          
+          const deleteResponse = await fetch(`${baseUrl}/api/bizchat/campaigns`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
