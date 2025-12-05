@@ -55,7 +55,14 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import TargetingAdvanced from "@/components/targeting-advanced";
-import type { Template, SenderNumber } from "@shared/schema";
+import type { Template } from "@shared/schema";
+
+interface BizChatSenderNumber {
+  id?: string;
+  num?: string;
+  name: string;
+  state?: number;
+}
 
 const campaignSchema = z.object({
   name: z.string().min(1, "캠페인 이름을 입력해주세요").max(200, "캠페인 이름은 200자 이내로 입력해주세요"),
@@ -132,9 +139,27 @@ export default function CampaignsNew() {
     queryKey: ["/api/templates/approved"],
   });
 
-  const { data: senderNumbers, isLoading: senderNumbersLoading } = useQuery<SenderNumber[]>({
-    queryKey: ["/api/sender-numbers"],
-  });
+  const [senderNumbers, setSenderNumbers] = useState<BizChatSenderNumber[]>([]);
+  const [senderNumbersLoading, setSenderNumbersLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBizChatSenders = async () => {
+      setSenderNumbersLoading(true);
+      try {
+        const response = await apiRequest("POST", "/api/bizchat/sender", { action: "list" });
+        const data = await response.json();
+        if (data.success && data.senderNumbers) {
+          const approvedSenders = data.senderNumbers.filter((s: BizChatSenderNumber) => s.state === 1);
+          setSenderNumbers(approvedSenders);
+        }
+      } catch (error) {
+        console.error("Failed to fetch BizChat sender numbers:", error);
+      } finally {
+        setSenderNumbersLoading(false);
+      }
+    };
+    fetchBizChatSenders();
+  }, []);
 
   const form = useForm<CampaignFormData>({
     resolver: zodResolver(campaignSchema),
@@ -520,11 +545,20 @@ export default function CampaignsNew() {
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
-                              {senderNumbers?.map((num) => (
-                                <SelectItem key={num.id} value={num.code}>
-                                  {num.name} ({num.phoneNumber})
-                                </SelectItem>
-                              ))}
+                              {senderNumbers?.length > 0 ? (
+                                senderNumbers.map((sender, idx) => {
+                                  const senderCode = sender.num || sender.id || `sender-${idx}`;
+                                  return (
+                                    <SelectItem key={senderCode} value={senderCode}>
+                                      {sender.name} {sender.num ? `(${sender.num})` : ''}
+                                    </SelectItem>
+                                  );
+                                })
+                              ) : (
+                                <div className="p-2 text-small text-muted-foreground text-center">
+                                  승인된 발신번호가 없어요
+                                </div>
+                              )}
                             </SelectContent>
                           </Select>
                           <FormDescription>캠페인 발송에 사용될 번호예요</FormDescription>
