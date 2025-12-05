@@ -51,7 +51,11 @@ wepick x SKT 비즈챗은 SK텔레콤 광고 수신 동의 고객 1,600만 명 �
 │   │       └── submit.ts    # POST /api/campaigns/:id/submit (BizChat 연동)
 │   ├── bizchat/
 │   │   ├── test.ts          # POST /api/bizchat/test
-│   │   ├── campaigns.ts     # POST /api/bizchat/campaigns
+│   │   ├── campaigns.ts     # POST /api/bizchat/campaigns (생성/승인/통계/MDN/결과)
+│   │   ├── ats.ts           # POST /api/bizchat/ats (타겟 모수 조회)
+│   │   ├── file.ts          # POST /api/bizchat/file (파일 업로드)
+│   │   ├── sender.ts        # POST /api/bizchat/sender (발신번호 관리)
+│   │   ├── template.ts      # POST /api/bizchat/template (템플릿 관리)
 │   │   └── callback/
 │   │       └── state.ts     # POST /api/bizchat/callback/state
 │   ├── dashboard/
@@ -182,8 +186,12 @@ SK텔레콤 BizChat 3rd Party API와 연동하여 실제 문자 광고 발송을
 
 ### API Endpoints
 - **POST /api/bizchat/test** - API 연결 테스트 (발신번호/캠페인/ATS 메타)
-- **POST /api/bizchat/campaigns** - 캠페인 관리 (생성/수정/승인요청/취소/중단/통계)
+- **POST /api/bizchat/campaigns** - 캠페인 관리 (생성/수정/승인요청/취소/중단/통계/MDN조회/결과조회)
 - **POST /api/bizchat/callback/state** - 캠페인 상태 변경 콜백
+- **POST /api/bizchat/ats** - ATS 타겟 모수 조회 (meta/count/filter)
+- **POST /api/bizchat/file** - 파일 업로드 (MMS 이미지)
+- **POST /api/bizchat/sender** - 발신번호 관리 (list/create/read/update/delete)
+- **POST /api/bizchat/template** - BizChat 템플릿 관리 (list/create/read/update/delete/submit)
 
 ### Environment Variables (BizChat)
 ```
@@ -215,6 +223,13 @@ BIZCHAT_CALLBACK_AUTH_KEY=<콜백 인증 키>
 - Idempotent webhook handling to prevent duplicate credits
 - Korean localization for all UI text
 - **BizChat API Integration**: 캠페인 생성/승인요청/상태콜백 연동 (2024-12-05)
+- **BizChat API 확장** (2024-12-05):
+  - ATS 타겟 모수 조회 API (meta/count/filter)
+  - 캠페인 MDN 목록 및 결과 조회 API
+  - 파일 업로드 API (MMS 이미지)
+  - 발신번호 관리 API (CRUD)
+  - BizChat 템플릿 관리 API (CRUD + submit)
+  - 발송 시간 유효성 검증 (09:00~20:00, 1시간 여유 필수)
 
 ## User Preferences
 - Korean language (한국어) for all UI text
