@@ -612,6 +612,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ error: 'Campaign not registered to BizChat' });
           }
 
+          // 시뮬레이션 ID 검출 (개발 환경에서 API 연결 실패 시 생성된 ID)
+          if (campaign.bizchatCampaignId.startsWith('SIM_')) {
+            return res.status(400).json({ 
+              success: false,
+              error: '이 캠페인은 시뮬레이션 모드로 생성되었어요. 실제 테스트 발송을 하려면 캠페인을 다시 생성해주세요.',
+              bizchatCode: 'SIM_MODE',
+              isSimulated: true,
+            });
+          }
+
           if (!mdnList || !Array.isArray(mdnList) || mdnList.length === 0) {
             return res.status(400).json({ 
               error: 'mdn array is required for test send',
@@ -810,6 +820,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ error: 'Campaign not registered to BizChat' });
           }
 
+          if (campaign.bizchatCampaignId.startsWith('SIM_')) {
+            return res.status(400).json({ 
+              success: false,
+              error: '시뮬레이션 모드 캠페인은 테스트 취소를 할 수 없어요.',
+              bizchatCode: 'SIM_MODE',
+              isSimulated: true,
+            });
+          }
+
           const result = await cancelTestSend(campaign.bizchatCampaignId, useProduction);
           
           if (result.data.code !== 'S000001') {
@@ -833,6 +852,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         case 'testResult': {
           if (!campaign.bizchatCampaignId) {
             return res.status(400).json({ error: 'Campaign not registered to BizChat' });
+          }
+
+          if (campaign.bizchatCampaignId.startsWith('SIM_')) {
+            return res.status(200).json({ 
+              success: true,
+              action: 'testResult',
+              result: { code: 'S000001', data: { list: [] } },
+              message: '시뮬레이션 모드 캠페인에는 테스트 발송 기록이 없어요.',
+              isSimulated: true,
+            });
           }
 
           const result = await getTestResults(campaign.bizchatCampaignId, useProduction);

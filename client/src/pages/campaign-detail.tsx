@@ -312,19 +312,28 @@ export default function CampaignDetail() {
           description: `${mdnList.length}건의 테스트 메시지 발송이 요청되었어요.`,
         });
         setTestMdnInput('');
-        // 결과 조회
         handleFetchTestResults();
       } else {
+        let errorMessage = data.error || data.bizchatMessage || "발송에 실패했어요";
+        if (data.bizchatCode === 'E000005') {
+          errorMessage = "BizChat에 캠페인이 등록되지 않았어요. 캠페인을 다시 생성해주세요.";
+        } else if (data.bizchatCode === 'SIM_MODE' || data.isSimulated) {
+          errorMessage = "이 캠페인은 테스트용으로 생성되었어요. 실제 테스트 발송을 하려면 캠페인을 새로 생성해주세요.";
+        }
         toast({
           title: "테스트 발송 실패",
-          description: data.error || data.bizchatMessage || "발송에 실패했어요",
+          description: errorMessage,
           variant: "destructive",
         });
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      let errorMessage = "서버와 통신하는 중 오류가 발생했어요.";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
       toast({
         title: "테스트 발송 실패",
-        description: "서버와 통신하는 중 오류가 발생했어요.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
