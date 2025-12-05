@@ -251,17 +251,23 @@ export async function registerRoutes(
   app.post("/api/templates/:id/submit", isAuthenticated, async (req, res) => {
     try {
       const userId = (req as any).userId;
+      console.log("[DEBUG] Template submit - userId:", userId, "templateId:", req.params.id);
+      
       const template = await storage.getTemplate(req.params.id);
+      console.log("[DEBUG] Template found:", template ? { id: template.id, status: template.status, userId: template.userId } : null);
       
       if (!template) {
+        console.log("[DEBUG] Template not found");
         return res.status(404).json({ error: "Template not found" });
       }
       
       if (template.userId !== userId) {
+        console.log("[DEBUG] Access denied - template.userId:", template.userId, "!== userId:", userId);
         return res.status(403).json({ error: "Access denied" });
       }
       
       if (template.status !== "draft" && template.status !== "rejected") {
+        console.log("[DEBUG] Invalid status for submit:", template.status);
         return res.status(400).json({ error: "Only draft or rejected templates can be submitted for review" });
       }
       
@@ -269,10 +275,11 @@ export async function registerRoutes(
         status: "pending",
         submittedAt: new Date(),
       } as any);
+      console.log("[DEBUG] Template updated to pending:", updatedTemplate?.id);
       
       res.json(updatedTemplate);
     } catch (error) {
-      console.error("Error submitting template:", error);
+      console.error("[ERROR] Error submitting template:", error);
       res.status(500).json({ error: "Failed to submit template for review" });
     }
   });
@@ -1412,19 +1419,23 @@ export async function registerRoutes(
   app.post("/api/sender-numbers", isAuthenticated, async (req, res) => {
     try {
       const userId = (req as any).userId;
+      console.log("[DEBUG] Creating sender number for userId:", userId);
+      console.log("[DEBUG] Request body:", JSON.stringify(req.body));
       
       const parseResult = createSenderNumberSchema.safeParse(req.body);
       if (!parseResult.success) {
+        console.log("[DEBUG] Validation error:", parseResult.error.errors);
         return res.status(400).json({ error: parseResult.error.errors[0].message });
       }
       
       const { phoneNumber, isCompanyOwned, verificationMethod } = parseResult.data;
+      console.log("[DEBUG] Parsed data:", { phoneNumber, isCompanyOwned, verificationMethod });
       
       // Create sender number with pending status
       const expiryDate = new Date();
       expiryDate.setFullYear(expiryDate.getFullYear() + 1); // 1년 후 만료
       
-      const number = await storage.createUserSenderNumber({
+      const insertData = {
         userId,
         phoneNumber: phoneNumber.replace(/\D/g, ''),
         status: verificationMethod === 'sms' ? 'pending' : 'active',
@@ -1432,7 +1443,11 @@ export async function registerRoutes(
         isCompanyOwned,
         expiryDate,
         lastActivityNote: '발신번호를 생성하였습니다.',
-      });
+      };
+      console.log("[DEBUG] Insert data:", JSON.stringify(insertData));
+      
+      const number = await storage.createUserSenderNumber(insertData);
+      console.log("[DEBUG] Created sender number:", number?.id);
       
       // 증빙서류의 경우 즉시 인증 완료 처리
       if (verificationMethod === 'document') {
@@ -1443,7 +1458,7 @@ export async function registerRoutes(
       
       res.status(201).json(number);
     } catch (error) {
-      console.error("Error creating sender number:", error);
+      console.error("[ERROR] Error creating sender number:", error);
       res.status(500).json({ error: "Failed to create sender number" });
     }
   });
