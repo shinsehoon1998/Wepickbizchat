@@ -9,6 +9,15 @@ import { randomUUID } from 'crypto';
 
 neonConfig.fetchConnectionCache = true;
 
+// BizChat API Configuration
+const BIZCHAT_DEV_URL = process.env.BIZCHAT_DEV_API_URL || 'https://gw-dev.bizchat1.co.kr:8443';
+const BIZCHAT_PROD_URL = process.env.BIZCHAT_PROD_API_URL || 'https://gw.bizchat1.co.kr';
+
+// Callback URL (Vercel 배포 도메인)
+const CALLBACK_BASE_URL = process.env.VERCEL_URL 
+  ? `https://${process.env.VERCEL_URL}` 
+  : 'https://wepickbizchat-new.vercel.app';
+
 const users = pgTable('users', {
   id: text('id').primaryKey(),
   email: text('email'),
@@ -19,11 +28,21 @@ const campaigns = pgTable('campaigns', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
   name: text('name').notNull(),
+  tgtCompanyName: text('tgt_company_name'),
   templateId: text('template_id'),
   messageType: text('message_type'),
+  bizchatCampaignId: text('bizchat_campaign_id'),
   sndNum: text('snd_num'),
   statusCode: integer('status_code').default(0),
-  status: text('status').default('draft'),
+  status: text('status').default('temp_registered'),
+  rcvType: integer('rcv_type').default(0),
+  billingType: integer('billing_type').default(0),
+  rcsType: integer('rcs_type'),
+  sndGoalCnt: integer('snd_goal_cnt'),
+  sndMosu: integer('snd_mosu'),
+  sndMosuQuery: text('snd_mosu_query'),
+  sndMosuDesc: text('snd_mosu_desc'),
+  settleCnt: integer('settle_cnt').default(0),
   targetCount: integer('target_count'),
   sentCount: integer('sent_count'),
   successCount: integer('success_count'),
@@ -98,6 +117,260 @@ async function verifyAuth(req: VercelRequest) {
   } catch { return null; }
 }
 
+// Transaction ID 생성 (밀리초 타임스탬프)
+function generateTid(): string {
+  return Date.now().toString();
+}
+
+// 환경 감지 함수
+function detectProductionEnvironment(req: VercelRequest): boolean {
+  if (req.query.env === 'prod' || req.body?.env === 'prod') return true;
+  if (req.query.env === 'dev' || req.body?.env === 'dev') return false;
+  if (process.env.VERCEL_ENV === 'production') return true;
+  if (process.env.NODE_ENV === 'production') return true;
+  return false;
+}
+
+// BizChat API 호출 (API 키가 없으면 시뮬레이션 모드)
+async function callBizChatAPI(
+  endpoint: string,
+  method: 'GET' | 'POST' = 'POST',
+  body?: Record<string, unknown>,
+  useProduction: boolean = false
+): Promise<{ status: number; data: Record<string, unknown>; simulated?: boolean }> {
+  const baseUrl = useProduction ? BIZCHAT_PROD_URL : BIZCHAT_DEV_URL;
+  const apiKey = useProduction 
+    ? process.env.BIZCHAT_PROD_API_KEY 
+    : process.env.BIZCHAT_DEV_API_KEY;
+
+  // API 키가 없으면 시뮬레이션 모드 반환
+  if (!apiKey) {
+    console.log('[BizChat] No API key configured, returning simulated response');
+    return {
+      status: 200,
+      data: {
+        code: 'S000001',
+        data: { id: `SIM_${Date.now()}_${Math.random().toString(36).substring(7)}` },
+        msg: 'Simulated (no API key)',
+      },
+      simulated: true,
+    };
+  }
+
+  const tid = generateTid();
+  const separator = endpoint.includes('?') ? '&' : '?';
+  const url = `${baseUrl}${endpoint}${separator}tid=${tid}`;
+  
+  console.log(`[BizChat] ${method} ${url}`);
+
+  const options: RequestInit = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': apiKey,
+    },
+  };
+
+  if (body && method === 'POST') {
+    options.body = JSON.stringify(body);
+    console.log(`[BizChat] Request body:`, JSON.stringify(body).substring(0, 1000));
+  }
+
+  const response = await fetch(url, options);
+  const responseText = await response.text();
+  
+  console.log(`[BizChat] Response: ${response.status} - ${responseText.substring(0, 500)}`);
+
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    data = { code: response.status.toString(), msg: responseText };
+  }
+
+  return { status: response.status, data };
+}
+
+// 타겟팅 정보를 ATS 쿼리 형식으로 변환
+function buildAtsQuery(targetingData: {
+  gender?: string;
+  ageMin?: number;
+  ageMax?: number;
+  regions?: string[];
+  districts?: string[];
+  carrierTypes?: string[];
+  deviceTypes?: string[];
+  shopping11stCategories?: string[];
+  webappCategories?: string[];
+  callUsageTypes?: string[];
+  locationTypes?: string[];
+  mobilityPatterns?: string[];
+  geofenceIds?: string[];
+}): { query: Record<string, unknown>; description: string } {
+  const query: Record<string, unknown> = {};
+  const descParts: string[] = [];
+
+  // 성별
+  if (targetingData.gender && targetingData.gender !== 'all') {
+    query.gender = targetingData.gender === 'male' ? 'M' : 'F';
+    descParts.push(`성별: ${targetingData.gender === 'male' ? '남성' : '여성'}`);
+  }
+
+  // 연령
+  if (targetingData.ageMin !== undefined || targetingData.ageMax !== undefined) {
+    query.age = {
+      min: targetingData.ageMin || 20,
+      max: targetingData.ageMax || 60,
+    };
+    descParts.push(`나이: ${targetingData.ageMin || 20}~${targetingData.ageMax || 60}세`);
+  }
+
+  // 지역
+  if (targetingData.regions && targetingData.regions.length > 0) {
+    query.region = targetingData.regions;
+    descParts.push(`지역: ${targetingData.regions.join(', ')}`);
+  }
+
+  // 세부 지역 (시/군/구)
+  if (targetingData.districts && targetingData.districts.length > 0) {
+    query.district = targetingData.districts;
+    descParts.push(`세부지역: ${targetingData.districts.join(', ')}`);
+  }
+
+  // 통신사
+  if (targetingData.carrierTypes && targetingData.carrierTypes.length > 0) {
+    query.carrier = targetingData.carrierTypes;
+    descParts.push(`통신사: ${targetingData.carrierTypes.join(', ')}`);
+  }
+
+  // 단말기
+  if (targetingData.deviceTypes && targetingData.deviceTypes.length > 0) {
+    query.device = targetingData.deviceTypes;
+    descParts.push(`단말기: ${targetingData.deviceTypes.join(', ')}`);
+  }
+
+  // 관심사 (쇼핑 + 앱 카테고리)
+  const interests: string[] = [];
+  if (targetingData.shopping11stCategories && targetingData.shopping11stCategories.length > 0) {
+    interests.push(...targetingData.shopping11stCategories);
+  }
+  if (targetingData.webappCategories && targetingData.webappCategories.length > 0) {
+    interests.push(...targetingData.webappCategories);
+  }
+  if (interests.length > 0) {
+    query.interest = interests;
+    descParts.push(`관심사: ${interests.join(', ')}`);
+  }
+
+  // 행동 (통화량 + 위치 + 이동패턴)
+  const behaviors: string[] = [];
+  if (targetingData.callUsageTypes && targetingData.callUsageTypes.length > 0) {
+    behaviors.push(...targetingData.callUsageTypes);
+  }
+  if (targetingData.locationTypes && targetingData.locationTypes.length > 0) {
+    behaviors.push(...targetingData.locationTypes);
+  }
+  if (targetingData.mobilityPatterns && targetingData.mobilityPatterns.length > 0) {
+    behaviors.push(...targetingData.mobilityPatterns);
+  }
+  if (behaviors.length > 0) {
+    query.behavior = behaviors;
+    descParts.push(`행동: ${behaviors.join(', ')}`);
+  }
+
+  // 지오펜스
+  if (targetingData.geofenceIds && targetingData.geofenceIds.length > 0) {
+    query.geofence = targetingData.geofenceIds;
+    descParts.push(`지오펜스: ${targetingData.geofenceIds.length}개`);
+  }
+
+  return {
+    query,
+    description: descParts.length > 0 ? descParts.join(' | ') : '전체 대상',
+  };
+}
+
+// BizChat 캠페인 생성 (POST /api/v1/cmpn/create)
+async function createCampaignInBizChat(
+  campaignData: {
+    name: string;
+    tgtCompanyName?: string;
+    messageType: string;
+    sndNum: string;
+    targetCount: number;
+    rcsType?: number;
+    scheduledAt?: Date | null;
+    sndMosuQuery?: string;
+    sndMosuDesc?: string;
+  },
+  messageData: {
+    title?: string;
+    content: string;
+    imageUrl?: string | null;
+  },
+  useProduction: boolean = false
+) {
+  // billingType: 0=LMS, 1=RCS MMS, 2=MMS, 3=RCS LMS
+  let billingType = 0;
+  if (campaignData.messageType === 'RCS') {
+    billingType = campaignData.rcsType === 2 ? 1 : 3;
+  } else if (campaignData.messageType === 'MMS') {
+    billingType = 2;
+  }
+
+  const sndGoalCnt = campaignData.targetCount || 1000;
+  const sndMosu = Math.min(Math.ceil(sndGoalCnt * 1.5), 400000);
+
+  const payload: Record<string, unknown> = {
+    tgtCompanyName: campaignData.tgtCompanyName || '위픽',
+    name: campaignData.name,
+    sndNum: campaignData.sndNum,
+    rcvType: 0, // ATS 타겟팅
+    sndGoalCnt: sndGoalCnt,
+    billingType: billingType,
+    isTmp: 0, // 임시저장 아님
+    settleCnt: sndGoalCnt,
+    sndMosu: sndMosu,
+    sndMosuFlag: 0,
+    adverDeny: '1504',
+    cb: {
+      state: `${CALLBACK_BASE_URL}/api/bizchat/callback/state`,
+    },
+    mms: {
+      title: messageData.title || '',
+      msg: messageData.content || '',
+      fileInfo: {},
+      urlLink: { list: [] },
+    },
+    rcs: [],
+  };
+
+  // 발송 모수 설명/쿼리 (ATS 타겟팅 정보)
+  if (campaignData.sndMosuDesc) {
+    payload.sndMosuDesc = campaignData.sndMosuDesc;
+  }
+  if (campaignData.sndMosuQuery) {
+    payload.sndMosuQuery = campaignData.sndMosuQuery;
+  }
+
+  // MMS 이미지 첨부
+  if (campaignData.messageType === 'MMS' && messageData.imageUrl) {
+    payload.mms = {
+      ...payload.mms as object,
+      fileInfo: {
+        list: [{ origId: messageData.imageUrl }],
+      },
+    };
+  }
+
+  // RCS 타입
+  if (campaignData.messageType === 'RCS' && campaignData.rcsType !== undefined) {
+    payload.rcsType = campaignData.rcsType;
+  }
+
+  return callBizChatAPI('/api/v1/cmpn/create', 'POST', payload, useProduction);
+}
+
 const createCampaignSchema = z.object({
   name: z.string().min(1).max(200),
   templateId: z.string().min(1),
@@ -122,6 +395,10 @@ const createCampaignSchema = z.object({
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const auth = await verifyAuth(req);
@@ -129,6 +406,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const db = getDb();
   const userId = auth.userId;
+  const useProduction = detectProductionEnvironment(req);
+
+  console.log(`[Campaign] Environment: ${useProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
 
   if (req.method === 'GET') {
     try {
@@ -158,16 +438,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const estimatedCost = data.targetCount * 50;
       if (userBalance < estimatedCost) return res.status(400).json({ error: '잔액이 부족합니다' });
 
+      // 타겟팅 정보를 ATS 쿼리로 변환
+      const atsResult = buildAtsQuery({
+        gender: data.gender,
+        ageMin: data.ageMin,
+        ageMax: data.ageMax,
+        regions: data.regions,
+        districts: data.districts,
+        carrierTypes: data.carrierTypes,
+        deviceTypes: data.deviceTypes,
+        shopping11stCategories: data.shopping11stCategories,
+        webappCategories: data.webappCategories,
+        callUsageTypes: data.callUsageTypes,
+        locationTypes: data.locationTypes,
+        mobilityPatterns: data.mobilityPatterns,
+        geofenceIds: data.geofenceIds,
+      });
+
       const campaignId = randomUUID();
+
+      // 1. 로컬 DB에 캠페인 저장 (초기 상태: draft)
       const campaignResult = await db.insert(campaigns).values({
         id: campaignId,
         userId,
         name: data.name,
+        tgtCompanyName: '위픽',
         templateId: data.templateId,
         messageType: data.messageType,
         sndNum: data.sndNum,
-        statusCode: 0,
+        statusCode: 5, // draft (BizChat 등록 전)
         status: 'draft',
+        rcvType: 0,
+        billingType: data.messageType === 'MMS' ? 2 : (data.messageType === 'RCS' ? 3 : 0),
+        sndGoalCnt: data.targetCount,
+        sndMosu: Math.min(Math.ceil(data.targetCount * 1.5), 400000),
+        sndMosuQuery: JSON.stringify(atsResult.query),
+        sndMosuDesc: atsResult.description,
+        settleCnt: data.targetCount,
         targetCount: data.targetCount,
         budget: data.budget.toString(),
         costPerMessage: '50',
@@ -198,9 +505,88 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         locationTypes: data.locationTypes || [],
         mobilityPatterns: data.mobilityPatterns || [],
         geofenceIds: data.geofenceIds || [],
+        atsQuery: JSON.stringify(atsResult.query),
       });
 
-      return res.status(201).json(campaignResult[0]);
+      // 2. BizChat API에 캠페인 등록 (임시등록 상태 0)
+      try {
+        const bizchatResult = await createCampaignInBizChat(
+          {
+            name: data.name,
+            tgtCompanyName: '위픽',
+            messageType: data.messageType,
+            sndNum: data.sndNum,
+            targetCount: data.targetCount,
+            scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
+            sndMosuQuery: JSON.stringify(atsResult.query),
+            sndMosuDesc: atsResult.description,
+          },
+          {
+            title: template.title || undefined,
+            content: template.content,
+            imageUrl: template.imageUrl,
+          },
+          useProduction
+        );
+
+        if (bizchatResult.data.code === 'S000001') {
+          const responseData = bizchatResult.data.data as { id?: string } | undefined;
+          const bizchatCampaignId = responseData?.id;
+          
+          if (bizchatCampaignId) {
+            // BizChat 캠페인 ID 저장
+            await db.update(campaigns)
+              .set({ 
+                bizchatCampaignId,
+                statusCode: 0, // 임시등록
+                status: 'temp_registered',
+                updatedAt: new Date(),
+              })
+              .where(eq(campaigns.id, campaignId));
+
+            console.log(`[Campaign] Created in BizChat: ${bizchatCampaignId}`);
+
+            return res.status(201).json({
+              ...campaignResult[0],
+              bizchatCampaignId,
+              statusCode: 0,
+              status: 'temp_registered',
+              bizchatRegistered: true,
+            });
+          }
+        }
+
+        // BizChat 등록 실패 시 draft 상태 유지
+        console.error('[Campaign] BizChat registration failed:', bizchatResult.data);
+        
+        return res.status(201).json({
+          ...campaignResult[0],
+          statusCode: 5,
+          status: 'draft',
+          bizchatRegistered: false,
+          bizchatError: {
+            code: bizchatResult.data.code,
+            message: bizchatResult.data.msg || 'BizChat 등록 실패',
+          },
+          warning: 'BizChat 등록에 실패했습니다. 캠페인 상세에서 다시 등록해주세요.',
+        });
+
+      } catch (bizchatError) {
+        console.error('[Campaign] BizChat API error:', bizchatError);
+        
+        return res.status(201).json({
+          ...campaignResult[0],
+          statusCode: 5,
+          status: 'draft',
+          bizchatRegistered: false,
+          bizchatError: {
+            code: 'API_ERROR',
+            message: bizchatError instanceof Error ? bizchatError.message : 'BizChat API 오류',
+          },
+          warning: 'BizChat 서버 연결에 실패했습니다. 캠페인 상세에서 다시 등록해주세요.',
+        });
+      }
+
     } catch (error) {
       if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors });
       console.error('Error creating campaign:', error);

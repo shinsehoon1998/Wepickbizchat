@@ -27,9 +27,11 @@ const campaigns = pgTable('campaigns', {
   rcsType: integer('rcs_type'),
   sndGoalCnt: integer('snd_goal_cnt'),
   sndMosu: integer('snd_mosu'),
+  sndMosuQuery: text('snd_mosu_query'),
+  sndMosuDesc: text('snd_mosu_desc'),
   settleCnt: integer('settle_cnt').default(0),
-  statusCode: integer('status_code').default(5),
-  status: text('status').default('draft'),
+  statusCode: integer('status_code').default(0),
+  status: text('status').default('temp_registered'),
   targetCount: integer('target_count'),
   budget: text('budget'),
   atsSndStartDate: timestamp('ats_snd_start_date'),
@@ -242,6 +244,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         isTmp: 0,
         settleCnt: campaign.settleCnt ?? sndGoalCnt,
         sndMosu: sndMosu,
+        sndMosuFlag: 0, // 150% 체크 사용
         adverDeny: '1504',
         cb: {
           state: `${CALLBACK_BASE_URL}/api/bizchat/callback/state`,
@@ -260,6 +263,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           buttons: { list: [] },
         }] : [],
       };
+
+      // 타겟팅 정보 추가 (ATS 발송 모수 필터)
+      if (campaign.sndMosuQuery) {
+        createPayload.sndMosuQuery = campaign.sndMosuQuery;
+      }
+      if (campaign.sndMosuDesc) {
+        createPayload.sndMosuDesc = campaign.sndMosuDesc;
+      }
 
       if (scheduledAt) {
         createPayload.atsSndStartDate = toUnixTimestamp(new Date(scheduledAt));

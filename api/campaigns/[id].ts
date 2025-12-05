@@ -153,10 +153,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
       if (campaign.userId !== userId) return res.status(403).json({ error: 'Access denied' });
       
-      if (campaign.statusCode !== 5 && campaign.statusCode !== 10) {
+      if (campaign.statusCode !== 0 && campaign.statusCode !== 5 && campaign.statusCode !== 10) {
         console.error(`Cannot delete campaign with status ${campaign.statusCode}`);
         return res.status(400).json({ 
-          error: 'Only draft (5) or approval-requested (10) campaigns can be deleted' 
+          error: 'Only temp_registered (0), draft (5) or approval-requested (10) campaigns can be deleted' 
         });
       }
 
