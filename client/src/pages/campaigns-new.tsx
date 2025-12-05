@@ -349,7 +349,13 @@ export default function CampaignsNew() {
       const isValid = await form.trigger(["name", "templateId", "sndNum"]);
       if (!isValid) return;
     }
-    if (currentStep < 3) setCurrentStep(currentStep + 1);
+    if (currentStep === 2) {
+      const isValid = await form.trigger(["gender", "ageMin", "ageMax"]);
+      if (!isValid) return;
+    }
+    if (currentStep < 3) {
+      setCurrentStep(prev => prev + 1);
+    }
   };
 
   const prevStep = () => {
@@ -359,8 +365,10 @@ export default function CampaignsNew() {
   const onSubmit = (data: CampaignFormData) => {
     // Only submit when on the final step (Step 3)
     if (currentStep !== 3) {
+      console.log('[Campaign Form] Submit blocked - not on step 3, current step:', currentStep);
       return;
     }
+    console.log('[Campaign Form] Submitting campaign data:', data);
     saveCampaignMutation.mutate(data);
   };
 
