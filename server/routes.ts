@@ -1660,13 +1660,111 @@ export async function registerRoutes(
           }
         }
 
+        case "create": {
+          // BizChat 캠페인 생성 - 실제 API 호출
+          const url = `${baseUrl}/api/v1/cmpn/cud?tid=${tid}`;
+          console.log(`[BizChat Create] POST ${url}`);
+          
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const response = await fetch(url, {
+              method: "POST",
+              headers: {
+                "Authorization": apiKey,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(params),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            
+            const data = await response.json();
+            console.log(`[BizChat Create] Response:`, JSON.stringify(data).substring(0, 300));
+            
+            return res.json({
+              success: data.code === "S000001",
+              bizchatCampaignId: data.data?.id,
+              result: data,
+            });
+          } catch (fetchError) {
+            console.log("[BizChat Create] API error, using simulation:", fetchError);
+            return res.json(simulateBizChatCampaignAction("create", campaignId));
+          }
+        }
+
+        case "approve": {
+          // BizChat 캠페인 승인 요청
+          const campaign = campaignId ? await storage.getCampaign(campaignId) : null;
+          if (!campaign?.bizchatCampaignId) {
+            return res.json(simulateBizChatCampaignAction("approve", campaignId));
+          }
+
+          const url = `${baseUrl}/api/v1/cmpn/approve?id=${campaign.bizchatCampaignId}&tid=${tid}`;
+          console.log(`[BizChat Approve] POST ${url}`);
+          
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const response = await fetch(url, {
+              method: "POST",
+              headers: { Authorization: apiKey },
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            
+            const data = await response.json();
+            console.log(`[BizChat Approve] Response:`, JSON.stringify(data).substring(0, 300));
+            
+            return res.json({
+              success: data.code === "S000001",
+              result: data,
+            });
+          } catch (fetchError) {
+            console.log("[BizChat Approve] API error, using simulation:", fetchError);
+            return res.json(simulateBizChatCampaignAction("approve", campaignId));
+          }
+        }
+
+        case "cancel":
+        case "stop": {
+          // BizChat 캠페인 취소/중단
+          const campaign = campaignId ? await storage.getCampaign(campaignId) : null;
+          if (!campaign?.bizchatCampaignId) {
+            return res.json(simulateBizChatCampaignAction(action, campaignId));
+          }
+
+          const url = `${baseUrl}/api/v1/cmpn/${action}?id=${campaign.bizchatCampaignId}&tid=${tid}`;
+          console.log(`[BizChat ${action}] POST ${url}`);
+          
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            
+            const response = await fetch(url, {
+              method: "POST",
+              headers: { Authorization: apiKey },
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            
+            const data = await response.json();
+            console.log(`[BizChat ${action}] Response:`, JSON.stringify(data).substring(0, 300));
+            
+            return res.json({
+              success: data.code === "S000001",
+              result: data,
+            });
+          } catch (fetchError) {
+            console.log(`[BizChat ${action}] API error, using simulation:`, fetchError);
+            return res.json(simulateBizChatCampaignAction(action, campaignId));
+          }
+        }
+
         default:
-          return res.json({
-            success: true,
-            message: "Action simulated (development mode)",
-            action,
-            campaignId,
-          });
+          return res.json(simulateBizChatCampaignAction(action, campaignId));
       }
     } catch (error) {
       console.error("[BizChat Campaigns] Error:", error);
