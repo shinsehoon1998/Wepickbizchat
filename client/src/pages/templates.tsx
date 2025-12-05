@@ -85,7 +85,7 @@ export default function Templates() {
 
   const submitMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest("POST", `/api/templates/${id}/submit`);
+      return apiRequest("POST", `/api/templates/${id}`, { action: "submit" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
@@ -105,7 +105,7 @@ export default function Templates() {
 
   const approveMutation = useMutation({
     mutationFn: async (id: string) => {
-      return apiRequest("POST", `/api/templates/${id}/approve`);
+      return apiRequest("POST", `/api/templates/${id}`, { action: "approve" });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });

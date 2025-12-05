@@ -116,5 +116,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
+  if (req.method === 'POST') {
+    const { action, reason } = req.body || {};
+    
+    try {
+      const result = await db.select().from(templates).where(eq(templates.id, id));
+      const template = result[0];
+      if (!template) return res.status(404).json({ error: 'Template not found' });
+      if (template.userId !== userId) return res.status(403).json({ error: 'Access denied' });
+
+      if (action === 'submit') {
+        if (template.status !== 'draft' && template.status !== 'rejected') {
+          return res.status(400).json({ error: 'Only draft or rejected templates can be submitted for review' });
+        }
+        const updated = await db.update(templates).set({
+          status: 'pending',
+          submittedAt: new Date(),
+        }).where(eq(templates.id, id)).returning();
+        return res.status(200).json(updated[0]);
+      }
+
+      if (action === 'approve') {
+        if (template.status !== 'pending') {
+          return res.status(400).json({ error: 'Only pending templates can be approved' });
+        }
+        const updated = await db.update(templates).set({
+          status: 'approved',
+          reviewedAt: new Date(),
+        }).where(eq(templates.id, id)).returning();
+        return res.status(200).json(updated[0]);
+      }
+
+      if (action === 'reject') {
+        if (template.status !== 'pending') {
+          return res.status(400).json({ error: 'Only pending templates can be rejected' });
+        }
+        const updated = await db.update(templates).set({
+          status: 'rejected',
+          rejectionReason: reason || '검수 기준에 부합하지 않습니다.',
+          reviewedAt: new Date(),
+        }).where(eq(templates.id, id)).returning();
+        return res.status(200).json(updated[0]);
+      }
+
+      return res.status(400).json({ error: 'Invalid action. Use submit, approve, or reject' });
+    } catch (error) {
+      console.error('Error processing template action:', error);
+      return res.status(500).json({ error: 'Failed to process template action' });
+    }
+  }
+
   return res.status(405).json({ error: 'Method not allowed' });
 }
