@@ -921,10 +921,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           });
         }
 
+        case 'read': {
+          // 캠페인 조회 (GET /api/v1/cmpn) - 7.2 규격
+          if (!campaign.bizchatCampaignId) {
+            return res.status(400).json({ error: 'Campaign not registered to BizChat' });
+          }
+
+          const result = await getCampaignFromBizChat(campaign.bizchatCampaignId, useProduction);
+          
+          if (result.data.code !== 'S000001') {
+            return res.status(400).json({
+              success: false,
+              action: 'read',
+              error: 'Failed to read campaign from BizChat',
+              bizchatCode: result.data.code,
+              bizchatMessage: result.data.msg,
+              bizchatError: result.data,
+            });
+          }
+
+          return res.status(200).json({
+            success: true,
+            action: 'read',
+            bizchatCampaignId: campaign.bizchatCampaignId,
+            campaign: result.data.data,
+            result: result.data,
+          });
+        }
+
         default:
           return res.status(400).json({ 
             error: 'Invalid action',
-            validActions: ['create', 'update', 'approve', 'test', 'testCancel', 'testResult', 'stats', 'cancel', 'stop', 'delete', 'mdn', 'result', 'verifyMdn', 'list'],
+            validActions: ['create', 'read', 'update', 'approve', 'test', 'testCancel', 'testResult', 'stats', 'cancel', 'stop', 'delete', 'mdn', 'result', 'verifyMdn', 'list'],
           });
       }
 

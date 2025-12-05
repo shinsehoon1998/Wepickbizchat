@@ -1,0 +1,109 @@
+7.2 캠페인 조회 (GET /api/v1/cmpn)
+Query Parameter: tid=xxx&id={캠페인아이디}
+캠페인 Entity 형태로 응답.
+7.3 캠페인 수정 (/api/v1/cmpn/update)
+Query Parameter: tid=xxx&id={캠페인아이디}
+Request Body는 생성과 동일. 추가 파라미터:
+ParameterTypeDescriptionisApprnumber반려된 캠페인 승인 재요청 (0: 안함, 1: 요청) - deprecated, 별도 승인 요청 API 사용
+7.4 캠페인 삭제 (/api/v1/cmpn/delete)
+임시 저장(isTmp=1) 또는 임시 등록(state=0) 캠페인만 삭제 가능. 최대 10개.
+Request
+json{
+  "ids": ["19ca34b180394f15a9c66f798b65df95"]
+}
+Response
+json{
+  "data": {
+    "count": 1
+  }
+}
+7.5 캠페인 목록 (/api/v1/cmpn/list)
+Request
+json{
+  "pageNumber": 0,
+  "pageSize": 10,
+  "tgtCompanyName": "이마트",
+  "name": "새해맞이",
+  "states": [10],
+  "isTmp": 0
+}
+Response
+json{
+  "data": {
+    "pageNumber": 0,
+    "pageSize": 10,
+    "totalPage": 7,
+    "totalAmount": 65,
+    "list": [...]
+  }
+}
+7.6 캠페인 취소 (/api/v1/cmpn/cancel)
+진행 전 캠페인 취소. 시작일시 1시간 전 캠페인만 가능.
+가능한 상태: 검수요청(1), 검수완료(2), 승인요청(10), 승인완료(11), 반려(17), 발송준비(20)
+Query Parameter: tid=xxx&id={캠페인아이디}
+7.7 캠페인 중단 (/api/v1/cmpn/stop)
+진행 중인 캠페인 중단.
+Query Parameter: tid=xxx&id={캠페인아이디}
+7.8 캠페인 테스트 발송 (/api/v1/cmpn/test/send)
+최대 20명에게 테스트 발송. 임시 저장 캠페인(isTmp=1)은 테스트 불가.
+Request
+json{
+  "mdn": ["01012345678"],
+  "sendTime": 1705298638  // Optional: 없으면 즉시 발송
+}
+7.9 캠페인 테스트 발송 취소 (/api/v1/cmpn/test/send/cancel)
+예약된 테스트 발송 모두 취소.
+Query Parameter: tid=xxx&id={캠페인아이디}
+7.10 캠페인 테스트 조회 (GET /api/v1/cmpn/test)
+해당 캠페인의 모든 테스트 발송 결과 조회.
+Response
+json{
+  "data": {
+    "list": [
+      {
+        "recvMdn": "01031626351",
+        "customerReserveTime": "20240703142524",
+        "svcStatus": "001000",   // 발송 코드
+        "svcStatus2": "201000"   // 수신 코드 (201000=성공)
+      }
+    ]
+  }
+}
+7.11 캠페인 대상 검증 (/api/v1/cmpn/verify/mdn)
+MDN 파일과 발송 목표 건수 비교. rcvType=10(직접 지정)일 때만 사용.
+Response
+json{
+  "data": {
+    "goalCount": 10,
+    "validCount": 1,
+    "duplicate": {
+      "count": 199998,
+      "list": [{"mdn": "01030985066", "count": 133333}]
+    },
+    "invalid": {
+      "count": 1,
+      "list": ["0123"]
+    }
+  }
+}
+7.12 캠페인 통계 조회 (GET /cmpn/stat/read)
+통계 데이터는 5분 주기로 갱신.
+Response 주요 필드
+필드설명statDate통계 수집 일자 (YYYYMMDD)mdnCnt발송 대상자 수dupExcludeCnt타 캠페인 수신자 수adRcvExcludeCnt광고 수신 미동의 수신자 수sendTryCnt발송 시도자 수msgRecvCnt메시지 수신자 수rcsMsgRecvCntRCS 메시지 수신자 수vmgMsgRecvCnt일반 메시지 수신자 수msgNotRecvCnt미수신자 수msgReactCnt메시지 반응자 수 (UA+IP 제한)msgReactRatio메시지 반응률 (%)msgReactCnt2메시지 반응자 수 (UA만 제한)msgReactRatio2메시지 반응률 (UA만 제한)rcsMsgReadCntRCS 메시지 확인자 수rcsMsgReadRatioRCS 메시지 확인률urlURL별 클릭 상세 (UA+IP 제한)url2URL별 클릭 상세 (UA만 제한)
+7.13 캠페인 상태 알림 (Callback)
+Bizchat에서 연동 서버로 전송. HTTP status 200 리턴 필요.
+Request Body
+json{
+  "id": "ff1e695ff6364daa8cefed57f5506605",
+  "state": 30,
+  "stateUpdateDate": 1705298638,
+  "stateReason": ""
+}
+캠페인 상태 코드
+state설명1검수 요청2검수 완료10승인 요청11승인 완료17반려20발송 준비25취소30진행중35중단40종료
+7.14 캠페인 승인 요청 (/api/v1/cmpn/appr/req)
+캠페인 상태가 "임시등록", "검수완료", "반려"일 때 사용 가능.
+
+맵틱스 캠페인: 승인 요청 시간 + 1시간은 collStartDate보다 과거여야 함.
+
+Query Parameter: tid=xxx&id={캠페인아이디}
