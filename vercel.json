@@ -12,6 +12,7 @@
     { "source": "/api/transactions/:path*", "destination": "/api/transactions/:path*" },
     { "source": "/api/targeting/:path*", "destination": "/api/targeting/:path*" },
     { "source": "/api/stripe/:path*", "destination": "/api/stripe/:path*" },
+    { "source": "/api/bizchat/:path*", "destination": "/api/bizchat/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
