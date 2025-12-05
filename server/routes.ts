@@ -247,7 +247,67 @@ export async function registerRoutes(
     }
   });
 
-  // Template approval workflow
+  // Action-based POST for template operations (submit, approve, reject)
+  app.post("/api/templates/:id", isAuthenticated, async (req, res) => {
+    try {
+      const userId = (req as any).userId;
+      const { action } = req.body;
+      const template = await storage.getTemplate(req.params.id);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      if (template.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      switch (action) {
+        case "submit": {
+          if (template.status !== "draft" && template.status !== "rejected") {
+            return res.status(400).json({ error: "Only draft or rejected templates can be submitted" });
+          }
+          const updated = await storage.updateTemplate(req.params.id, {
+            status: "pending",
+            submittedAt: new Date(),
+          } as any);
+          return res.json(updated);
+        }
+        
+        case "approve": {
+          if (template.status !== "pending") {
+            return res.status(400).json({ error: "Only pending templates can be approved" });
+          }
+          const updated = await storage.updateTemplate(req.params.id, {
+            status: "approved",
+            reviewedAt: new Date(),
+          } as any);
+          return res.json(updated);
+        }
+        
+        case "reject": {
+          if (template.status !== "pending") {
+            return res.status(400).json({ error: "Only pending templates can be rejected" });
+          }
+          const { reason } = req.body;
+          const updated = await storage.updateTemplate(req.params.id, {
+            status: "rejected",
+            rejectionReason: reason || "검수 기준에 부합하지 않습니다.",
+            reviewedAt: new Date(),
+          } as any);
+          return res.json(updated);
+        }
+        
+        default:
+          return res.status(400).json({ error: "Invalid action. Use 'submit', 'approve', or 'reject'." });
+      }
+    } catch (error) {
+      console.error("Error processing template action:", error);
+      res.status(500).json({ error: "Failed to process template action" });
+    }
+  });
+
+  // Template approval workflow (legacy routes)
   app.post("/api/templates/:id/submit", isAuthenticated, async (req, res) => {
     try {
       const userId = (req as any).userId;
