@@ -2,11 +2,10 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { eq } from 'drizzle-orm';
-import { pgTable, text, integer, timestamp, decimal } from 'drizzle-orm/pg-core';
+import { pgTable, text, integer, timestamp } from 'drizzle-orm/pg-core';
 
 neonConfig.fetchConnectionCache = true;
 
-// Campaigns table schema
 const campaigns = pgTable('campaigns', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
@@ -14,6 +13,7 @@ const campaigns = pgTable('campaigns', {
   bizchatCampaignId: text('bizchat_campaign_id'),
   statusCode: integer('status_code').default(5),
   status: text('status').default('draft'),
+  stateReason: text('state_reason'),
   sentCount: integer('sent_count').default(0),
   successCount: integer('success_count').default(0),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -25,30 +25,33 @@ function getDb() {
   return drizzle(neon(dbUrl));
 }
 
-// BizChat 상태 코드 매핑
+// BizChat 상태 코드 매핑 (문서 v0.29.0 규격)
 const STATUS_CODE_MAP: Record<number, { status: string; label: string }> = {
-  5: { status: 'draft', label: '초안' },
-  10: { status: 'approval_requested', label: '검수 중' },
-  11: { status: 'approved', label: '발송 대기' },
+  0: { status: 'temp_registered', label: '임시 등록' },
+  1: { status: 'inspection_requested', label: '검수 요청' },
+  2: { status: 'inspection_completed', label: '검수 완료' },
+  10: { status: 'approval_requested', label: '승인 요청' },
+  11: { status: 'approved', label: '승인 완료' },
   17: { status: 'rejected', label: '반려' },
-  20: { status: 'send_ready', label: '발송 준비중' },
+  20: { status: 'send_ready', label: '발송 준비' },
   25: { status: 'cancelled', label: '취소' },
-  30: { status: 'running', label: '발송 중' },
-  35: { status: 'stopped', label: '발송 중단' },
-  40: { status: 'completed', label: '발송 완료' },
+  30: { status: 'running', label: '진행중' },
+  35: { status: 'stopped', label: '중단' },
+  40: { status: 'completed', label: '종료' },
 };
 
 // Callback 인증 검증
 function verifyCallbackAuth(req: VercelRequest): boolean {
   const authKey = process.env.BIZCHAT_CALLBACK_AUTH_KEY;
   if (!authKey) {
-    console.warn('[Callback] BIZCHAT_CALLBACK_AUTH_KEY not configured');
-    return true; // 키가 없으면 검증 건너뜀 (개발 편의)
+    console.warn('[Callback] BIZCHAT_CALLBACK_AUTH_KEY not configured - skipping auth');
+    return true;
   }
 
-  const providedKey = req.headers['x-auth-key'] || 
-                      req.headers['authorization'] || 
-                      req.query.authKey;
+  // BizChat에서 전송하는 인증 헤더 확인
+  const providedKey = req.headers['bizchat-callback-auth-key'] || 
+                      req.headers['x-auth-key'] || 
+                      req.headers['authorization'];
 
   if (providedKey === authKey) {
     return true;
@@ -58,24 +61,18 @@ function verifyCallbackAuth(req: VercelRequest): boolean {
   return false;
 }
 
-// 캠페인 상태 변경 Callback
-// BizChat에서 캠페인 상태가 변경되면 이 엔드포인트로 알림
-interface StateCallbackPayload {
-  campaignId: string;       // BizChat 캠페인 ID
-  statusCode: number;       // 새 상태 코드
-  prevStatusCode?: number;  // 이전 상태 코드
-  message?: string;         // 상태 변경 메시지
-  sentCount?: number;       // 발송 건수
-  successCount?: number;    // 성공 건수
-  failCount?: number;       // 실패 건수
-  timestamp?: string;       // 변경 시간
+// BizChat 캠페인 상태 변경 Callback 페이로드 (문서 규격)
+interface BizChatStateCallback {
+  id: string;              // BizChat 캠페인 ID
+  state: number;           // 상태 코드
+  stateUpdateDate: number; // 상태 변경 일시 (unix timestamp)
+  stateReason: string;     // 상태 사유 (반려 시 사유 포함)
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS 처리
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Auth-Key');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, bizchat-callback-auth-key, X-Auth-Key');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -91,14 +88,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const payload = req.body as StateCallbackPayload;
+    const payload = req.body as BizChatStateCallback;
     
     console.log('[Callback] Received state change:', JSON.stringify(payload));
 
-    if (!payload.campaignId || payload.statusCode === undefined) {
+    // 필수 필드 검증 (문서 규격)
+    if (!payload.id || payload.state === undefined) {
       return res.status(400).json({ 
         error: 'Invalid payload',
-        required: ['campaignId', 'statusCode'],
+        required: ['id', 'state'],
+        received: payload,
       });
     }
 
@@ -107,57 +106,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // BizChat 캠페인 ID로 내부 캠페인 찾기
     const campaignResult = await db.select()
       .from(campaigns)
-      .where(eq(campaigns.bizchatCampaignId, payload.campaignId));
+      .where(eq(campaigns.bizchatCampaignId, payload.id));
 
     if (campaignResult.length === 0) {
-      console.warn(`[Callback] Campaign not found: ${payload.campaignId}`);
-      // BizChat에 200 응답 (재시도 방지)
+      console.warn(`[Callback] Campaign not found for bizchat ID: ${payload.id}`);
+      // BizChat에 200 응답 반환 (재시도 방지)
       return res.status(200).json({ 
         success: false,
         message: 'Campaign not found in local database',
-        campaignId: payload.campaignId,
+        bizchatCampaignId: payload.id,
       });
     }
 
     const campaign = campaignResult[0];
-    const statusInfo = STATUS_CODE_MAP[payload.statusCode] || { 
+    const statusInfo = STATUS_CODE_MAP[payload.state] || { 
       status: 'unknown', 
-      label: `상태코드: ${payload.statusCode}` 
+      label: `상태코드: ${payload.state}` 
     };
 
     // 캠페인 상태 업데이트
     const updateData: Record<string, unknown> = {
-      statusCode: payload.statusCode,
+      statusCode: payload.state,
       status: statusInfo.status,
       updatedAt: new Date(),
     };
 
-    // 발송 통계 업데이트
-    if (payload.sentCount !== undefined) {
-      updateData.sentCount = payload.sentCount;
-    }
-    if (payload.successCount !== undefined) {
-      updateData.successCount = payload.successCount;
+    // 반려 사유 저장
+    if (payload.stateReason) {
+      updateData.stateReason = payload.stateReason;
     }
 
     await db.update(campaigns)
       .set(updateData)
       .where(eq(campaigns.id, campaign.id));
 
-    console.log(`[Callback] Updated campaign ${campaign.id}: ${statusInfo.status} (${payload.statusCode})`);
+    console.log(`[Callback] Updated campaign ${campaign.id}: ${statusInfo.status} (state=${payload.state})`);
 
+    // BizChat에 HTTP 200 응답 필수
     return res.status(200).json({
       success: true,
       campaignId: campaign.id,
-      bizchatCampaignId: payload.campaignId,
-      statusCode: payload.statusCode,
+      bizchatCampaignId: payload.id,
+      state: payload.state,
       status: statusInfo.status,
       label: statusInfo.label,
     });
 
   } catch (error) {
     console.error('[Callback] Error:', error);
-    // BizChat에 500 응답하면 재시도할 수 있음
     return res.status(500).json({
       success: false,
       error: error instanceof Error ? error.message : 'Internal server error',
