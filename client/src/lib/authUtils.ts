@@ -17,7 +17,7 @@ export const CAMPAIGN_STATUS = {
 export function getStatusCodeLabel(statusCode: number): string {
   const labels: Record<number, string> = {
     [CAMPAIGN_STATUS.DRAFT]: '초안',
-    [CAMPAIGN_STATUS.APPROVAL_REQUESTED]: '검수 중',
+    [CAMPAIGN_STATUS.APPROVAL_REQUESTED]: '승인 대기',
     [CAMPAIGN_STATUS.APPROVED]: '발송 대기',
     [CAMPAIGN_STATUS.REJECTED]: '반려됨',
     [CAMPAIGN_STATUS.SEND_PREPARATION]: '발송 준비중',

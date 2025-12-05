@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { 
   FilePlus, 
   Search, 
@@ -51,10 +51,6 @@ interface TemplateWithStats extends Template {
   };
 }
 
-function navigate(href: string) {
-  window.history.pushState({}, "", href);
-  window.dispatchEvent(new PopStateEvent("popstate"));
-}
 
 function TemplateStatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: typeof Clock }> = {
@@ -78,6 +74,7 @@ export default function Templates() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const { data: templates, isLoading } = useQuery<TemplateWithStats[]>({
     queryKey: ["/api/templates"],
@@ -287,7 +284,7 @@ export default function Templates() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           className="cursor-pointer gap-2"
-                          onClick={() => navigate(`/templates/${template.id}`)}
+                          onClick={() => setLocation(`/templates/${template.id}`)}
                           data-testid={`button-view-template-${template.id}`}
                         >
                           <Eye className="h-4 w-4" />
@@ -297,7 +294,7 @@ export default function Templates() {
                           <>
                             <DropdownMenuItem
                               className="cursor-pointer gap-2"
-                              onClick={() => navigate(`/templates/${template.id}/edit`)}
+                              onClick={() => setLocation(`/templates/${template.id}/edit`)}
                               data-testid={`button-edit-template-${template.id}`}
                             >
                               <Pencil className="h-4 w-4" />
@@ -347,7 +344,7 @@ export default function Templates() {
               description="메시지 템플릿을 만들고 검수를 받아보세요."
               action={{
                 label: "첫 템플릿 만들기",
-                onClick: () => navigate("/templates/new"),
+                onClick: () => setLocation("/templates/new"),
               }}
             />
           )}

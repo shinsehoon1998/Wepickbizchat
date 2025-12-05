@@ -110,7 +110,7 @@ export default function Campaigns() {
         title: isScheduled ? "예약 발송 완료" : "발송 요청 완료",
         description: isScheduled 
           ? `${scheduleDate} ${scheduleTime}에 발송될 예정이에요.`
-          : "캠페인 발송 요청이 완료되었어요. 검수 후 발송됩니다.",
+          : "캠페인 발송 요청이 완료되었어요. 승인 후 발송됩니다.",
       });
       setSendDialogOpen(false);
       setCampaignToSend(null);
@@ -197,7 +197,7 @@ export default function Campaigns() {
                 <SelectContent>
                   <SelectItem value="all">전체</SelectItem>
                   <SelectItem value={CAMPAIGN_STATUS.DRAFT.toString()}>초안</SelectItem>
-                  <SelectItem value={CAMPAIGN_STATUS.APPROVAL_REQUESTED.toString()}>검수 중</SelectItem>
+                  <SelectItem value={CAMPAIGN_STATUS.APPROVAL_REQUESTED.toString()}>승인 대기</SelectItem>
                   <SelectItem value={CAMPAIGN_STATUS.APPROVED.toString()}>발송 대기</SelectItem>
                   <SelectItem value={CAMPAIGN_STATUS.SEND_PREPARATION.toString()}>발송 준비중</SelectItem>
                   <SelectItem value={CAMPAIGN_STATUS.IN_PROGRESS.toString()}>발송 중</SelectItem>
