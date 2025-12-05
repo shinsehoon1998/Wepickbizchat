@@ -47,9 +47,11 @@ export const templates = pgTable("templates", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   name: varchar("name", { length: 200 }).notNull(),
   messageType: varchar("message_type", { length: 10 }).notNull(), // LMS, MMS, RCS
+  rcsType: integer("rcs_type"), // 0=스탠다드, 1=LMS, 2=슬라이드, 3=이미지강조A, 4=이미지강조B, 5=상품소개세로
   title: varchar("title", { length: 60 }),
   content: text("content").notNull(),
-  imageUrl: text("image_url"),
+  imageUrl: text("image_url"), // 미리보기용 URL (base64 또는 외부 URL)
+  imageFileId: varchar("image_file_id", { length: 100 }), // BizChat 파일 업로드 후 반환된 ID
   status: varchar("status", { length: 20 }).default("draft").notNull(), // draft, pending, approved, rejected
   rejectionReason: text("rejection_reason"),
   submittedAt: timestamp("submitted_at"),

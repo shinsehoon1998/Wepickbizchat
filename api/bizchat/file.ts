@@ -56,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { fileData, fileName, fileType } = req.body;
+    const { fileData, fileName, fileType, type, rcs } = req.body;
 
     if (!fileData) {
       return res.status(400).json({ error: 'fileData is required (base64 encoded)' });
@@ -67,7 +67,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const tid = generateTid();
-    const url = `${baseUrl}/api/v1/file/upload?tid=${tid}`;
+    // type: 1=기타, 2=이미지, 3=동영상, 4=csv, 5=오디오, 6=텍스트
+    // rcs: 1=RCS용, 그외=아님
+    const fileTypeParam = type || 2; // 기본값: 이미지
+    const rcsParam = rcs || 0; // 기본값: 아님
+    const url = `${baseUrl}/api/v1/file/upload?tid=${tid}&type=${fileTypeParam}&rcs=${rcsParam}`;
     
     console.log(`[BizChat File] Uploading file: ${fileName}`);
 
