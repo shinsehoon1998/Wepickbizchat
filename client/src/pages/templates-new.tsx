@@ -175,11 +175,26 @@ export default function TemplatesNew() {
       return;
     }
 
-    const maxSize = messageType === "MMS" ? 1024 * 1024 : 1024 * 1024;
+    const getMaxFileSize = () => {
+      if (messageType === "MMS") return 300 * 1024;
+      if (messageType === "RCS") {
+        switch (rcsType) {
+          case 0: return 300 * 1024;
+          case 2: return 300 * 1024;
+          default: return 1024 * 1024;
+        }
+      }
+      return 1024 * 1024;
+    };
+    
+    const maxSize = getMaxFileSize();
     if (file.size > maxSize) {
+      const sizeText = maxSize >= 1024 * 1024 
+        ? `${maxSize / (1024 * 1024)}MB` 
+        : `${Math.round(maxSize / 1024)}KB`;
       toast({
         title: "파일 크기 초과",
-        description: `파일 크기가 ${Math.round(maxSize / 1024)}KB를 초과해요`,
+        description: `파일 크기가 ${sizeText}를 초과해요. 이미지를 압축해서 다시 시도해주세요.`,
         variant: "destructive",
       });
       return;
