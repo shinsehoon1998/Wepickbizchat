@@ -426,7 +426,7 @@ export type CampaignWithDetails = Campaign & {
 
 // Campaign status constants
 export const CAMPAIGN_STATUS = {
-  DRAFT: { code: 5, status: 'draft', label: '초안' },
+  DRAFT: { code: 0, status: 'draft', label: '초안' },
   APPROVAL_REQUESTED: { code: 10, status: 'approval_requested', label: '검수 중' },
   APPROVED: { code: 11, status: 'approved', label: '발송 대기' },
   REJECTED: { code: 17, status: 'rejected', label: '반려' },
