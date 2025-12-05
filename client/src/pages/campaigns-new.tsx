@@ -118,6 +118,7 @@ export default function CampaignsNew() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [uploadedImageId, setUploadedImageId] = useState<string | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -344,7 +345,19 @@ export default function CampaignsNew() {
     },
   });
 
-  const nextStep = async () => {
+  const nextStep = async (e?: React.MouseEvent) => {
+    // Stop event propagation to prevent form submit
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    // Prevent double clicks during transition
+    if (isTransitioning) {
+      console.log('[Campaign Form] Step transition blocked - already transitioning');
+      return;
+    }
+    
     if (currentStep === 1) {
       const isValid = await form.trigger(["name", "templateId", "sndNum"]);
       if (!isValid) return;
@@ -354,7 +367,11 @@ export default function CampaignsNew() {
       if (!isValid) return;
     }
     if (currentStep < 3) {
+      setIsTransitioning(true);
+      console.log('[Campaign Form] Transitioning from step', currentStep, 'to step', currentStep + 1);
       setCurrentStep(prev => prev + 1);
+      // Allow next transition after state update
+      setTimeout(() => setIsTransitioning(false), 300);
     }
   };
 
@@ -1073,34 +1090,9 @@ export default function CampaignsNew() {
             </div>
           )}
 
-          <div className="flex justify-between gap-4">
-            {currentStep > 1 ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={prevStep}
-                className="gap-2"
-                data-testid="button-prev-step"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                이전
-              </Button>
-            ) : (
-              <div />
-            )}
-            
-            {currentStep < 3 ? (
-              <Button
-                type="button"
-                onClick={nextStep}
-                className="gap-2"
-                disabled={currentStep === 1 && (!form.watch("name") || !form.watch("templateId"))}
-                data-testid="button-next-step"
-              >
-                다음
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            ) : (
+          {/* Submit button only shown on step 3 */}
+          {currentStep === 3 && (
+            <div className="flex justify-end">
               <Button
                 type="submit"
                 disabled={saveCampaignMutation.isPending || estimatedCost > userBalance}
@@ -1112,10 +1104,41 @@ export default function CampaignsNew() {
                   : isEditMode ? "캠페인 수정하기" : "캠페인 저장하기"}
                 <Save className="h-4 w-4" />
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </form>
       </Form>
+
+      {/* Navigation buttons - OUTSIDE the form to prevent event bubbling */}
+      <div className="flex justify-between gap-4 mt-6">
+        {currentStep > 1 ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={prevStep}
+            className="gap-2"
+            data-testid="button-prev-step"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            이전
+          </Button>
+        ) : (
+          <div />
+        )}
+        
+        {currentStep < 3 && (
+          <Button
+            type="button"
+            onClick={(e) => nextStep(e)}
+            className="gap-2"
+            disabled={isTransitioning || (currentStep === 1 && (!form.watch("name") || !form.watch("templateId")))}
+            data-testid="button-next-step"
+          >
+            {isTransitioning ? "이동 중..." : "다음"}
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
