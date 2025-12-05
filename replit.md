@@ -46,7 +46,14 @@ wepick x SKT 비즈챗은 SK텔레콤 광고 수신 동의 고객 1,600만 명 �
 │   │   └── user.ts          # GET /api/auth/user
 │   ├── campaigns/
 │   │   ├── index.ts         # GET/POST /api/campaigns
-│   │   └── [id].ts          # GET/PATCH/DELETE /api/campaigns/:id
+│   │   ├── [id].ts          # GET/PATCH/DELETE /api/campaigns/:id
+│   │   └── [id]/
+│   │       └── submit.ts    # POST /api/campaigns/:id/submit (BizChat 연동)
+│   ├── bizchat/
+│   │   ├── test.ts          # POST /api/bizchat/test
+│   │   ├── campaigns.ts     # POST /api/bizchat/campaigns
+│   │   └── callback/
+│   │       └── state.ts     # POST /api/bizchat/callback/state
 │   ├── dashboard/
 │   │   └── stats.ts         # GET /api/dashboard/stats
 │   ├── templates/
@@ -170,6 +177,32 @@ The project is configured for Vercel deployment:
 7. **Billing**: Balance charging and transaction history (Stripe integration)
 8. **Reports**: Campaign performance analytics
 
+## BizChat API Integration (v0.29.0)
+SK텔레콤 BizChat 3rd Party API와 연동하여 실제 문자 광고 발송을 처리합니다.
+
+### API Endpoints
+- **POST /api/bizchat/test** - API 연결 테스트 (발신번호/캠페인/ATS 메타)
+- **POST /api/bizchat/campaigns** - 캠페인 관리 (생성/수정/승인요청/취소/중단/통계)
+- **POST /api/bizchat/callback/state** - 캠페인 상태 변경 콜백
+
+### Environment Variables (BizChat)
+```
+BIZCHAT_DEV_API_KEY=<개발 API 키>
+BIZCHAT_PROD_API_KEY=<운영 API 키>
+BIZCHAT_CALLBACK_AUTH_KEY=<콜백 인증 키>
+```
+
+### API 규격 (v0.29.0)
+- 모든 API 요청에 `tid` Query Parameter 필수 (밀리초 타임스탬프)
+- 성공 응답 코드: `S000001`
+- 캠페인 상태 코드: 0=임시등록, 10=승인요청, 11=승인완료, 17=반려, 30=진행중, 40=종료
+- 콜백 페이로드: `{id, state, stateUpdateDate, stateReason}`
+
+### 캠페인 발송 플로우
+1. 캠페인 저장 → 로컬 DB에 저장
+2. 발송 요청 (`/api/campaigns/:id/submit`) → BizChat 캠페인 생성 + 승인 요청
+3. 상태 콜백 → BizChat에서 상태 변경 시 `/api/bizchat/callback/state` 호출
+
 ## Recent Changes
 - Migrated from Express.js to Vercel Serverless Functions
 - Replaced Replit Auth with Supabase Auth (JWT-based)
@@ -181,6 +214,7 @@ The project is configured for Vercel deployment:
 - Stripe integration for real balance charging
 - Idempotent webhook handling to prevent duplicate credits
 - Korean localization for all UI text
+- **BizChat API Integration**: 캠페인 생성/승인요청/상태콜백 연동 (2024-12-05)
 
 ## User Preferences
 - Korean language (한국어) for all UI text
