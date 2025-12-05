@@ -152,7 +152,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const campaign = campaignResult[0];
       if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
       if (campaign.userId !== userId) return res.status(403).json({ error: 'Access denied' });
-      if (campaign.statusCode !== '00') return res.status(400).json({ error: 'Only draft campaigns can be deleted' });
+      
+      if (campaign.statusCode !== 5 && campaign.statusCode !== 10) {
+        console.error(`Cannot delete campaign with status ${campaign.statusCode}`);
+        return res.status(400).json({ 
+          error: 'Only draft (5) or approval-requested (10) campaigns can be deleted' 
+        });
+      }
+
+      if (campaign.bizchatCampaignId) {
+        try {
+          const deleteResponse = await fetch(`${req.headers.origin || ''}/api/bizchat/campaigns`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(req.headers.authorization ? { 'Authorization': req.headers.authorization } : {}),
+            },
+            body: JSON.stringify({
+              action: 'delete',
+              campaignIds: [campaign.bizchatCampaignId],
+            }),
+          });
+
+          if (!deleteResponse.ok) {
+            const errorData = await deleteResponse.json();
+            console.error('BizChat deletion failed:', errorData);
+            return res.status(400).json({ 
+              error: 'Failed to delete campaign from BizChat: ' + (errorData.error || 'Unknown error')
+            });
+          }
+        } catch (bizchatError) {
+          console.error('Error calling BizChat delete API:', bizchatError);
+          return res.status(500).json({ 
+            error: 'Failed to communicate with BizChat API' 
+          });
+        }
+      }
 
       await db.delete(messages).where(eq(messages.campaignId, id));
       await db.delete(targeting).where(eq(targeting.campaignId, id));

@@ -806,19 +806,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         case 'delete': {
-          if (!campaign.bizchatCampaignId) {
-            return res.status(400).json({ error: 'Campaign not registered to BizChat' });
+          if (!req.body.campaignIds || !Array.isArray(req.body.campaignIds)) {
+            return res.status(400).json({ error: 'campaignIds array is required' });
           }
 
-          // 삭제 가능 상태 체크: 임시등록(0)만 삭제 가능
-          if (campaign.statusCode !== 0) {
-            return res.status(400).json({ 
-              error: 'Only temp registered campaigns (state=0) can be deleted',
-              currentState: campaign.statusCode,
-            });
-          }
-
-          const result = await deleteCampaignsInBizChat([campaign.bizchatCampaignId], useProduction);
+          const result = await deleteCampaignsInBizChat(req.body.campaignIds, useProduction);
           
           if (result.data.code !== 'S000001') {
             return res.status(400).json({
@@ -830,16 +822,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               bizchatError: result.data,
             });
           }
-
-          // 로컬 DB에서도 캠페인 삭제 또는 상태 업데이트
-          await db.update(campaigns)
-            .set({ 
-              bizchatCampaignId: null,
-              statusCode: -1, // 삭제됨
-              status: 'deleted',
-              updatedAt: new Date(),
-            })
-            .where(eq(campaigns.id, campaignId));
 
           return res.status(200).json({
             success: true,
