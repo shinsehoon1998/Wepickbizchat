@@ -5,15 +5,8 @@
   "framework": null,
   "installCommand": "npm install",
   "rewrites": [
-    { "source": "/api/auth/:path*", "destination": "/api/auth/:path*" },
-    { "source": "/api/dashboard/:path*", "destination": "/api/dashboard/:path*" },
-    { "source": "/api/templates/:path*", "destination": "/api/templates/:path*" },
-    { "source": "/api/campaigns/:path*", "destination": "/api/campaigns/:path*" },
-    { "source": "/api/transactions/:path*", "destination": "/api/transactions/:path*" },
-    { "source": "/api/targeting/:path*", "destination": "/api/targeting/:path*" },
-    { "source": "/api/stripe/:path*", "destination": "/api/stripe/:path*" },
-    { "source": "/api/bizchat/:path*", "destination": "/api/bizchat/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
