@@ -442,6 +442,23 @@ async function getCampaignList(
   }, useProduction);
 }
 
+// 환경 감지 함수: Vercel 배포 환경 또는 명시적 prod 요청 시 운영 API 사용
+function detectProductionEnvironment(req: VercelRequest): boolean {
+  // 명시적으로 환경 지정된 경우
+  if (req.query.env === 'prod' || req.body?.env === 'prod') return true;
+  if (req.query.env === 'dev' || req.body?.env === 'dev') return false;
+  
+  // Vercel 환경 변수로 자동 감지
+  // VERCEL_ENV: 'production', 'preview', 'development'
+  const vercelEnv = process.env.VERCEL_ENV;
+  if (vercelEnv === 'production') return true;
+  
+  // NODE_ENV 확인
+  if (process.env.NODE_ENV === 'production') return true;
+  
+  return false;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -457,7 +474,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const db = getDb();
-  const useProduction = req.query.env === 'prod' || req.body?.env === 'prod';
+  const useProduction = detectProductionEnvironment(req);
+  
+  // 환경 로깅
+  console.log(`[BizChat] Environment: ${useProduction ? 'PRODUCTION' : 'DEVELOPMENT'} (VERCEL_ENV=${process.env.VERCEL_ENV}, NODE_ENV=${process.env.NODE_ENV})`);
 
   // POST: 캠페인 액션 처리
   if (req.method === 'POST') {
@@ -659,6 +679,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const result = await testSendCampaign(campaign.bizchatCampaignId, normalizedMdnList, sendTime, useProduction);
           
           if (result.data.code !== 'S000001') {
+            // E000005: Resource not exists - 캠페인이 BizChat에 존재하지 않음
+            if (result.data.code === 'E000005') {
+              return res.status(400).json({
+                success: false,
+                action: 'test',
+                error: '캠페인이 BizChat 서버에 존재하지 않아요. 캠페인을 다시 생성해주세요.',
+                bizchatCode: result.data.code,
+                bizchatMessage: result.data.msg,
+                hint: '개발 환경에서 생성된 캠페인은 운영 환경에서 사용할 수 없어요.',
+                environment: useProduction ? 'production' : 'development',
+              });
+            }
+            
             return res.status(400).json({
               success: false,
               action: 'test',

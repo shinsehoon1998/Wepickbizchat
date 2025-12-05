@@ -172,7 +172,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const db = getDb();
-  const useProduction = req.body?.env === 'prod';
+  
+  // 환경 감지: Vercel 배포 환경 또는 명시적 prod 요청 시 운영 API 사용
+  const detectProductionEnvironment = (): boolean => {
+    if (req.query.env === 'prod' || req.body?.env === 'prod') return true;
+    if (req.query.env === 'dev' || req.body?.env === 'dev') return false;
+    const vercelEnv = process.env.VERCEL_ENV;
+    if (vercelEnv === 'production') return true;
+    if (process.env.NODE_ENV === 'production') return true;
+    return false;
+  };
+  
+  const useProduction = detectProductionEnvironment();
+  console.log(`[BizChat Submit] Environment: ${useProduction ? 'PRODUCTION' : 'DEVELOPMENT'} (VERCEL_ENV=${process.env.VERCEL_ENV})`);
 
   try {
     const campaignResult = await db.select().from(campaigns).where(eq(campaigns.id, id));

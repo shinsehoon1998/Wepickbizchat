@@ -105,7 +105,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const useProduction = req.query.env === 'prod' || req.body?.env === 'prod';
+    // 환경 감지: Vercel 배포 환경 또는 명시적 prod 요청 시 운영 API 사용
+    const detectEnv = (): boolean => {
+      if (req.query.env === 'prod' || req.body?.env === 'prod') return true;
+      if (req.query.env === 'dev' || req.body?.env === 'dev') return false;
+      if (process.env.VERCEL_ENV === 'production') return true;
+      if (process.env.NODE_ENV === 'production') return true;
+      return false;
+    };
+    const useProduction = detectEnv();
     const testType = (req.query.type || req.body?.type || 'sndnum') as string;
 
     console.log(`[BizChat Test] Environment: ${useProduction ? 'Production' : 'Development'}`);
