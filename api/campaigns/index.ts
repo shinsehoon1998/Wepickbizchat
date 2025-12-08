@@ -326,10 +326,41 @@ async function createCampaignInBizChat(
   const rcvType = campaignData.rcvType ?? 0;
 
   // atsSndStartDate: rcvType=0,10일 때 필수 (Unix timestamp 초단위)
-  // Date를 Unix timestamp로 변환
-  const toUnixTimestamp = (date: Date | null | undefined): number => {
-    if (!date) return Math.floor(Date.now() / 1000) + 3600; // 기본값: 현재 + 1시간
-    return Math.floor(new Date(date).getTime() / 1000);
+  // BizChat 규칙: 현재 시간 + 1시간 이후, 10분 단위로 올림
+  const calculateValidSendDate = (requestedDate: Date | null | undefined): number => {
+    const now = new Date();
+    const minStartTime = new Date(now.getTime() + 60 * 60 * 1000); // 현재 + 1시간
+    
+    // 요청된 시간이 없거나 최소 시작 시간보다 이전이면 최소 시작 시간 사용
+    let targetDate = requestedDate ? new Date(requestedDate) : minStartTime;
+    if (targetDate < minStartTime) {
+      targetDate = minStartTime;
+    }
+    
+    // 항상 초/밀리초를 0으로 초기화
+    targetDate.setSeconds(0);
+    targetDate.setMilliseconds(0);
+    
+    // 10분 단위로 올림 (예: 11:13 → 11:20, 11:20 → 11:20)
+    const minutes = targetDate.getMinutes();
+    const remainder = minutes % 10;
+    if (remainder > 0) {
+      targetDate.setMinutes(minutes + (10 - remainder));
+    }
+    
+    // 올림 후 다시 최소 시작 시간 확인 (경계 케이스)
+    if (targetDate < minStartTime) {
+      targetDate = new Date(minStartTime.getTime());
+      targetDate.setSeconds(0);
+      targetDate.setMilliseconds(0);
+      const mins = targetDate.getMinutes();
+      const rem = mins % 10;
+      if (rem > 0) {
+        targetDate.setMinutes(mins + (10 - rem));
+      }
+    }
+    
+    return Math.floor(targetDate.getTime() / 1000);
   };
 
   const payload: Record<string, unknown> = {
@@ -344,8 +375,8 @@ async function createCampaignInBizChat(
     sndMosu: sndMosu,
     sndMosuFlag: 0,
     adverDeny: '1504',
-    // rcvType=0,10일 때 atsSndStartDate 필수
-    atsSndStartDate: toUnixTimestamp(campaignData.atsSndStartDate),
+    // rcvType=0,10일 때 atsSndStartDate 필수 (10분 단위 올림, 현재+1시간 이후)
+    atsSndStartDate: calculateValidSendDate(campaignData.atsSndStartDate),
     cb: {
       state: `${CALLBACK_BASE_URL}/api/bizchat/callback/state`,
     },
