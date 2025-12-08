@@ -137,6 +137,8 @@ export default function CampaignsNew() {
     geofenceIds: [] as string[],
   });
   const [useScheduledSend, setUseScheduledSend] = useState(false);
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState<Date | null>(null);
+  const [selectedScheduleTime, setSelectedScheduleTime] = useState<string | null>(null);
 
   // 10분 단위 올림, 현재+1시간 이후의 유효한 발송 시간 계산
   const getMinScheduledTime = () => {
@@ -152,58 +154,115 @@ export default function CampaignsNew() {
     return minTime;
   };
 
-  // 10분 단위 시간 옵션 생성 (현재+1시간부터 7일 후까지)
-  const getScheduleTimeOptions = () => {
-    const options: { value: string; label: string }[] = [];
+  // 선택 가능한 날짜 목록 (오늘~7일 후)
+  const getAvailableDates = () => {
     const minTime = getMinScheduledTime();
-    const maxTime = new Date(minTime.getTime() + 7 * 24 * 60 * 60 * 1000); // 7일 후
-    
-    let current = new Date(minTime);
-    while (current <= maxTime) {
-      const dateStr = current.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' });
-      const timeStr = current.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-      options.push({
-        value: current.toISOString(),
-        label: `${dateStr} ${timeStr}`,
-      });
-      current = new Date(current.getTime() + 10 * 60 * 1000); // 10분씩 증가
-    }
-    return options;
-  };
-
-  // 날짜별로 그룹화된 시간 옵션
-  const getGroupedScheduleOptions = () => {
-    const minTime = getMinScheduledTime();
-    const dates: { date: string; times: { value: string; label: string }[] }[] = [];
+    const dates: { date: Date; label: string; dayLabel: string }[] = [];
     
     for (let day = 0; day < 7; day++) {
       const targetDate = new Date(minTime);
       targetDate.setDate(targetDate.getDate() + day);
-      targetDate.setHours(day === 0 ? minTime.getHours() : 9);
-      targetDate.setMinutes(day === 0 ? minTime.getMinutes() : 0);
-      targetDate.setSeconds(0);
+      targetDate.setHours(0, 0, 0, 0);
       
-      const dateLabel = targetDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
-      const times: { value: string; label: string }[] = [];
+      const isToday = day === 0;
+      const isTomorrow = day === 1;
       
-      const dayEnd = new Date(targetDate);
-      dayEnd.setHours(21, 0, 0, 0); // 21시까지
+      let dayLabel = targetDate.toLocaleDateString('ko-KR', { weekday: 'short' });
+      if (isToday) dayLabel = "오늘";
+      else if (isTomorrow) dayLabel = "내일";
       
-      let current = new Date(targetDate);
-      while (current <= dayEnd) {
-        const timeStr = current.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-        times.push({
-          value: current.toISOString(),
-          label: timeStr,
-        });
-        current = new Date(current.getTime() + 10 * 60 * 1000);
-      }
-      
-      if (times.length > 0) {
-        dates.push({ date: dateLabel, times });
-      }
+      const label = targetDate.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' });
+      dates.push({ date: targetDate, label, dayLabel });
     }
     return dates;
+  };
+
+  // 선택된 날짜의 시간 슬롯 (10분 단위)
+  const getTimeSlotsForDate = (date: Date | null) => {
+    if (!date) return [];
+    
+    const minTime = getMinScheduledTime();
+    const slots: { value: string; label: string; period: string }[] = [];
+    
+    const isToday = date.toDateString() === new Date().toDateString();
+    const startHour = isToday ? minTime.getHours() : 9;
+    const startMinute = isToday ? minTime.getMinutes() : 0;
+    
+    const slotDate = new Date(date);
+    slotDate.setHours(startHour, startMinute, 0, 0);
+    
+    const endTime = new Date(date);
+    endTime.setHours(21, 0, 0, 0);
+    
+    while (slotDate <= endTime) {
+      const hours = slotDate.getHours();
+      const timeStr = slotDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+      let period = "오전";
+      if (hours >= 12 && hours < 18) period = "오후";
+      else if (hours >= 18) period = "저녁";
+      
+      slots.push({
+        value: slotDate.toISOString(),
+        label: timeStr,
+        period,
+      });
+      slotDate.setTime(slotDate.getTime() + 10 * 60 * 1000);
+    }
+    return slots;
+  };
+
+  // 시간 슬롯을 시간대별로 그룹화
+  const getGroupedTimeSlots = (date: Date | null) => {
+    const slots = getTimeSlotsForDate(date);
+    const groups: { period: string; slots: typeof slots }[] = [];
+    
+    const periods = ["오전", "오후", "저녁"];
+    periods.forEach(period => {
+      const periodSlots = slots.filter(s => s.period === period);
+      if (periodSlots.length > 0) {
+        groups.push({ period, slots: periodSlots });
+      }
+    });
+    return groups;
+  };
+
+  // 빠른 선택 옵션
+  const getQuickSelectOptions = () => {
+    const minTime = getMinScheduledTime();
+    const options: { label: string; value: string }[] = [];
+    
+    // 내일 오전 10시
+    const tomorrow10am = new Date(minTime);
+    tomorrow10am.setDate(tomorrow10am.getDate() + 1);
+    tomorrow10am.setHours(10, 0, 0, 0);
+    if (tomorrow10am > minTime) {
+      options.push({ label: "내일 오전 10시", value: tomorrow10am.toISOString() });
+    }
+    
+    // 내일 오후 2시
+    const tomorrow2pm = new Date(minTime);
+    tomorrow2pm.setDate(tomorrow2pm.getDate() + 1);
+    tomorrow2pm.setHours(14, 0, 0, 0);
+    if (tomorrow2pm > minTime) {
+      options.push({ label: "내일 오후 2시", value: tomorrow2pm.toISOString() });
+    }
+    
+    // 내일 저녁 6시
+    const tomorrow6pm = new Date(minTime);
+    tomorrow6pm.setDate(tomorrow6pm.getDate() + 1);
+    tomorrow6pm.setHours(18, 0, 0, 0);
+    if (tomorrow6pm > minTime) {
+      options.push({ label: "내일 저녁 6시", value: tomorrow6pm.toISOString() });
+    }
+    
+    return options;
+  };
+
+  // 날짜/시간 선택 시 폼 값 업데이트
+  const updateScheduledAt = (date: Date | null, timeValue: string | null) => {
+    if (date && timeValue) {
+      form.setValue("scheduledAt", timeValue);
+    }
   };
 
   const { data: existingCampaign, isLoading: campaignLoading } = useQuery<CampaignWithDetails>({
@@ -1188,58 +1247,118 @@ export default function CampaignsNew() {
                     </RadioGroup>
 
                     {useScheduledSend && (
-                      <FormField
-                        control={form.control}
-                        name="scheduledAt"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>발송 예약 일시</FormLabel>
-                            <Select
-                              value={field.value || ""}
-                              onValueChange={field.onChange}
-                            >
-                              <FormControl>
-                                <SelectTrigger data-testid="select-scheduled-time">
-                                  <SelectValue placeholder="발송 시간을 선택해주세요">
-                                    {field.value && new Date(field.value).toLocaleString('ko-KR', {
-                                      month: 'long',
-                                      day: 'numeric',
-                                      weekday: 'short',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                      hour12: false,
-                                    })}
-                                  </SelectValue>
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent className="max-h-[300px]">
-                                {getGroupedScheduleOptions().map((dateGroup) => (
-                                  <div key={dateGroup.date}>
-                                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground bg-muted/50 sticky top-0">
-                                      {dateGroup.date}
-                                    </div>
-                                    <div className="grid grid-cols-4 gap-1 p-2">
-                                      {dateGroup.times.map((time) => (
-                                        <SelectItem
-                                          key={time.value}
-                                          value={time.value}
-                                          className="text-center justify-center"
-                                        >
-                                          {time.label}
-                                        </SelectItem>
-                                      ))}
-                                    </div>
+                      <div className="space-y-4">
+                        {/* 빠른 선택 */}
+                        <div>
+                          <Label className="text-sm font-medium mb-2 block">빠른 선택</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {getQuickSelectOptions().map((option) => (
+                              <Button
+                                key={option.value}
+                                type="button"
+                                variant={form.watch("scheduledAt") === option.value ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => {
+                                  const optionDate = new Date(option.value);
+                                  setSelectedScheduleDate(new Date(optionDate.getFullYear(), optionDate.getMonth(), optionDate.getDate()));
+                                  setSelectedScheduleTime(option.value);
+                                  form.setValue("scheduledAt", option.value);
+                                }}
+                                data-testid={`button-quick-${option.label}`}
+                              >
+                                {option.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 날짜 선택 */}
+                        <div>
+                          <Label className="text-sm font-medium mb-2 block">날짜 선택</Label>
+                          <div className="grid grid-cols-7 gap-2">
+                            {getAvailableDates().map((dateOption) => (
+                              <button
+                                key={dateOption.date.toISOString()}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedScheduleDate(dateOption.date);
+                                  setSelectedScheduleTime(null);
+                                  form.setValue("scheduledAt", undefined);
+                                }}
+                                className={cn(
+                                  "flex flex-col items-center justify-center p-2 rounded-lg border transition-colors",
+                                  selectedScheduleDate?.toDateString() === dateOption.date.toDateString()
+                                    ? "border-primary bg-primary/10 text-primary"
+                                    : "border-border hover:bg-accent hover:text-accent-foreground"
+                                )}
+                                data-testid={`button-date-${dateOption.label}`}
+                              >
+                                <span className="text-tiny font-medium">{dateOption.dayLabel}</span>
+                                <span className="text-sm font-bold">{dateOption.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 시간 선택 */}
+                        {selectedScheduleDate && (
+                          <div>
+                            <Label className="text-sm font-medium mb-2 block">시간 선택</Label>
+                            <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2">
+                              {getGroupedTimeSlots(selectedScheduleDate).map((group) => (
+                                <div key={group.period}>
+                                  <div className="text-tiny font-medium text-muted-foreground mb-1.5 sticky top-0 bg-background py-1">
+                                    {group.period} ({group.period === "오전" ? "9:00-11:50" : group.period === "오후" ? "12:00-17:50" : "18:00-21:00"})
                                   </div>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormDescription>
-                              발송은 10분 단위로 예약 가능하며, 현재 시간 기준 최소 1시간 이후부터 설정할 수 있어요
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
+                                  <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-1.5">
+                                    {group.slots.map((slot) => (
+                                      <button
+                                        key={slot.value}
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedScheduleTime(slot.value);
+                                          form.setValue("scheduledAt", slot.value);
+                                        }}
+                                        className={cn(
+                                          "px-2 py-1.5 text-sm rounded-md border transition-colors text-center",
+                                          selectedScheduleTime === slot.value
+                                            ? "border-primary bg-primary text-primary-foreground"
+                                            : "border-border hover:bg-accent hover:text-accent-foreground"
+                                        )}
+                                        data-testid={`button-time-${slot.label}`}
+                                      >
+                                        {slot.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         )}
-                      />
+
+                        {/* 선택된 일시 표시 */}
+                        {form.watch("scheduledAt") && (
+                          <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
+                            <Clock className="h-5 w-5 text-primary" />
+                            <span className="font-medium text-primary">
+                              {new Date(form.watch("scheduledAt") as string).toLocaleString('ko-KR', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                weekday: 'long',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: false,
+                              })}
+                            </span>
+                          </div>
+                        )}
+
+                        <p className="text-tiny text-muted-foreground">
+                          발송은 10분 단위로 예약 가능하며, 현재 시간 기준 최소 1시간 이후부터 설정할 수 있어요
+                        </p>
+                      </div>
                     )}
                   </div>
                 </CardContent>
