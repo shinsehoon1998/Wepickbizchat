@@ -140,12 +140,18 @@ async function callBizChatAPI(
   useProduction: boolean = false
 ) {
   const baseUrl = useProduction ? BIZCHAT_PROD_URL : BIZCHAT_DEV_URL;
+  const envKeyName = useProduction ? 'BIZCHAT_PROD_API_KEY' : 'BIZCHAT_DEV_API_KEY';
   const apiKey = useProduction 
     ? process.env.BIZCHAT_PROD_API_KEY 
     : process.env.BIZCHAT_DEV_API_KEY;
 
+  console.log(`[BizChat API] Environment: ${useProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
+  console.log(`[BizChat API] Looking for env var: ${envKeyName}`);
+  console.log(`[BizChat API] API key exists: ${!!apiKey}, length: ${apiKey?.length || 0}`);
+
   if (!apiKey) {
-    throw new Error(`BizChat API key not configured`);
+    console.error(`[BizChat API] ⚠️ Missing ${envKeyName}. Available: DEV=${!!process.env.BIZCHAT_DEV_API_KEY}, PROD=${!!process.env.BIZCHAT_PROD_API_KEY}`);
+    throw new Error(`BizChat API key not configured (${envKeyName})`);
   }
 
   const tid = generateTid();

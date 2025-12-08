@@ -99,18 +99,24 @@ async function callBizChatAPI(
   useProduction: boolean = false
 ): Promise<{ status: number; data: Record<string, unknown>; simulated?: boolean }> {
   const baseUrl = useProduction ? BIZCHAT_PROD_URL : BIZCHAT_DEV_URL;
+  const envKeyName = useProduction ? 'BIZCHAT_PROD_API_KEY' : 'BIZCHAT_DEV_API_KEY';
   const apiKey = useProduction 
     ? process.env.BIZCHAT_PROD_API_KEY 
     : process.env.BIZCHAT_DEV_API_KEY;
 
+  console.log(`[BizChat Submit] Environment: ${useProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
+  console.log(`[BizChat Submit] Looking for env var: ${envKeyName}`);
+  console.log(`[BizChat Submit] API key exists: ${!!apiKey}, length: ${apiKey?.length || 0}`);
+
   if (!apiKey) {
-    console.log('[BizChat] No API key, returning simulated response');
+    console.log(`[BizChat Submit] ⚠️ No API key configured (${envKeyName}), returning simulated response`);
+    console.log(`[BizChat Submit] Available env vars: DEV=${!!process.env.BIZCHAT_DEV_API_KEY}, PROD=${!!process.env.BIZCHAT_PROD_API_KEY}`);
     return {
       status: 200,
       data: {
         code: 'S000001',
         data: { id: `SIM_${Date.now()}_${Math.random().toString(36).substring(7)}` },
-        msg: 'Simulated (no API key)',
+        msg: `Simulated (no ${envKeyName})`,
       },
       simulated: true,
     };
