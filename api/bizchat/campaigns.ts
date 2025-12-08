@@ -638,13 +638,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ error: 'Campaign not registered to BizChat' });
           }
 
-          // 시뮬레이션 ID 검출 (개발 환경에서 API 연결 실패 시 생성된 ID)
+          // 레거시 SIM_ ID 검출 (이전 버전에서 생성된 시뮬레이션 캠페인)
           if (campaign.bizchatCampaignId.startsWith('SIM_')) {
             return res.status(400).json({ 
               success: false,
-              error: '이 캠페인은 시뮬레이션 모드로 생성되었어요. 실제 테스트 발송을 하려면 캠페인을 다시 생성해주세요.',
-              bizchatCode: 'SIM_MODE',
-              isSimulated: true,
+              error: '이 캠페인은 유효한 BizChat 캠페인 ID가 없어요. 캠페인을 다시 생성해주세요.',
+              bizchatCode: 'INVALID_CAMPAIGN_ID',
             });
           }
 
@@ -844,9 +843,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (campaign.bizchatCampaignId.startsWith('SIM_')) {
             return res.status(400).json({ 
               success: false,
-              error: '시뮬레이션 모드 캠페인은 테스트 취소를 할 수 없어요.',
-              bizchatCode: 'SIM_MODE',
-              isSimulated: true,
+              error: '이 캠페인은 유효한 BizChat 캠페인 ID가 없어요. 캠페인을 다시 생성해주세요.',
+              bizchatCode: 'INVALID_CAMPAIGN_ID',
             });
           }
 
@@ -876,12 +874,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
 
           if (campaign.bizchatCampaignId.startsWith('SIM_')) {
-            return res.status(200).json({ 
-              success: true,
-              action: 'testResult',
-              result: { code: 'S000001', data: { list: [] } },
-              message: '시뮬레이션 모드 캠페인에는 테스트 발송 기록이 없어요.',
-              isSimulated: true,
+            return res.status(400).json({ 
+              success: false,
+              error: '이 캠페인은 유효한 BizChat 캠페인 ID가 없어요. 캠페인을 다시 생성해주세요.',
+              bizchatCode: 'INVALID_CAMPAIGN_ID',
             });
           }
 

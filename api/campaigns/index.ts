@@ -131,13 +131,13 @@ function detectProductionEnvironment(req: VercelRequest): boolean {
   return false;
 }
 
-// BizChat API 호출 (API 키가 없으면 시뮬레이션 모드)
+// BizChat API 호출 - API 키가 없으면 에러 발생
 async function callBizChatAPI(
   endpoint: string,
   method: 'GET' | 'POST' = 'POST',
   body?: Record<string, unknown>,
   useProduction: boolean = false
-): Promise<{ status: number; data: Record<string, unknown>; simulated?: boolean }> {
+): Promise<{ status: number; data: Record<string, unknown> }> {
   const baseUrl = useProduction ? BIZCHAT_PROD_URL : BIZCHAT_DEV_URL;
   const envKeyName = useProduction ? 'BIZCHAT_PROD_API_KEY' : 'BIZCHAT_DEV_API_KEY';
   const apiKey = useProduction 
@@ -147,20 +147,13 @@ async function callBizChatAPI(
   console.log(`[BizChat] Environment: ${useProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
   console.log(`[BizChat] Looking for env var: ${envKeyName}`);
   console.log(`[BizChat] API key exists: ${!!apiKey}, length: ${apiKey?.length || 0}`);
+  console.log(`[BizChat] VERCEL_ENV: ${process.env.VERCEL_ENV}, NODE_ENV: ${process.env.NODE_ENV}`);
 
-  // API 키가 없으면 시뮬레이션 모드 반환
+  // API 키가 없으면 에러 발생
   if (!apiKey) {
-    console.log(`[BizChat] ⚠️ No API key configured (${envKeyName}), returning simulated response`);
-    console.log(`[BizChat] Available env vars: BIZCHAT_DEV_API_KEY=${!!process.env.BIZCHAT_DEV_API_KEY}, BIZCHAT_PROD_API_KEY=${!!process.env.BIZCHAT_PROD_API_KEY}`);
-    return {
-      status: 200,
-      data: {
-        code: 'S000001',
-        data: { id: `SIM_${Date.now()}_${Math.random().toString(36).substring(7)}` },
-        msg: `Simulated (no ${envKeyName})`,
-      },
-      simulated: true,
-    };
+    console.error(`[BizChat] ❌ API key not configured: ${envKeyName}`);
+    console.error(`[BizChat] Available keys - DEV: ${!!process.env.BIZCHAT_DEV_API_KEY}, PROD: ${!!process.env.BIZCHAT_PROD_API_KEY}`);
+    throw new Error(`BizChat API 키가 설정되지 않았습니다 (${envKeyName}). Vercel 환경변수를 확인해주세요.`);
   }
 
   const tid = generateTid();

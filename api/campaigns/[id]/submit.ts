@@ -97,7 +97,7 @@ async function callBizChatAPI(
   method: 'GET' | 'POST' = 'POST',
   body?: Record<string, unknown>,
   useProduction: boolean = false
-): Promise<{ status: number; data: Record<string, unknown>; simulated?: boolean }> {
+): Promise<{ status: number; data: Record<string, unknown> }> {
   const baseUrl = useProduction ? BIZCHAT_PROD_URL : BIZCHAT_DEV_URL;
   const envKeyName = useProduction ? 'BIZCHAT_PROD_API_KEY' : 'BIZCHAT_DEV_API_KEY';
   const apiKey = useProduction 
@@ -107,19 +107,12 @@ async function callBizChatAPI(
   console.log(`[BizChat Submit] Environment: ${useProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
   console.log(`[BizChat Submit] Looking for env var: ${envKeyName}`);
   console.log(`[BizChat Submit] API key exists: ${!!apiKey}, length: ${apiKey?.length || 0}`);
+  console.log(`[BizChat Submit] VERCEL_ENV: ${process.env.VERCEL_ENV}, NODE_ENV: ${process.env.NODE_ENV}`);
 
   if (!apiKey) {
-    console.log(`[BizChat Submit] ⚠️ No API key configured (${envKeyName}), returning simulated response`);
-    console.log(`[BizChat Submit] Available env vars: DEV=${!!process.env.BIZCHAT_DEV_API_KEY}, PROD=${!!process.env.BIZCHAT_PROD_API_KEY}`);
-    return {
-      status: 200,
-      data: {
-        code: 'S000001',
-        data: { id: `SIM_${Date.now()}_${Math.random().toString(36).substring(7)}` },
-        msg: `Simulated (no ${envKeyName})`,
-      },
-      simulated: true,
-    };
+    console.error(`[BizChat Submit] ❌ API key not configured: ${envKeyName}`);
+    console.error(`[BizChat Submit] Available keys - DEV: ${!!process.env.BIZCHAT_DEV_API_KEY}, PROD: ${!!process.env.BIZCHAT_PROD_API_KEY}`);
+    throw new Error(`BizChat API 키가 설정되지 않았습니다 (${envKeyName}). Vercel 환경변수를 확인해주세요.`);
   }
 
   const tid = generateTid();
@@ -300,28 +293,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       console.log('[Submit] Creating campaign in BizChat...');
-      let createResult;
-      let bizchatCampaignId: string;
-      let isSimulated = false;
+      const createResult = await callBizChatAPI('/api/v1/cmpn/create', 'POST', createPayload, useProduction);
       
-      try {
-        createResult = await callBizChatAPI('/api/v1/cmpn/create', 'POST', createPayload, useProduction);
-        
-        if (createResult.simulated) {
-          isSimulated = true;
-          bizchatCampaignId = createResult.data.data?.id as string;
-        } else if (createResult.data.code !== 'S000001') {
-          console.log('[Submit] BizChat API error, falling back to simulation');
-          isSimulated = true;
-          bizchatCampaignId = `SIM_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        } else {
-          bizchatCampaignId = createResult.data.data?.id as string;
-        }
-      } catch (error) {
-        console.log('[Submit] BizChat API exception, falling back to simulation:', error);
-        isSimulated = true;
-        bizchatCampaignId = `SIM_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      if (createResult.data.code !== 'S000001') {
+        console.error('[Submit] BizChat API error:', createResult.data);
+        return res.status(400).json({
+          error: `BizChat 캠페인 생성 실패: ${createResult.data.msg || createResult.data.code}`,
+          response: createResult.data,
+        });
       }
+      
+      const bizchatCampaignId = createResult.data.data?.id as string;
       
       if (!bizchatCampaignId) {
         return res.status(400).json({
@@ -344,23 +326,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     console.log('[Submit] Requesting approval...');
-    let approvalSimulated = false;
-    
-    try {
-      const approvalResult = await callBizChatAPI(
-        `/api/v1/cmpn/appr/req?id=${campaign.bizchatCampaignId}`,
-        'POST',
-        {},
-        useProduction
-      );
+    const approvalResult = await callBizChatAPI(
+      `/api/v1/cmpn/appr/req?id=${campaign.bizchatCampaignId}`,
+      'POST',
+      {},
+      useProduction
+    );
 
-      if (approvalResult.simulated || approvalResult.data.code !== 'S000001') {
-        console.log('[Submit] Approval API simulated or failed, proceeding with simulation');
-        approvalSimulated = true;
-      }
-    } catch (error) {
-      console.log('[Submit] Approval API exception, proceeding with simulation:', error);
-      approvalSimulated = true;
+    if (approvalResult.data.code !== 'S000001') {
+      console.error('[Submit] Approval request failed:', approvalResult.data);
+      return res.status(400).json({
+        error: `승인 요청 실패: ${approvalResult.data.msg || approvalResult.data.code}`,
+        response: approvalResult.data,
+      });
     }
 
     await db.update(campaigns)
@@ -373,8 +351,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .where(eq(campaigns.id, id));
 
     console.log(`[Submit] Approval requested for campaign: ${id}`);
-
-    const isSimulatedMode = campaign.bizchatCampaignId?.startsWith('SIM_') || approvalSimulated;
     
     return res.status(200).json({
       success: true,
@@ -382,12 +358,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       bizchatCampaignId: campaign.bizchatCampaignId,
       statusCode: 10,
       status: 'approval_requested',
-      simulated: isSimulatedMode,
-      message: isSimulatedMode
-        ? '캠페인이 시뮬레이션 모드로 등록되었습니다. (BizChat 테스트 환경)'
-        : (scheduledAt 
-          ? `캠페인이 BizChat에 등록되었고, ${new Date(scheduledAt).toLocaleString('ko-KR')}에 발송 예정입니다.`
-          : '캠페인이 BizChat에 등록되었고, 승인 요청이 완료되었습니다.'),
+      message: scheduledAt 
+        ? `캠페인이 BizChat에 등록되었고, ${new Date(scheduledAt).toLocaleString('ko-KR')}에 발송 예정입니다.`
+        : '캠페인이 BizChat에 등록되었고, 승인 요청이 완료되었습니다.',
     });
 
   } catch (error) {
