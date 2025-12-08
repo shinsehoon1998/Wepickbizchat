@@ -19,6 +19,8 @@ import {
   Save,
   ChevronDown,
   ChevronUp,
+  Clock,
+  Calendar,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency, formatNumber, getMessageTypeLabel } from "@/lib/authUtils";
@@ -77,6 +79,7 @@ const campaignSchema = z.object({
   regions: z.array(z.string()).default([]),
   targetCount: z.number().min(100, "최소 100명 이상 선택해주세요").default(1000),
   budget: z.number().min(10000, "최소 10,000원 이상 입력해주세요"),
+  scheduledAt: z.string().optional(),
 });
 
 type CampaignFormData = z.infer<typeof campaignSchema>;
@@ -133,6 +136,75 @@ export default function CampaignsNew() {
     mobilityPatterns: [] as string[],
     geofenceIds: [] as string[],
   });
+  const [useScheduledSend, setUseScheduledSend] = useState(false);
+
+  // 10분 단위 올림, 현재+1시간 이후의 유효한 발송 시간 계산
+  const getMinScheduledTime = () => {
+    const now = new Date();
+    const minTime = new Date(now.getTime() + 60 * 60 * 1000); // 현재 + 1시간
+    minTime.setSeconds(0);
+    minTime.setMilliseconds(0);
+    const minutes = minTime.getMinutes();
+    const remainder = minutes % 10;
+    if (remainder > 0) {
+      minTime.setMinutes(minutes + (10 - remainder));
+    }
+    return minTime;
+  };
+
+  // 10분 단위 시간 옵션 생성 (현재+1시간부터 7일 후까지)
+  const getScheduleTimeOptions = () => {
+    const options: { value: string; label: string }[] = [];
+    const minTime = getMinScheduledTime();
+    const maxTime = new Date(minTime.getTime() + 7 * 24 * 60 * 60 * 1000); // 7일 후
+    
+    let current = new Date(minTime);
+    while (current <= maxTime) {
+      const dateStr = current.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', weekday: 'short' });
+      const timeStr = current.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+      options.push({
+        value: current.toISOString(),
+        label: `${dateStr} ${timeStr}`,
+      });
+      current = new Date(current.getTime() + 10 * 60 * 1000); // 10분씩 증가
+    }
+    return options;
+  };
+
+  // 날짜별로 그룹화된 시간 옵션
+  const getGroupedScheduleOptions = () => {
+    const minTime = getMinScheduledTime();
+    const dates: { date: string; times: { value: string; label: string }[] }[] = [];
+    
+    for (let day = 0; day < 7; day++) {
+      const targetDate = new Date(minTime);
+      targetDate.setDate(targetDate.getDate() + day);
+      targetDate.setHours(day === 0 ? minTime.getHours() : 9);
+      targetDate.setMinutes(day === 0 ? minTime.getMinutes() : 0);
+      targetDate.setSeconds(0);
+      
+      const dateLabel = targetDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
+      const times: { value: string; label: string }[] = [];
+      
+      const dayEnd = new Date(targetDate);
+      dayEnd.setHours(21, 0, 0, 0); // 21시까지
+      
+      let current = new Date(targetDate);
+      while (current <= dayEnd) {
+        const timeStr = current.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+        times.push({
+          value: current.toISOString(),
+          label: timeStr,
+        });
+        current = new Date(current.getTime() + 10 * 60 * 1000);
+      }
+      
+      if (times.length > 0) {
+        dates.push({ date: dateLabel, times });
+      }
+    }
+    return dates;
+  };
 
   const { data: existingCampaign, isLoading: campaignLoading } = useQuery<CampaignWithDetails>({
     queryKey: ["/api/campaigns", campaignId],
@@ -197,6 +269,11 @@ export default function CampaignsNew() {
 
   useEffect(() => {
     if (isEditMode && existingCampaign) {
+      // scheduledAt이 있으면 예약발송 모드로 설정
+      const scheduledDate = existingCampaign.scheduledAt ? new Date(existingCampaign.scheduledAt as unknown as string) : null;
+      const hasScheduledAt = scheduledDate && scheduledDate > new Date();
+      setUseScheduledSend(!!hasScheduledAt);
+      
       form.reset({
         name: existingCampaign.name,
         templateId: existingCampaign.templateId || "",
@@ -207,6 +284,7 @@ export default function CampaignsNew() {
         regions: existingCampaign.targeting?.regions || [],
         targetCount: existingCampaign.targetCount || 1000,
         budget: parseFloat(existingCampaign.budget as string) || 100000,
+        scheduledAt: hasScheduledAt && scheduledDate ? scheduledDate.toISOString() : undefined,
       });
     }
   }, [isEditMode, existingCampaign, form]);
@@ -312,6 +390,9 @@ export default function CampaignsNew() {
         regions: data.regions,
         targetCount: data.targetCount,
         budget: data.budget,
+        scheduledAt: data.scheduledAt || undefined,
+        // 고급 타겟팅 옵션
+        ...advancedTargeting,
       };
 
       if (isEditMode && campaignId) {
@@ -1043,6 +1124,129 @@ export default function CampaignsNew() {
 
               <Card>
                 <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Clock className="h-5 w-5" />
+                    발송 일시 설정
+                  </CardTitle>
+                  <CardDescription>캠페인 발송 시간을 설정해주세요</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <RadioGroup
+                      value={useScheduledSend ? "scheduled" : "immediate"}
+                      onValueChange={(value) => {
+                        setUseScheduledSend(value === "scheduled");
+                        if (value === "immediate") {
+                          form.setValue("scheduledAt", undefined);
+                        } else {
+                          const minTime = getMinScheduledTime();
+                          form.setValue("scheduledAt", minTime.toISOString());
+                        }
+                      }}
+                      className="grid grid-cols-2 gap-4"
+                    >
+                      <div className="relative">
+                        <RadioGroupItem
+                          value="immediate"
+                          id="send-immediate"
+                          className="peer sr-only"
+                        />
+                        <Label
+                          htmlFor="send-immediate"
+                          className={cn(
+                            "flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-4 cursor-pointer transition-colors",
+                            "hover:bg-accent hover:text-accent-foreground",
+                            !useScheduledSend && "border-primary bg-primary/5"
+                          )}
+                          data-testid="radio-send-immediate"
+                        >
+                          <Clock className="mb-2 h-6 w-6" />
+                          <span className="font-medium">바로 발송</span>
+                          <span className="text-tiny text-muted-foreground mt-1">승인 후 즉시 발송</span>
+                        </Label>
+                      </div>
+                      <div className="relative">
+                        <RadioGroupItem
+                          value="scheduled"
+                          id="send-scheduled"
+                          className="peer sr-only"
+                        />
+                        <Label
+                          htmlFor="send-scheduled"
+                          className={cn(
+                            "flex flex-col items-center justify-center rounded-lg border-2 border-muted bg-popover p-4 cursor-pointer transition-colors",
+                            "hover:bg-accent hover:text-accent-foreground",
+                            useScheduledSend && "border-primary bg-primary/5"
+                          )}
+                          data-testid="radio-send-scheduled"
+                        >
+                          <Calendar className="mb-2 h-6 w-6" />
+                          <span className="font-medium">예약 발송</span>
+                          <span className="text-tiny text-muted-foreground mt-1">원하는 시간에 발송</span>
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {useScheduledSend && (
+                      <FormField
+                        control={form.control}
+                        name="scheduledAt"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>발송 예약 일시</FormLabel>
+                            <Select
+                              value={field.value || ""}
+                              onValueChange={field.onChange}
+                            >
+                              <FormControl>
+                                <SelectTrigger data-testid="select-scheduled-time">
+                                  <SelectValue placeholder="발송 시간을 선택해주세요">
+                                    {field.value && new Date(field.value).toLocaleString('ko-KR', {
+                                      month: 'long',
+                                      day: 'numeric',
+                                      weekday: 'short',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: false,
+                                    })}
+                                  </SelectValue>
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="max-h-[300px]">
+                                {getGroupedScheduleOptions().map((dateGroup) => (
+                                  <div key={dateGroup.date}>
+                                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground bg-muted/50 sticky top-0">
+                                      {dateGroup.date}
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-1 p-2">
+                                      {dateGroup.times.map((time) => (
+                                        <SelectItem
+                                          key={time.value}
+                                          value={time.value}
+                                          className="text-center justify-center"
+                                        >
+                                          {time.label}
+                                        </SelectItem>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormDescription>
+                              발송은 10분 단위로 예약 가능하며, 현재 시간 기준 최소 1시간 이후부터 설정할 수 있어요
+                            </FormDescription>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
                   <CardTitle>캠페인 요약</CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1078,6 +1282,21 @@ export default function CampaignsNew() {
                     <div className="flex justify-between py-2 border-b">
                       <span className="text-muted-foreground">발송 수량</span>
                       <span className="font-medium">{formatNumber(watchTargetCount)}명</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-muted-foreground">발송 일시</span>
+                      <span className="font-medium" data-testid="summary-scheduled-time">
+                        {useScheduledSend && form.watch("scheduledAt")
+                          ? new Date(form.watch("scheduledAt") as string).toLocaleString('ko-KR', {
+                              month: 'long',
+                              day: 'numeric',
+                              weekday: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: false,
+                            })
+                          : "승인 후 즉시 발송"}
+                      </span>
                     </div>
                     <div className="flex justify-between py-2">
                       <span className="text-muted-foreground">예상 비용</span>

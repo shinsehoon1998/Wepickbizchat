@@ -138,7 +138,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
       if (campaign.userId !== userId) return res.status(403).json({ error: 'Access denied' });
 
-      const updatedResult = await db.update(campaigns).set(req.body).where(eq(campaigns.id, id)).returning();
+      // scheduledAt을 Date로 변환
+      const updateData: Record<string, unknown> = { ...req.body, updatedAt: new Date() };
+      if (updateData.scheduledAt && typeof updateData.scheduledAt === 'string') {
+        updateData.scheduledAt = new Date(updateData.scheduledAt as string);
+      } else if (updateData.scheduledAt === '' || updateData.scheduledAt === null) {
+        updateData.scheduledAt = null;
+      }
+
+      const updatedResult = await db.update(campaigns).set(updateData).where(eq(campaigns.id, id)).returning();
       return res.status(200).json(updatedResult[0]);
     } catch (error) {
       console.error('Error updating campaign:', error);

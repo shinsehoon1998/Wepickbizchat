@@ -435,7 +435,7 @@ const createCampaignSchema = z.object({
   geofenceIds: z.array(z.string()).optional(),
   targetCount: z.number().min(100).default(1000),
   budget: z.number().min(10000),
-  scheduledAt: z.string().optional(),
+  scheduledAt: z.string().datetime().optional().or(z.literal('')).transform(val => val === '' ? undefined : val),
 });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
