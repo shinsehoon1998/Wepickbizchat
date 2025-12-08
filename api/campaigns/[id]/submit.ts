@@ -271,8 +271,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
 
       // 타겟팅 정보 추가 (ATS 발송 모수 필터)
+      // sndMosuQuery는 JSON 문자열로 저장되어 있으므로 객체로 파싱하여 전송
       if (campaign.sndMosuQuery) {
-        createPayload.sndMosuQuery = campaign.sndMosuQuery;
+        try {
+          const parsedQuery = typeof campaign.sndMosuQuery === 'string' 
+            ? JSON.parse(campaign.sndMosuQuery) 
+            : campaign.sndMosuQuery;
+          
+          // BizChat ATS API 형식에 맞게 변환
+          // sndMosuQuery는 객체 형태로 전송해야 함
+          createPayload.sndMosuQuery = parsedQuery;
+          console.log('[Submit] Parsed sndMosuQuery:', JSON.stringify(parsedQuery));
+        } catch (parseError) {
+          console.warn('[Submit] Failed to parse sndMosuQuery, skipping:', campaign.sndMosuQuery);
+          // 파싱 실패 시 sndMosuQuery 제외하고 진행
+        }
       }
       if (campaign.sndMosuDesc) {
         createPayload.sndMosuDesc = campaign.sndMosuDesc;
@@ -300,6 +313,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       console.log('[Submit] Creating campaign in BizChat...');
+      console.log('[Submit] Full createPayload:', JSON.stringify(createPayload, null, 2));
       const createResult = await callBizChatAPI('/api/v1/cmpn/create', 'POST', createPayload, useProduction);
       
       if (createResult.data.code !== 'S000001') {
