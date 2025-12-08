@@ -299,7 +299,8 @@ async function createCampaignInBizChat(
     sndNum: string;
     targetCount: number;
     rcsType?: number;
-    scheduledAt?: Date | null;
+    rcvType?: number;
+    atsSndStartDate?: Date | null;
     sndMosuQuery?: string;
     sndMosuDesc?: string;
   },
@@ -321,11 +322,21 @@ async function createCampaignInBizChat(
   const sndGoalCnt = campaignData.targetCount || 1000;
   const sndMosu = Math.min(Math.ceil(sndGoalCnt * 1.5), 400000);
 
+  // rcvType: 0=ATS 타겟팅, 10=MDN 직접 지정
+  const rcvType = campaignData.rcvType ?? 0;
+
+  // atsSndStartDate: rcvType=0,10일 때 필수 (Unix timestamp 초단위)
+  // Date를 Unix timestamp로 변환
+  const toUnixTimestamp = (date: Date | null | undefined): number => {
+    if (!date) return Math.floor(Date.now() / 1000) + 3600; // 기본값: 현재 + 1시간
+    return Math.floor(new Date(date).getTime() / 1000);
+  };
+
   const payload: Record<string, unknown> = {
     tgtCompanyName: campaignData.tgtCompanyName || '위픽',
     name: campaignData.name,
     sndNum: campaignData.sndNum,
-    rcvType: 0, // ATS 타겟팅
+    rcvType: rcvType,
     sndGoalCnt: sndGoalCnt,
     billingType: billingType,
     isTmp: 0, // 임시저장 아님
@@ -333,6 +344,8 @@ async function createCampaignInBizChat(
     sndMosu: sndMosu,
     sndMosuFlag: 0,
     adverDeny: '1504',
+    // rcvType=0,10일 때 atsSndStartDate 필수
+    atsSndStartDate: toUnixTimestamp(campaignData.atsSndStartDate),
     cb: {
       state: `${CALLBACK_BASE_URL}/api/bizchat/callback/state`,
     },
@@ -509,6 +522,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
 
       // 2. BizChat API에 캠페인 등록 (임시등록 상태 0)
+      // rcvType=0일 때 atsSndStartDate 필수 - 없으면 기본값 설정 (현재 시간 + 1시간)
+      const defaultSendDate = new Date();
+      defaultSendDate.setHours(defaultSendDate.getHours() + 1);
+      const atsSndStartDate = data.scheduledAt ? new Date(data.scheduledAt) : defaultSendDate;
+
       try {
         const bizchatResult = await createCampaignInBizChat(
           {
@@ -517,7 +535,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             messageType: data.messageType,
             sndNum: data.sndNum,
             targetCount: data.targetCount,
-            scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
+            rcvType: 0,
+            atsSndStartDate: atsSndStartDate,
             sndMosuQuery: JSON.stringify(atsResult.query),
             sndMosuDesc: atsResult.description,
           },
