@@ -122,8 +122,16 @@ function generateTid(): string {
   return Date.now().toString();
 }
 
-// 환경 감지 함수
+// 환경 감지 함수: 개발 완료 전까지 항상 개발 API 사용
+// SK 담당자 요청: 개발 완료될 때까지 상용 URL이 아닌 개발 URL(gw-dev.bizchat1.co.kr:8443)로 요청
 function detectProductionEnvironment(req: VercelRequest): boolean {
+  // ⚠️ 개발 완료 전까지 항상 개발 API 사용 (BIZCHAT_USE_PROD=true 설정 시에만 운영 API 사용)
+  const forceDevMode = process.env.BIZCHAT_USE_PROD !== 'true';
+  if (forceDevMode) {
+    console.log('[BizChat] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"');
+    return false;
+  }
+  
   if (req.query.env === 'prod' || req.body?.env === 'prod') return true;
   if (req.query.env === 'dev' || req.body?.env === 'dev') return false;
   if (process.env.VERCEL_ENV === 'production') return true;

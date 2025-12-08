@@ -448,8 +448,16 @@ async function getCampaignList(
   }, useProduction);
 }
 
-// 환경 감지 함수: Vercel 배포 환경 또는 명시적 prod 요청 시 운영 API 사용
+// 환경 감지 함수: 개발 완료 전까지 항상 개발 API 사용
+// SK 담당자 요청: 개발 완료될 때까지 상용 URL이 아닌 개발 URL(gw-dev.bizchat1.co.kr:8443)로 요청
 function detectProductionEnvironment(req: VercelRequest): boolean {
+  // ⚠️ 개발 완료 전까지 항상 개발 API 사용 (BIZCHAT_USE_PROD=true 설정 시에만 운영 API 사용)
+  const forceDevMode = process.env.BIZCHAT_USE_PROD !== 'true';
+  if (forceDevMode) {
+    console.log('[BizChat] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"');
+    return false;
+  }
+  
   // 명시적으로 환경 지정된 경우
   if (req.query.env === 'prod' || req.body?.env === 'prod') return true;
   if (req.query.env === 'dev' || req.body?.env === 'dev') return false;

@@ -84,8 +84,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const auth = await verifyAuth(req);
   if (!auth) return res.status(401).json({ error: 'Unauthorized' });
 
-  // 환경 감지: Vercel 배포 환경 또는 명시적 prod 요청 시 운영 API 사용
+  // 환경 감지: 개발 완료 전까지 항상 개발 API 사용
+  // SK 담당자 요청: 개발 완료될 때까지 상용 URL이 아닌 개발 URL(gw-dev.bizchat1.co.kr:8443)로 요청
   const detectEnv = (): boolean => {
+    // ⚠️ 개발 완료 전까지 항상 개발 API 사용
+    const forceDevMode = process.env.BIZCHAT_USE_PROD !== 'true';
+    if (forceDevMode) {
+      console.log('[BizChat Sender] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"');
+      return false;
+    }
+    
     if (req.query.env === 'prod' || req.body?.env === 'prod') return true;
     if (req.query.env === 'dev' || req.body?.env === 'dev') return false;
     if (process.env.VERCEL_ENV === 'production') return true;
