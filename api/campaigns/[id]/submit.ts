@@ -471,11 +471,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const isRcs = billingType === 1 || billingType === 3;
       const needsFile = billingType === 1 || billingType === 2;
       
-      // 전체 업데이트 페이로드 구성
+      // 타겟팅/발송 수량 재계산
+      const sndGoalCnt = campaign.sndGoalCnt || campaign.targetCount || 1000;
+      const sndMosu = campaign.sndMosu || Math.min(Math.ceil(sndGoalCnt * 1.5), 400000);
+      
+      // 전체 업데이트 페이로드 구성 (생성 시와 동일한 필드 포함)
       const updatePayload: Record<string, unknown> = {
         name: campaign.name,
         tgtCompanyName: campaign.tgtCompanyName || '위픽',
-        billingType,
+        sndNum: campaign.sndNum,
+        rcvType: campaign.rcvType ?? 0,
+        sndGoalCnt: sndGoalCnt,
+        billingType: billingType,
+        settleCnt: campaign.settleCnt ?? sndGoalCnt,
+        sndMosu: sndMosu,
+        sndMosuFlag: 0,
         mms: {
           title: message?.title || '',
           msg: message?.content || '',
@@ -509,7 +519,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
       }
       
-      // sndMosuDesc/sndMosuQuery 업데이트
+      // sndMosuDesc/sndMosuQuery 업데이트 (타겟팅 필터)
       if (campaign.sndMosuQuery) {
         updatePayload.sndMosuQuery = typeof campaign.sndMosuQuery === 'string' 
           ? campaign.sndMosuQuery 
