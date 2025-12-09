@@ -177,11 +177,11 @@ export async function registerRoutes(
   app.get("/api/templates/approved", isAuthenticated, async (req, res) => {
     try {
       const userId = (req as any).userId;
-      const templates = await storage.getApprovedTemplates(userId);
+      const templates = await storage.getTemplates(userId);
       res.json(templates);
     } catch (error) {
-      console.error("Error fetching approved templates:", error);
-      res.status(500).json({ error: "Failed to fetch approved templates" });
+      console.error("Error fetching templates:", error);
+      res.status(500).json({ error: "Failed to fetch templates" });
     }
   });
 
@@ -255,10 +255,6 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      if (template.status !== "draft" && template.status !== "rejected") {
-        return res.status(400).json({ error: "Only draft or rejected templates can be edited" });
-      }
-      
       const updateSchema = createTemplateSchema.partial();
       const data = updateSchema.parse(req.body);
       
@@ -286,173 +282,11 @@ export async function registerRoutes(
         return res.status(403).json({ error: "Access denied" });
       }
       
-      if (template.status === "pending") {
-        return res.status(400).json({ error: "Cannot delete template under review" });
-      }
-      
       await storage.deleteTemplate(req.params.id);
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting template:", error);
       res.status(500).json({ error: "Failed to delete template" });
-    }
-  });
-
-  // Action-based POST for template operations (submit, approve, reject)
-  app.post("/api/templates/:id", isAuthenticated, async (req, res) => {
-    try {
-      const userId = (req as any).userId;
-      const { action } = req.body;
-      const template = await storage.getTemplate(req.params.id);
-      
-      if (!template) {
-        return res.status(404).json({ error: "Template not found" });
-      }
-      
-      if (template.userId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-
-      switch (action) {
-        case "submit": {
-          if (template.status !== "draft" && template.status !== "rejected") {
-            return res.status(400).json({ error: "Only draft or rejected templates can be submitted" });
-          }
-          const updated = await storage.updateTemplate(req.params.id, {
-            status: "pending",
-            submittedAt: new Date(),
-          } as any);
-          return res.json(updated);
-        }
-        
-        case "approve": {
-          if (template.status !== "pending") {
-            return res.status(400).json({ error: "Only pending templates can be approved" });
-          }
-          const updated = await storage.updateTemplate(req.params.id, {
-            status: "approved",
-            reviewedAt: new Date(),
-          } as any);
-          return res.json(updated);
-        }
-        
-        case "reject": {
-          if (template.status !== "pending") {
-            return res.status(400).json({ error: "Only pending templates can be rejected" });
-          }
-          const { reason } = req.body;
-          const updated = await storage.updateTemplate(req.params.id, {
-            status: "rejected",
-            rejectionReason: reason || "검수 기준에 부합하지 않습니다.",
-            reviewedAt: new Date(),
-          } as any);
-          return res.json(updated);
-        }
-        
-        default:
-          return res.status(400).json({ error: "Invalid action. Use 'submit', 'approve', or 'reject'." });
-      }
-    } catch (error) {
-      console.error("Error processing template action:", error);
-      res.status(500).json({ error: "Failed to process template action" });
-    }
-  });
-
-  // Template approval workflow (legacy routes)
-  app.post("/api/templates/:id/submit", isAuthenticated, async (req, res) => {
-    try {
-      const userId = (req as any).userId;
-      console.log("[DEBUG] Template submit - userId:", userId, "templateId:", req.params.id);
-      
-      const template = await storage.getTemplate(req.params.id);
-      console.log("[DEBUG] Template found:", template ? { id: template.id, status: template.status, userId: template.userId } : null);
-      
-      if (!template) {
-        console.log("[DEBUG] Template not found");
-        return res.status(404).json({ error: "Template not found" });
-      }
-      
-      if (template.userId !== userId) {
-        console.log("[DEBUG] Access denied - template.userId:", template.userId, "!== userId:", userId);
-        return res.status(403).json({ error: "Access denied" });
-      }
-      
-      if (template.status !== "draft" && template.status !== "rejected") {
-        console.log("[DEBUG] Invalid status for submit:", template.status);
-        return res.status(400).json({ error: "Only draft or rejected templates can be submitted for review" });
-      }
-      
-      const updatedTemplate = await storage.updateTemplate(req.params.id, {
-        status: "pending",
-        submittedAt: new Date(),
-      } as any);
-      console.log("[DEBUG] Template updated to pending:", updatedTemplate?.id);
-      
-      res.json(updatedTemplate);
-    } catch (error) {
-      console.error("[ERROR] Error submitting template:", error);
-      res.status(500).json({ error: "Failed to submit template for review" });
-    }
-  });
-
-  // Simulate template approval (in production, this would be an admin action)
-  app.post("/api/templates/:id/approve", isAuthenticated, async (req, res) => {
-    try {
-      const userId = (req as any).userId;
-      const template = await storage.getTemplate(req.params.id);
-      
-      if (!template) {
-        return res.status(404).json({ error: "Template not found" });
-      }
-      
-      if (template.userId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      
-      if (template.status !== "pending") {
-        return res.status(400).json({ error: "Only pending templates can be approved" });
-      }
-      
-      const updatedTemplate = await storage.updateTemplate(req.params.id, {
-        status: "approved",
-        reviewedAt: new Date(),
-      } as any);
-      
-      res.json(updatedTemplate);
-    } catch (error) {
-      console.error("Error approving template:", error);
-      res.status(500).json({ error: "Failed to approve template" });
-    }
-  });
-
-  app.post("/api/templates/:id/reject", isAuthenticated, async (req, res) => {
-    try {
-      const userId = (req as any).userId;
-      const { reason } = req.body;
-      const template = await storage.getTemplate(req.params.id);
-      
-      if (!template) {
-        return res.status(404).json({ error: "Template not found" });
-      }
-      
-      if (template.userId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
-      }
-      
-      if (template.status !== "pending") {
-        return res.status(400).json({ error: "Only pending templates can be rejected" });
-      }
-      
-      const updatedTemplate = await storage.updateTemplate(req.params.id, {
-        status: "rejected",
-        rejectionReason: reason || "검수 기준에 부합하지 않습니다.",
-        reviewedAt: new Date(),
-      } as any);
-      
-      res.json(updatedTemplate);
-    } catch (error) {
-      console.error("Error rejecting template:", error);
-      res.status(500).json({ error: "Failed to reject template" });
     }
   });
 

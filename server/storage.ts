@@ -224,7 +224,7 @@ export class DatabaseStorage implements IStorage {
     return db
       .select()
       .from(templates)
-      .where(and(eq(templates.userId, userId), eq(templates.status, 'approved')))
+      .where(eq(templates.userId, userId))
       .orderBy(desc(templates.createdAt));
   }
 

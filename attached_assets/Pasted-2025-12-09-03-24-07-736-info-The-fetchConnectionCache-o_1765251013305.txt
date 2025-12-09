@@ -1,0 +1,67 @@
+2025-12-09 03:24:07.736 [info] The `fetchConnectionCache` option is deprecated (now always `true`)
+2025-12-09 03:24:07.917 [info] [BizChat Submit] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-09 03:24:07.917 [info] [BizChat Submit] Environment: DEVELOPMENT (VERCEL_ENV=production)
+2025-12-09 03:24:07.923 [error] (node:4) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2025-12-09 03:24:08.986 [info] [Submit] sndMosuQuery (string): {"age":{"min":20,"max":60},"region":["서울"]}
+2025-12-09 03:24:08.986 [info] [Submit] sndMosuDesc (html): <html><body><p>나이: 20~60세, 지역: 서울</p></body></html>
+2025-12-09 03:24:08.986 [info] [Submit] atsSndStartDate (adjusted): 1765429200 2025-12-11T05:00:00.000Z
+2025-12-09 03:24:08.986 [info] [Submit] Creating campaign in BizChat...
+2025-12-09 03:24:08.986 [info] [Submit] Full createPayload: {
+  "tgtCompanyName": "위픽",
+  "name": "251209",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 1000,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 1000,
+  "sndMosu": 1500,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "cb": {
+    "state": "https://wepickbizchat-k0ubyhi2u-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlLink": {}
+  },
+  "rcs": [],
+  "sndMosuQuery": "{\"age\":{\"min\":20,\"max\":60},\"region\":[\"서울\"]}",
+  "sndMosuDesc": "<html><body><p>나이: 20~60세, 지역: 서울</p></body></html>",
+  "atsSndStartDate": 1765429200
+}
+2025-12-09 03:24:08.987 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-09 03:24:08.987 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-09 03:24:08.987 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-09 03:24:08.987 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-09 03:24:08.987 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/create?tid=1765250648986
+2025-12-09 03:24:08.987 [info] [BizChat] Request body: {
+  "tgtCompanyName": "위픽",
+  "name": "251209",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 1000,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 1000,
+  "sndMosu": 1500,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "cb": {
+    "state": "https://wepickbizchat-k0ubyhi2u-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlLink": {}
+  },
+  "rcs": [],
+  "sndMosuQuery": "{\"age\":{\"min\":20,\"max\":60},\"region\":[\"서울\"]}",
+  "sndMosuDesc": "<html><body><p>나이: 20~60세, 지역: 서울</p></body></html>",
+  "atsSndStartDate": 1765429200
+}
+2025-12-09 03:24:09.702 [info] [BizChat] Response: 400 - {"tid":"1765250648986","code":"E001006","msg":"ATS error"}
+2025-12-09 03:24:09.703 [error] [Submit] BizChat API error: { tid: '1765250648986', code: 'E001006', msg: 'ATS error' }
