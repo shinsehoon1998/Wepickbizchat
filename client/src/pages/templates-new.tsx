@@ -10,12 +10,9 @@ import {
   Image as ImageIcon, 
   Smartphone,
   Eye,
-  Send,
   Save,
   Edit,
   CheckCircle,
-  XCircle,
-  Clock,
   Upload,
   X,
   Loader2,
@@ -68,18 +65,6 @@ function navigate(href: string) {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
-function getStatusBadge(status: string) {
-  switch (status) {
-    case "approved":
-      return <Badge variant="default" className="bg-success text-success-foreground gap-1"><CheckCircle className="h-3 w-3" />승인됨</Badge>;
-    case "rejected":
-      return <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" />반려됨</Badge>;
-    case "pending":
-      return <Badge variant="secondary" className="gap-1"><Clock className="h-3 w-3" />검수 대기</Badge>;
-    default:
-      return <Badge variant="outline" className="gap-1"><Edit className="h-3 w-3" />작성 중</Badge>;
-  }
-}
 
 const RCS_TYPES = [
   { value: 0, label: "스탠다드", maxChars: 1100, imageSpec: "400x240 또는 500x300, 최대 0.3MB" },
@@ -289,7 +274,7 @@ export default function TemplatesNew() {
       queryClient.invalidateQueries({ queryKey: ["/api/templates"] });
       toast({
         title: "템플릿 생성 완료",
-        description: "새 템플릿이 저장되었어요. 검수를 요청하면 승인 후 사용할 수 있어요.",
+        description: "새 템플릿이 저장되었어요. 이제 캠페인에서 사용할 수 있어요.",
       });
       navigate("/templates");
     },
@@ -424,9 +409,9 @@ export default function TemplatesNew() {
     ? "템플릿 상세 정보를 확인하세요"
     : isEditMode
     ? "템플릿 정보를 수정하세요"
-    : "메시지 템플릿을 작성하고 검수를 받아보세요";
+    : "메시지 템플릿을 작성하고 캠페인에 활용해보세요";
 
-  const canEdit = existingTemplate && (existingTemplate.status === "draft" || existingTemplate.status === "rejected");
+  const canEdit = !!existingTemplate;
   const isPending = createMutation.isPending || updateMutation.isPending;
   const showImageUpload = needsImage(watchedValues.messageType, watchedValues.rcsType);
   const imageSpec = getImageSpec();
@@ -446,7 +431,6 @@ export default function TemplatesNew() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-display font-bold">{pageTitle}</h1>
-              {existingTemplate && getStatusBadge(existingTemplate.status)}
             </div>
             <p className="text-muted-foreground mt-1">
               {pageDescription}
@@ -842,39 +826,6 @@ export default function TemplatesNew() {
         </Card>
       </div>
 
-      {!isViewMode && (
-        <Card className="bg-accent/50 border-accent">
-          <CardContent className="py-4">
-            <div className="flex items-start gap-3">
-              <Send className="h-5 w-5 text-primary mt-0.5" />
-              <div>
-                <h3 className="font-medium text-body">검수 안내</h3>
-                <p className="text-small text-muted-foreground mt-1">
-                  템플릿을 저장한 후 검수 요청을 하면 SK코어타겟 담당자가 내용을 검토해요.
-                  승인이 완료되면 이 템플릿으로 캠페인을 만들 수 있어요.
-                  검수는 보통 1-2 영업일 내에 완료됩니다.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {isViewMode && existingTemplate?.rejectionReason && (
-        <Card className="bg-destructive/10 border-destructive/30">
-          <CardContent className="py-4">
-            <div className="flex items-start gap-3">
-              <XCircle className="h-5 w-5 text-destructive mt-0.5" />
-              <div>
-                <h3 className="font-medium text-body text-destructive">반려 사유</h3>
-                <p className="text-small text-muted-foreground mt-1">
-                  {existingTemplate.rejectionReason}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
