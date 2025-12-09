@@ -563,7 +563,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
 
       // 타겟팅 정보 추가 (ATS 발송 모수 필터)
-      // BizChat API 규격 v0.29.0: sndMosuQuery는 $and/$or + metaType 형식이어야 함
+      // BizChat API 규격 v0.29.0: sndMosuQuery는 JSON 객체로 전송해야 함
       let convertedDesc = '';
       if (campaign.sndMosuQuery) {
         const queryString = typeof campaign.sndMosuQuery === 'string' 
@@ -572,9 +572,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         // 구형 형식인 경우 변환
         const { query: convertedQuery, desc } = convertLegacySndMosuQuery(queryString);
-        createPayload.sndMosuQuery = convertedQuery;
+        // BizChat API는 sndMosuQuery를 JSON 객체로 기대함 (문자열이 아닌)
+        try {
+          createPayload.sndMosuQuery = JSON.parse(convertedQuery);
+        } catch {
+          createPayload.sndMosuQuery = { '$and': [] };
+        }
         convertedDesc = desc;
-        console.log('[Submit] sndMosuQuery (converted):', convertedQuery);
+        console.log('[Submit] sndMosuQuery (converted, as object):', JSON.stringify(createPayload.sndMosuQuery));
       }
       
       // BizChat API 규격: sndMosuDesc는 HTML 형식이어야 함
