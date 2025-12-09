@@ -172,7 +172,8 @@ async function callBizChatAPI(
 
   if (body && method === 'POST') {
     options.body = JSON.stringify(body);
-    console.log(`[BizChat] Request body:`, JSON.stringify(body).substring(0, 800));
+    // 전체 Request body 로깅 (truncation 없이)
+    console.log(`[BizChat] Request body:`, JSON.stringify(body, null, 2));
   }
 
   const response = await fetch(url, options);
@@ -259,11 +260,19 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
   }
 
   // 발송 모수 필터 설명/쿼리 (ATS 타겟팅 정보)
+  // BizChat API 규격: sndMosuDesc는 HTML 형식이어야 함
+  // 예: "<html><body><p>서울시 강남구, 남자, 25세 이상</p></body></html>"
   if (campaign.sndMosuDesc) {
-    payload.sndMosuDesc = campaign.sndMosuDesc;
+    const desc = campaign.sndMosuDesc;
+    const isHtml = typeof desc === 'string' && (desc.startsWith('<html>') || desc.includes('<body>'));
+    payload.sndMosuDesc = isHtml 
+      ? desc 
+      : `<html><body><p>${desc}</p></body></html>`;
   }
+  // BizChat API 규격: sndMosuQuery는 JSON 문자열이어야 함
   if (campaign.sndMosuQuery) {
-    payload.sndMosuQuery = campaign.sndMosuQuery;
+    const query = campaign.sndMosuQuery;
+    payload.sndMosuQuery = typeof query === 'string' ? query : JSON.stringify(query);
   }
 
   // RCS 타입 (200 = RCS 아님)
@@ -297,16 +306,21 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
     }));
   }
 
-  // MMS 메시지 객체 (LMS/MMS 공통)
+  // MMS 메시지 객체 (BizChat API 규격 v0.29.0)
+  // - mms.title: 메시지 제목 (최대 30자)
+  // - mms.msg: 메시지 본문 (최대 1000자)
+  // - mms.fileInfo: 이미지 파일 정보 (파일이 없으면 empty object {})
+  // - mms.urlLink: 마케팅 URL 정보 (링크가 없으면 empty object {})
   const mmsUrlList: string[] = message?.urlLinks || message?.urls || [];
+  const mmsUrlLink = mmsUrlList.length > 0 
+    ? { list: mmsUrlList.slice(0, 3), reward: message?.urlLinkReward }
+    : {}; // 링크가 없으면 empty object (규격 준수)
+    
   payload.mms = {
     title: message?.title || '',
-    msg: message?.content || '',  // 문서 규격: body가 아닌 msg
-    fileInfo: {},
-    urlLink: { 
-      list: mmsUrlList.slice(0, 3), // 최대 3개
-      reward: message?.urlLinkReward, // 리워드 URL index
-    },
+    msg: message?.content || '',
+    fileInfo: {}, // 파일이 없으면 empty object
+    urlLink: mmsUrlLink,
   };
 
   // MMS 이미지 첨부
@@ -328,28 +342,40 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
     };
   }
 
-  // RCS 메시지 배열
+  // RCS 메시지 배열 (BizChat API 규격 v0.29.0)
+  // - billingType이 RCS(1 또는 3)인 경우 필수
+  // - rcs[].urlLink: 링크가 없으면 empty object
+  // - rcs[].buttons: 버튼이 없으면 empty object
   if (campaign.messageType === 'RCS') {
     const rcsSlides = message?.rcsSlides || [{ slideNum: 1 }];
     const rcsUrlList: string[] = message?.rcsUrls || mmsUrlList;
     const rcsButtons: RcsButton[] = message?.rcsButtons || [];
     
-    payload.rcs = rcsSlides.map((slide: any, idx: number) => ({
-      slideNum: slide.slideNum || idx + 1,
-      title: slide.title || message?.title || '',
-      msg: slide.msg || slide.content || message?.content || '',
-      imgOrigId: slide.imgOrigId || slide.imageUrl,
-      urlFile: slide.urlFile,
-      urlFileReward: slide.urlFileReward,
-      urlLink: { 
-        list: slide.urls || rcsUrlList.slice(0, 3),
-        reward: slide.urlLinkReward || message?.rcsUrlLinkReward,
-      },
-      buttons: { 
-        list: slide.buttons || rcsButtons.slice(0, 2), // 슬라이드별 최대 2개
-      },
-      opts: slide.opts, // 상품소개세로 옵션
-    }));
+    payload.rcs = rcsSlides.map((slide: any, idx: number) => {
+      // URL 링크 객체 구성 (없으면 empty object)
+      const slideUrls = slide.urls || rcsUrlList.slice(0, 3);
+      const urlLink = slideUrls.length > 0 
+        ? { list: slideUrls, reward: slide.urlLinkReward || message?.rcsUrlLinkReward }
+        : {}; // 링크가 없으면 empty object
+      
+      // 버튼 객체 구성 (없으면 empty object)
+      const buttonList = slide.buttons || rcsButtons.slice(0, 2);
+      const buttons = buttonList.length > 0 
+        ? { list: buttonList }
+        : {}; // 버튼이 없으면 empty object
+        
+      return {
+        slideNum: slide.slideNum || idx + 1,
+        title: slide.title || message?.title || '',
+        msg: slide.msg || slide.content || message?.content || '',
+        imgOrigId: slide.imgOrigId || slide.imageUrl,
+        urlFile: slide.urlFile,
+        urlFileReward: slide.urlFileReward,
+        urlLink,
+        buttons,
+        opts: slide.opts, // 상품소개세로 옵션
+      };
+    });
   } else {
     payload.rcs = [];
   }

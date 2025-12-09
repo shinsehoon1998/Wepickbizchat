@@ -180,7 +180,8 @@ async function callBizChatAPI(
 
   if (body && method === 'POST') {
     options.body = JSON.stringify(body);
-    console.log(`[BizChat] Request body:`, JSON.stringify(body).substring(0, 1000));
+    // 전체 Request body 로깅 (truncation 없이)
+    console.log(`[BizChat] Request body:`, JSON.stringify(body, null, 2));
   }
 
   const response = await fetch(url, options);
@@ -213,7 +214,7 @@ function buildAtsQuery(targetingData: {
   locationTypes?: string[];
   mobilityPatterns?: string[];
   geofenceIds?: string[];
-}): { query: Record<string, unknown>; description: string } {
+}): { query: Record<string, unknown>; description: string; htmlDescription: string } {
   const query: Record<string, unknown> = {};
   const descParts: string[] = [];
 
@@ -291,10 +292,104 @@ function buildAtsQuery(targetingData: {
     descParts.push(`지오펜스: ${targetingData.geofenceIds.length}개`);
   }
 
+  const plainDescription = descParts.length > 0 ? descParts.join(', ') : '전체 대상';
+  
+  // BizChat API 규격: sndMosuDesc는 HTML 형식이어야 함
+  // 예: "<html><body><p>서울시 강남구, 남자, 25세 이상</p></body></html>"
+  const htmlDescription = `<html><body><p>${plainDescription}</p></body></html>`;
+
   return {
     query,
-    description: descParts.length > 0 ? descParts.join(' | ') : '전체 대상',
+    description: plainDescription,
+    htmlDescription,
   };
+}
+
+// 발송 시간 유효성 검증 (BizChat API 규격)
+// 1. 현재 시간 대비 1시간 이후여야 함
+// 2. 9시부터 19시(19시 미포함) 사이여야 함
+// 3. 10분 단위로 시간 체크
+function validateSendTime(sendDate: Date | string | null): { valid: boolean; error?: string; adjustedDate?: Date } {
+  if (!sendDate) {
+    return { valid: true };
+  }
+  
+  const targetDate = typeof sendDate === 'string' ? new Date(sendDate) : new Date(sendDate);
+  const now = new Date();
+  
+  // 1. 발송 시간대 체크 (09:00~19:00, 19시 미포함)
+  const targetHour = targetDate.getHours();
+  if (targetHour < 9 || targetHour >= 19) {
+    return { 
+      valid: false, 
+      error: '발송 시간은 09:00~19:00 사이여야 합니다 (19시 이전)' 
+    };
+  }
+  
+  // 2. 최소 1시간 여유 체크
+  const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+  if (targetDate < oneHourFromNow) {
+    return { 
+      valid: false, 
+      error: '발송 시간은 현재 시간으로부터 최소 1시간 이후여야 합니다' 
+    };
+  }
+  
+  // 3. 10분 단위 체크 (BizChat 규격: 10분 단위로만 시작 가능)
+  // 10분 단위가 아니면 올림 처리
+  const adjustedDate = new Date(targetDate);
+  adjustedDate.setSeconds(0);
+  adjustedDate.setMilliseconds(0);
+  
+  const targetMinutes = adjustedDate.getMinutes();
+  const remainder = targetMinutes % 10;
+  if (remainder !== 0) {
+    adjustedDate.setMinutes(targetMinutes + (10 - remainder));
+    if (adjustedDate.getMinutes() === 0) {
+      // 시간이 넘어간 경우 (예: 59분 → 00분)
+      // 이미 setMinutes에서 자동으로 시간이 증가됨
+    }
+  }
+  
+  // 조정된 시간이 19시 이상이면 에러
+  if (adjustedDate.getHours() >= 19) {
+    return { 
+      valid: false, 
+      error: '발송 시간은 19:00 이전이어야 합니다' 
+    };
+  }
+  
+  return { valid: true, adjustedDate };
+}
+
+// 문자열 길이 검증 (BizChat API 규격)
+function validateStringLengths(data: {
+  name?: string;
+  tgtCompanyName?: string;
+  title?: string;
+  msg?: string;
+}): { valid: boolean; error?: string } {
+  // 캠페인명: 최대 40자
+  if (data.name && data.name.length > 40) {
+    return { valid: false, error: `캠페인명은 최대 40자까지 입력 가능합니다 (현재: ${data.name.length}자)` };
+  }
+  
+  // 고객사명: 최대 100자
+  if (data.tgtCompanyName && data.tgtCompanyName.length > 100) {
+    return { valid: false, error: `고객사명은 최대 100자까지 입력 가능합니다 (현재: ${data.tgtCompanyName.length}자)` };
+  }
+  
+  // 메시지 제목: 최대 30자
+  if (data.title && data.title.length > 30) {
+    return { valid: false, error: `메시지 제목은 최대 30자까지 입력 가능합니다 (현재: ${data.title.length}자)` };
+  }
+  
+  // 메시지 본문: 최대 1000자
+  if (data.msg && data.msg.length > 1000) {
+    return { valid: false, error: `메시지 본문은 최대 1000자까지 입력 가능합니다 (현재: ${data.msg.length}자)` };
+  }
+  
+  return { valid: true };
 }
 
 // BizChat 캠페인 생성 (POST /api/v1/cmpn/create)
@@ -387,11 +482,16 @@ async function createCampaignInBizChat(
     cb: {
       state: `${CALLBACK_BASE_URL}/api/bizchat/callback/state`,
     },
+    // MMS 메시지 객체 (BizChat API 규격 v0.29.0)
+    // - mms.title: 메시지 제목 (최대 30자)
+    // - mms.msg: 메시지 본문 (최대 1000자)
+    // - mms.fileInfo: 이미지 파일 정보 (파일이 없으면 empty object {})
+    // - mms.urlLink: 마케팅 URL 정보 (링크가 없으면 empty object {})
     mms: {
       title: messageData.title || '',
       msg: messageData.content || '',
-      fileInfo: {},
-      urlLink: { list: [] },
+      fileInfo: {}, // 파일이 포함되지 않으면 empty object
+      urlLink: {}, // 링크가 없으면 empty object (규격 준수)
     },
     rcs: [],
   };
@@ -566,6 +666,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const atsSndStartDate = data.scheduledAt ? new Date(data.scheduledAt) : defaultSendDate;
 
       try {
+        // 문자열 길이 검증
+        const lengthValidation = validateStringLengths({
+          name: data.name,
+          tgtCompanyName: '위픽',
+          title: template.title || undefined,
+          msg: template.content,
+        });
+        if (!lengthValidation.valid) {
+          return res.status(400).json({ error: lengthValidation.error });
+        }
+
         const bizchatResult = await createCampaignInBizChat(
           {
             name: data.name,
@@ -576,7 +687,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             rcvType: 0,
             atsSndStartDate: atsSndStartDate,
             sndMosuQuery: JSON.stringify(atsResult.query),
-            sndMosuDesc: atsResult.description,
+            // BizChat API 규격: sndMosuDesc는 HTML 형식이어야 함
+            sndMosuDesc: atsResult.htmlDescription,
           },
           {
             title: template.title || undefined,

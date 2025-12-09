@@ -131,7 +131,8 @@ async function callBizChatAPI(
 
   if (body && method === 'POST') {
     options.body = JSON.stringify(body);
-    console.log(`[BizChat] Request body:`, JSON.stringify(body).substring(0, 800));
+    // 전체 Request body 로깅 (truncation 없이)
+    console.log(`[BizChat] Request body:`, JSON.stringify(body, null, 2));
   }
 
   const response = await fetch(url, options);
@@ -255,18 +256,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         cb: {
           state: `${CALLBACK_BASE_URL}/api/bizchat/callback/state`,
         },
+        // MMS 메시지 객체 (BizChat API 규격 v0.29.0)
+        // - mms.fileInfo: 이미지 파일 정보 (파일이 없으면 empty object {})
+        // - mms.urlLink: 마케팅 URL 정보 (링크가 없으면 empty object {})
         mms: {
           title: message?.title || '',
           msg: message?.content || '',
-          fileInfo: {},
-          urlLink: { list: [] },
+          fileInfo: {}, // 파일이 없으면 empty object
+          urlLink: {}, // 링크가 없으면 empty object (규격 준수)
         },
+        // RCS 메시지 배열 (billingType이 RCS인 경우에만 필요)
         rcs: campaign.messageType === 'RCS' ? [{
           slideNum: 1,
           title: message?.title || '',
           msg: message?.content || '',
-          urlLink: { list: [] },
-          buttons: { list: [] },
+          urlLink: {}, // 링크가 없으면 empty object
+          buttons: {}, // 버튼이 없으면 empty object
         }] : [],
       };
 
@@ -280,8 +285,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         createPayload.sndMosuQuery = queryString;
         console.log('[Submit] sndMosuQuery (string):', queryString);
       }
+      // BizChat API 규격: sndMosuDesc는 HTML 형식이어야 함
+      // 예: "<html><body><p>서울시 강남구, 남자, 25세 이상</p></body></html>"
       if (campaign.sndMosuDesc) {
-        createPayload.sndMosuDesc = campaign.sndMosuDesc;
+        // 이미 HTML 형식이면 그대로 사용, 아니면 HTML로 감싸기
+        const desc = campaign.sndMosuDesc;
+        const isHtml = desc.startsWith('<html>') || desc.includes('<body>');
+        createPayload.sndMosuDesc = isHtml 
+          ? desc 
+          : `<html><body><p>${desc}</p></body></html>`;
+        console.log('[Submit] sndMosuDesc (html):', createPayload.sndMosuDesc);
       }
 
       if (scheduledAt) {
