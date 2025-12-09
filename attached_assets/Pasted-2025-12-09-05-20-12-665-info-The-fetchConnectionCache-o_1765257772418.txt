@@ -1,0 +1,146 @@
+2025-12-09 05:20:12.665 [info] The `fetchConnectionCache` option is deprecated (now always `true`)
+2025-12-09 05:20:12.832 [info] [BizChat Submit] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-09 05:20:12.833 [info] [BizChat Submit] Environment: DEVELOPMENT (VERCEL_ENV=production)
+2025-12-09 05:20:12.849 [error] (node:4) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2025-12-09 05:20:13.904 [info] [Submit] Converted legacy sndMosuQuery: {"$and":[{"data":{"gt":20,"lt":60},"dataType":"number","metaType":"svc","code":"cust_age_cd","desc":"연령: 20세 ~ 60세","not":false},{"data":["1"],"dataType":"code","metaType":"svc","code":"sex_cd","desc":"성별: 남자","not":false},{"data":["41","31","46","47","36","11"],"dataType":"code","metaType":"loc","code":"home_location","desc":"추정 집주소: 경기, 울산, 전남, 경북, 세종, 서울","not":false}]}
+2025-12-09 05:20:13.904 [info] [Submit] sndMosuQuery (converted, as object): {"$and":[{"data":{"gt":20,"lt":60},"dataType":"number","metaType":"svc","code":"cust_age_cd","desc":"연령: 20세 ~ 60세","not":false},{"data":["1"],"dataType":"code","metaType":"svc","code":"sex_cd","desc":"성별: 남자","not":false},{"data":["41","31","46","47","36","11"],"dataType":"code","metaType":"loc","code":"home_location","desc":"추정 집주소: 경기, 울산, 전남, 경북, 세종, 서울","not":false}]}
+2025-12-09 05:20:13.904 [info] [Submit] sndMosuDesc (html): <html><body><p>성별: 남성, 나이: 20~60세, 지역: 경기, 울산, 전남, 경북, 세종, 서울</p></body></html>
+2025-12-09 05:20:13.904 [info] [Submit] atsSndStartDate (adjusted): 1765429800 2025-12-11T05:10:00.000Z
+2025-12-09 05:20:13.904 [info] [Submit] Creating campaign in BizChat...
+2025-12-09 05:20:13.904 [info] [Submit] Full createPayload: {
+  "tgtCompanyName": "위픽",
+  "name": "２５１２０９위픽",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 1000,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 1000,
+  "sndMosu": 1500,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "cb": {
+    "state": "https://wepickbizchat-5komorhzc-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlLink": {}
+  },
+  "rcs": [],
+  "sndMosuQuery": {
+    "$and": [
+      {
+        "data": {
+          "gt": 20,
+          "lt": 60
+        },
+        "dataType": "number",
+        "metaType": "svc",
+        "code": "cust_age_cd",
+        "desc": "연령: 20세 ~ 60세",
+        "not": false
+      },
+      {
+        "data": [
+          "1"
+        ],
+        "dataType": "code",
+        "metaType": "svc",
+        "code": "sex_cd",
+        "desc": "성별: 남자",
+        "not": false
+      },
+      {
+        "data": [
+          "41",
+          "31",
+          "46",
+          "47",
+          "36",
+          "11"
+        ],
+        "dataType": "code",
+        "metaType": "loc",
+        "code": "home_location",
+        "desc": "추정 집주소: 경기, 울산, 전남, 경북, 세종, 서울",
+        "not": false
+      }
+    ]
+  },
+  "sndMosuDesc": "<html><body><p>성별: 남성, 나이: 20~60세, 지역: 경기, 울산, 전남, 경북, 세종, 서울</p></body></html>",
+  "atsSndStartDate": 1765429800
+}
+2025-12-09 05:20:13.905 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-09 05:20:13.905 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-09 05:20:13.905 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-09 05:20:13.905 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-09 05:20:13.905 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/create?tid=1765257613905
+2025-12-09 05:20:13.905 [info] [BizChat] Request body: {
+  "tgtCompanyName": "위픽",
+  "name": "２５１２０９위픽",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 1000,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 1000,
+  "sndMosu": 1500,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "cb": {
+    "state": "https://wepickbizchat-5komorhzc-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlLink": {}
+  },
+  "rcs": [],
+  "sndMosuQuery": {
+    "$and": [
+      {
+        "data": {
+          "gt": 20,
+          "lt": 60
+        },
+        "dataType": "number",
+        "metaType": "svc",
+        "code": "cust_age_cd",
+        "desc": "연령: 20세 ~ 60세",
+        "not": false
+      },
+      {
+        "data": [
+          "1"
+        ],
+        "dataType": "code",
+        "metaType": "svc",
+        "code": "sex_cd",
+        "desc": "성별: 남자",
+        "not": false
+      },
+      {
+        "data": [
+          "41",
+          "31",
+          "46",
+          "47",
+          "36",
+          "11"
+        ],
+        "dataType": "code",
+        "metaType": "loc",
+        "code": "home_location",
+        "desc": "추정 집주소: 경기, 울산, 전남, 경북, 세종, 서울",
+        "not": false
+      }
+    ]
+  },
+  "sndMosuDesc": "<html><body><p>성별: 남성, 나이: 20~60세, 지역: 경기, 울산, 전남, 경북, 세종, 서울</p></body></html>",
+  "atsSndStartDate": 1765429800
+}
+2025-12-09 05:20:14.000 [info] [BizChat] Response: 400 - {"tid":"1765257613905","code":"E000002","msg":"Invalid request"}
+2025-12-09 05:20:14.000 [error] [Submit] BizChat API error: { tid: '1765257613905', code: 'E000002', msg: 'Invalid request' }
