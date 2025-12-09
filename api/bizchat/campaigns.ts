@@ -84,8 +84,21 @@ function toUnixTimestamp(date: Date | string | null): number | undefined {
   return Math.floor(d.getTime() / 1000);
 }
 
-// 발송 시간 유효성 검증 (09:00~20:00, 1시간 전 승인 요청 필요, 10분 단위)
-function validateSendTime(sendDate: Date | string | null): { valid: boolean; error?: string } {
+// 한국 시간대(KST, UTC+9) 기준으로 시간 정보 추출
+function getKSTTimeComponents(date: Date): { hours: number; minutes: number; date: Date } {
+  // KST는 UTC+9
+  const kstOffset = 9 * 60; // 분 단위
+  const utcTime = date.getTime() + (date.getTimezoneOffset() * 60 * 1000);
+  const kstTime = new Date(utcTime + (kstOffset * 60 * 1000));
+  return {
+    hours: kstTime.getHours(),
+    minutes: kstTime.getMinutes(),
+    date: kstTime,
+  };
+}
+
+// 발송 시간 유효성 검증 (09:00~20:00 KST, 1시간 전 승인 요청 필요, 10분 단위)
+function validateSendTime(sendDate: Date | string | null): { valid: boolean; error?: string; adjustedDate?: Date } {
   if (!sendDate) {
     return { valid: true };
   }
@@ -93,12 +106,14 @@ function validateSendTime(sendDate: Date | string | null): { valid: boolean; err
   const targetDate = typeof sendDate === 'string' ? new Date(sendDate) : sendDate;
   const now = new Date();
   
-  // 1. 발송 시간대 체크 (09:00~20:00)
-  const targetHour = targetDate.getHours();
-  if (targetHour < 9 || targetHour >= 20) {
+  // KST 기준 시간 추출
+  const kstTarget = getKSTTimeComponents(targetDate);
+  
+  // 1. 발송 시간대 체크 (09:00~20:00 KST)
+  if (kstTarget.hours < 9 || kstTarget.hours >= 20) {
     return { 
       valid: false, 
-      error: '발송 시간은 09:00~20:00 사이여야 합니다' 
+      error: `발송 시간은 09:00~19:00 사이여야 합니다 (현재: ${kstTarget.hours}:${kstTarget.minutes.toString().padStart(2, '0')} KST)` 
     };
   }
   
@@ -113,7 +128,7 @@ function validateSendTime(sendDate: Date | string | null): { valid: boolean; err
   
   // 3. 10분 단위 체크 (BizChat 규격: 10분 단위로만 시작 가능)
   // 예: 10:11에 11:15 시작 → 실패, 11:20 → 성공
-  const targetMinutes = targetDate.getMinutes();
+  const targetMinutes = kstTarget.minutes;
   if (targetMinutes % 10 !== 0) {
     const roundedUp = Math.ceil(targetMinutes / 10) * 10;
     const suggestedTime = new Date(targetDate);

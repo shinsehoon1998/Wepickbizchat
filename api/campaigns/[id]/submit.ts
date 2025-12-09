@@ -92,9 +92,22 @@ function toUnixTimestamp(date: Date | string | null): number | undefined {
   return Math.floor(d.getTime() / 1000);
 }
 
+// 한국 시간대(KST, UTC+9) 기준으로 시간 정보 추출
+function getKSTTimeComponents(date: Date): { hours: number; minutes: number; date: Date } {
+  // KST는 UTC+9
+  const kstOffset = 9 * 60; // 분 단위
+  const utcTime = date.getTime() + (date.getTimezoneOffset() * 60 * 1000);
+  const kstTime = new Date(utcTime + (kstOffset * 60 * 1000));
+  return {
+    hours: kstTime.getHours(),
+    minutes: kstTime.getMinutes(),
+    date: kstTime,
+  };
+}
+
 // 발송 시간 유효성 검증 (BizChat API 규격 v0.29.0)
 // 1. 현재 시간 대비 1시간 이후여야 함
-// 2. 9시부터 19시(19시 미포함) 사이여야 함
+// 2. 9시부터 19시(19시 미포함) 사이여야 함 (KST 기준)
 // 3. 10분 단위로 시간 체크
 function validateSendTime(sendDate: Date | string | null): { valid: boolean; error?: string; adjustedDate?: Date } {
   if (!sendDate) return { valid: true };
@@ -102,10 +115,15 @@ function validateSendTime(sendDate: Date | string | null): { valid: boolean; err
   const targetDate = typeof sendDate === 'string' ? new Date(sendDate) : new Date(sendDate);
   const now = new Date();
   
-  // 1. 발송 시간대 체크 (09:00~19:00, 19시 미포함)
-  const targetHour = targetDate.getHours();
-  if (targetHour < 9 || targetHour >= 19) {
-    return { valid: false, error: '발송 시간은 09:00~19:00 사이여야 합니다' };
+  // KST 기준 시간 추출
+  const kstTarget = getKSTTimeComponents(targetDate);
+  
+  // 1. 발송 시간대 체크 (09:00~19:00, 19시 미포함) - KST 기준
+  if (kstTarget.hours < 9 || kstTarget.hours >= 19) {
+    return { 
+      valid: false, 
+      error: `발송 시간은 09:00~19:00 사이여야 합니다 (현재: ${kstTarget.hours}:${kstTarget.minutes.toString().padStart(2, '0')} KST)` 
+    };
   }
   
   // 2. 최소 1시간 여유 체크
@@ -124,8 +142,10 @@ function validateSendTime(sendDate: Date | string | null): { valid: boolean; err
     adjustedDate.setMinutes(minutes + (10 - remainder));
   }
   
-  if (adjustedDate.getHours() >= 19) {
-    return { valid: false, error: '발송 시간은 19:00 이전이어야 합니다' };
+  // 조정 후 KST 기준으로 다시 체크
+  const kstAdjusted = getKSTTimeComponents(adjustedDate);
+  if (kstAdjusted.hours >= 19) {
+    return { valid: false, error: '발송 시간은 19:00 이전이어야 합니다 (KST)' };
   }
   
   return { valid: true, adjustedDate };
