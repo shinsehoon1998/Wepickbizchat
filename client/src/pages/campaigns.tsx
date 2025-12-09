@@ -12,6 +12,7 @@ import {
   Calendar,
   Clock,
   Play,
+  FileCheck,
 } from "lucide-react";
 import { useState } from "react";
 import { formatCurrency, formatNumber, formatDateTime, getMessageTypeLabel, CAMPAIGN_STATUS } from "@/lib/authUtils";
@@ -107,10 +108,10 @@ export default function Campaigns() {
       queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
       toast({
-        title: isScheduled ? "예약 발송 완료" : "발송 요청 완료",
+        title: isScheduled ? "예약 발송 완료" : "승인요청 완료",
         description: isScheduled 
           ? `${scheduleDate} ${scheduleTime}에 발송될 예정이에요.`
-          : "캠페인 발송 요청이 완료되었어요. 승인 후 발송됩니다.",
+          : "캠페인 승인요청이 완료되었어요. 승인 후 발송됩니다.",
       });
       setSendDialogOpen(false);
       setCampaignToSend(null);
@@ -120,8 +121,8 @@ export default function Campaigns() {
     },
     onError: (error: Error) => {
       toast({
-        title: "발송 요청 실패",
-        description: error.message || "캠페인 발송 요청에 실패했어요.",
+        title: "승인요청 실패",
+        description: error.message || "캠페인 승인요청에 실패했어요.",
         variant: "destructive",
       });
     },
@@ -135,6 +136,11 @@ export default function Campaigns() {
   const handleSendClick = (campaign: Campaign) => {
     setCampaignToSend(campaign);
     setSendDialogOpen(true);
+  };
+
+  // 바로 승인요청 (다이얼로그 없이)
+  const handleApprovalRequest = (campaign: Campaign) => {
+    sendMutation.mutate({ id: campaign.id });
   };
 
   const confirmDelete = () => {
@@ -256,11 +262,12 @@ export default function Campaigns() {
                         variant="default"
                         size="sm"
                         className="gap-2"
-                        onClick={() => handleSendClick(campaign)}
-                        data-testid={`button-send-${campaign.id}`}
+                        onClick={() => handleApprovalRequest(campaign)}
+                        disabled={sendMutation.isPending}
+                        data-testid={`button-approval-request-${campaign.id}`}
                       >
-                        <Send className="h-4 w-4" />
-                        발송하기
+                        <FileCheck className="h-4 w-4" />
+                        {sendMutation.isPending ? "요청 중..." : "승인요청"}
                       </Button>
                     )}
                     <DropdownMenu>
