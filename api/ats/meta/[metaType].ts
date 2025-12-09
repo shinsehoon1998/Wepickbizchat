@@ -1,5 +1,4 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { neon } from '@neondatabase/serverless';
 
 function getSimulatedAtsMeta(metaType: string) {
   switch (metaType) {
@@ -75,29 +74,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Invalid meta type' });
   }
 
-  try {
-    const sql = neon(process.env.DATABASE_URL!);
-    
-    const cachedMeta = await sql`
-      SELECT * FROM ats_meta WHERE meta_type = ${metaType} ORDER BY category_code
-    `;
-    
-    if (cachedMeta.length > 0) {
-      const formattedMeta = cachedMeta.map(row => ({
-        categoryCode: row.category_code,
-        categoryName: row.category_name,
-        level: row.level,
-        parentCode: row.parent_code,
-        metadata: row.metadata,
-      }));
-      return res.status(200).json(formattedMeta);
-    }
-    
-    const simulatedMeta = getSimulatedAtsMeta(metaType);
-    return res.status(200).json(simulatedMeta);
-  } catch (error) {
-    console.error('[ATS Meta] Error:', error);
-    const simulatedMeta = getSimulatedAtsMeta(metaType);
-    return res.status(200).json(simulatedMeta);
-  }
+  const simulatedMeta = getSimulatedAtsMeta(metaType);
+  return res.status(200).json(simulatedMeta);
 }

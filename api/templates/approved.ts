@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { neon, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
 neonConfig.fetchConnectionCache = true;
@@ -52,11 +52,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const db = getDb();
     const result = await db.select().from(templates)
-      .where(and(eq(templates.userId, auth.userId), eq(templates.status, 'approved')))
+      .where(eq(templates.userId, auth.userId))
       .orderBy(desc(templates.createdAt));
     return res.status(200).json(result);
   } catch (error) {
-    console.error('Error fetching approved templates:', error);
-    return res.status(500).json({ error: 'Failed to fetch approved templates' });
+    console.error('Error fetching templates:', error);
+    return res.status(500).json({ error: 'Failed to fetch templates' });
   }
 }
