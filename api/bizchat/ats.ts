@@ -81,15 +81,15 @@ function buildATSMosuPayload(params: {
     descParts.push(`연령: ${min}세 ~ ${max}세`);
   }
 
-  // 성별 필터 (metaType: svc, code: cust_sex_cd)
+  // 성별 필터 (BizChat API 규격: code는 'sex_cd', data는 ['1'] 또는 ['2'])
   if (params.gender && params.gender !== 'all') {
     const genderValue = params.gender === 'male' ? '1' : '2';
-    const genderName = params.gender === 'male' ? '남성' : '여성';
+    const genderName = params.gender === 'male' ? '남자' : '여자';
     conditions.push({
       data: [genderValue],
       dataType: 'code',
       metaType: 'svc',
-      code: 'cust_sex_cd',
+      code: 'sex_cd',
       desc: `성별: ${genderName}`,
       not: false,
     });

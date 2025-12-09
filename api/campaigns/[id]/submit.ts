@@ -69,15 +69,15 @@ function convertLegacySndMosuQuery(queryStr: string): { query: string; desc: str
       descParts.push(`연령: ${min}세 ~ ${max}세`);
     }
 
-    // 성별 변환
+    // 성별 변환 (BizChat API 규격: code는 'sex_cd', data는 ['1'] 또는 ['2'])
     if (parsed.gender && parsed.gender !== 'all') {
       const genderValue = parsed.gender === 'male' || parsed.gender === 'M' ? '1' : '2';
-      const genderName = genderValue === '1' ? '남성' : '여성';
+      const genderName = genderValue === '1' ? '남자' : '여자';
       conditions.push({
         data: [genderValue],
         dataType: 'code',
         metaType: 'svc',
-        code: 'cust_sex_cd',
+        code: 'sex_cd',
         desc: `성별: ${genderName}`,
         not: false,
       });
@@ -714,7 +714,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       
       // sndMosuDesc/sndMosuQuery 업데이트 (타겟팅 필터)
-      // BizChat API 규격 v0.29.0: sndMosuQuery는 $and/$or + metaType 형식이어야 함
+      // BizChat API 규격 v0.29.0: sndMosuQuery는 JSON 객체로 전송해야 함
       let updateConvertedDesc = '';
       if (campaign.sndMosuQuery) {
         const queryString = typeof campaign.sndMosuQuery === 'string' 
@@ -723,9 +723,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         // 구형 형식인 경우 변환
         const { query: convertedQuery, desc } = convertLegacySndMosuQuery(queryString);
-        updatePayload.sndMosuQuery = convertedQuery;
+        // BizChat API는 sndMosuQuery를 JSON 객체로 기대함 (문자열이 아닌)
+        try {
+          updatePayload.sndMosuQuery = JSON.parse(convertedQuery);
+        } catch {
+          updatePayload.sndMosuQuery = { '$and': [] };
+        }
         updateConvertedDesc = desc;
-        console.log('[Submit] Update sndMosuQuery (converted):', convertedQuery);
+        console.log('[Submit] Update sndMosuQuery (converted, as object):', JSON.stringify(updatePayload.sndMosuQuery));
       }
       
       if (campaign.sndMosuDesc || updateConvertedDesc) {
