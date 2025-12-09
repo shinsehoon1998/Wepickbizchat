@@ -524,28 +524,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const needsFile = billingType === 1 || billingType === 2;
       
       // BizChat API 규격 v0.29.0: MMS 메시지 객체
-      // - fileInfo: Mandatory, list는 Optional (파일 없으면 빈 배열)
-      // - urlLink: Mandatory, list는 Optional (URL 없으면 빈 배열)
+      // - fileInfo: 파일이 있으면 { list: [...] }, 없으면 빈 객체 {} (문서 예제 참고)
+      // - urlLink: URL이 있으면 { list: [...] }, 없으면 빈 객체 {} (문서 예제 참고)
+      // URL 리스트 추출 (message에서 urlLinks 또는 urls 필드)
+      const mmsUrlList: string[] = (message as any)?.urlLinks || (message as any)?.urls || [];
+      const mmsUrlLink = mmsUrlList.length > 0 
+        ? { list: mmsUrlList.slice(0, 3) }
+        : {}; // 링크가 없으면 빈 객체 {} (문서 규격)
+        
       const mmsObject: Record<string, unknown> = {
         title: message?.title || '',
         msg: message?.content || '',
         fileInfo: (needsFile && message?.imageUrl) 
           ? { list: [{ origId: message.imageUrl }] } 
-          : { list: [] }, // 파일이 없으면 빈 list 배열
-        urlLink: { list: [] }, // URL이 없으면 빈 list 배열
+          : {}, // 파일이 없으면 빈 객체 {} (문서 규격)
+        urlLink: mmsUrlLink,
       };
       
       // BizChat API 규격 v0.29.0: RCS 배열
-      // billingType 0(LMS), 2(MMS)일 때는 rcs 필드 불필요
-      // billingType 1(RCS MMS), 3(RCS LMS)일 때만 rcs 배열 필요
+      // 문서 예제: LMS(billingType=0)일 때도 "rcs": [] 빈 배열 포함
+      // billingType 1(RCS MMS), 3(RCS LMS)일 때는 rcs 슬라이드 데이터 필요
+      const rcsUrlLink = mmsUrlList.length > 0 
+        ? { list: mmsUrlList.slice(0, 3) }
+        : {}; // 링크가 없으면 빈 객체 {} (문서 규격)
+        
       const rcsArray = isRcs ? [{
         slideNum: 1,
         title: message?.title || '',
         msg: message?.content || '',
         imgOrigId: (needsFile && message?.imageUrl) ? message.imageUrl : undefined,
-        urlLink: { list: [] }, // URL이 없으면 빈 list 배열
-        buttons: { list: [] }, // 버튼이 없으면 빈 list 배열
-      }] : undefined; // LMS/MMS일 때는 rcs 필드 자체를 포함하지 않음
+        urlLink: rcsUrlLink,
+        buttons: {}, // 버튼이 없으면 빈 객체 {} (문서 규격)
+      }] : []; // LMS/MMS일 때는 빈 배열 [] (문서 예제 참고)
 
       const createPayload: Record<string, unknown> = {
         tgtCompanyName: campaign.tgtCompanyName || '위픽',
@@ -565,13 +575,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         mms: mmsObject,
       };
       
-      // billingType 1(RCS MMS) 또는 3(RCS LMS)일 때만 rcs 필드 추가
-      if (isRcs && rcsArray) {
-        createPayload.rcs = rcsArray;
-      }
+      // BizChat API 규격 v0.29.0: rcs 필드는 항상 포함 (문서 예제: "rcs": [])
+      createPayload.rcs = rcsArray;
 
       // 타겟팅 정보 추가 (ATS 발송 모수 필터)
-      // BizChat API 규격 v0.29.0: sndMosuQuery는 JSON 객체로 전송해야 함
+      // BizChat API 규격 v0.29.0: sndMosuQuery는 string 타입 (문서 Line 102 참조)
       let convertedDesc = '';
       if (campaign.sndMosuQuery) {
         const queryString = typeof campaign.sndMosuQuery === 'string' 
@@ -580,14 +588,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         // 구형 형식인 경우 변환
         const { query: convertedQuery, desc } = convertLegacySndMosuQuery(queryString);
-        // BizChat API는 sndMosuQuery를 JSON 객체로 기대함 (문자열이 아닌)
-        try {
-          createPayload.sndMosuQuery = JSON.parse(convertedQuery);
-        } catch {
-          createPayload.sndMosuQuery = { '$and': [] };
-        }
+        // BizChat API 규격: sndMosuQuery는 JSON 문자열로 전송 (Data Type: string)
+        createPayload.sndMosuQuery = convertedQuery;
         convertedDesc = desc;
-        console.log('[Submit] sndMosuQuery (converted, as object):', JSON.stringify(createPayload.sndMosuQuery));
+        console.log('[Submit] sndMosuQuery (as string):', createPayload.sndMosuQuery);
       }
       
       // BizChat API 규격: sndMosuDesc는 HTML 형식이어야 함
