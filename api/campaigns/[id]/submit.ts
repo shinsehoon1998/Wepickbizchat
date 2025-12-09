@@ -13,6 +13,171 @@ const CALLBACK_BASE_URL = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}` 
   : 'https://wepickbizchat-new.vercel.app';
 
+// 지역명 → hcode 매핑 (BizChat API 규격 v0.29.0)
+const REGION_HCODE_MAP: Record<string, string> = {
+  '서울': '11', '경기': '41', '인천': '28', '부산': '26', '대구': '27',
+  '광주': '29', '대전': '30', '울산': '31', '세종': '36', '강원': '51',
+  '충북': '43', '충남': '44', '전북': '52', '전남': '46', '경북': '47',
+  '경남': '48', '제주': '50',
+};
+
+// BizChat API 규격 v0.29.0에 맞는 ATS 필터 조건 인터페이스
+interface ATSFilterCondition {
+  data: unknown;
+  dataType: 'number' | 'code' | 'boolean' | 'cate';
+  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'STREET' | 'TEL';
+  code: string;
+  desc: string;
+  not: boolean;
+}
+
+// 구형 sndMosuQuery 형식을 BizChat API 규격에 맞게 변환
+function convertLegacySndMosuQuery(queryStr: string): { query: string; desc: string } {
+  try {
+    const parsed = JSON.parse(queryStr);
+    
+    // 이미 올바른 형식인지 확인
+    // Case 1: $and/$or 컨테이너가 있는 경우 - 그대로 반환
+    if (parsed['$and'] || parsed['$or']) {
+      console.log('[Submit] sndMosuQuery already has $and/$or container');
+      return { query: queryStr, desc: '' };
+    }
+    
+    // Case 2: 단일 조건 객체 (metaType/code/dataType 필드가 있는 경우) - $and로 감싸서 반환
+    if (parsed.metaType && parsed.code && parsed.dataType) {
+      console.log('[Submit] sndMosuQuery is single condition, wrapping in $and');
+      const wrapped = { '$and': [parsed] };
+      return { query: JSON.stringify(wrapped), desc: parsed.desc || '' };
+    }
+
+    // 구형 형식: { age: { min, max }, gender, region: [...], interest: [...], behavior: [...] }
+    const conditions: ATSFilterCondition[] = [];
+    const descParts: string[] = [];
+
+    // 연령 변환
+    if (parsed.age && (parsed.age.min !== undefined || parsed.age.max !== undefined)) {
+      const min = parsed.age.min ?? 0;
+      const max = parsed.age.max ?? 100;
+      conditions.push({
+        data: { gt: min, lt: max },
+        dataType: 'number',
+        metaType: 'svc',
+        code: 'cust_age_cd',
+        desc: `연령: ${min}세 ~ ${max}세`,
+        not: false,
+      });
+      descParts.push(`연령: ${min}세 ~ ${max}세`);
+    }
+
+    // 성별 변환
+    if (parsed.gender && parsed.gender !== 'all') {
+      const genderValue = parsed.gender === 'male' || parsed.gender === 'M' ? '1' : '2';
+      const genderName = genderValue === '1' ? '남성' : '여성';
+      conditions.push({
+        data: [genderValue],
+        dataType: 'code',
+        metaType: 'svc',
+        code: 'cust_sex_cd',
+        desc: `성별: ${genderName}`,
+        not: false,
+      });
+      descParts.push(`성별: ${genderName}`);
+    }
+
+    // 지역 변환 (region 또는 regions 둘 다 지원)
+    const regions = parsed.region || parsed.regions;
+    if (regions && Array.isArray(regions) && regions.length > 0) {
+      const hcodes: string[] = [];
+      const regionNames: string[] = [];
+      for (const region of regions) {
+        const hcode = REGION_HCODE_MAP[region];
+        if (hcode) {
+          hcodes.push(hcode);
+          regionNames.push(region);
+        }
+      }
+      if (hcodes.length > 0) {
+        conditions.push({
+          data: hcodes,
+          dataType: 'code',
+          metaType: 'loc',
+          code: 'home_location',
+          desc: `추정 집주소: ${regionNames.join(', ')}`,
+          not: false,
+        });
+        descParts.push(`지역: ${regionNames.join(', ')}`);
+      }
+    }
+
+    // 관심사(interests) 변환
+    const interests = parsed.interest || parsed.interests;
+    if (interests && Array.isArray(interests) && interests.length > 0) {
+      conditions.push({
+        data: interests,
+        dataType: 'code',
+        metaType: 'app',
+        code: 'app_usage',
+        desc: `관심사: ${interests.join(', ')}`,
+        not: false,
+      });
+      descParts.push(`관심사: ${interests.join(', ')}`);
+    }
+
+    // 행동(behaviors) 변환
+    const behaviors = parsed.behavior || parsed.behaviors;
+    if (behaviors && Array.isArray(behaviors) && behaviors.length > 0) {
+      conditions.push({
+        data: behaviors,
+        dataType: 'code',
+        metaType: 'pro',
+        code: 'profiling',
+        desc: `행동: ${behaviors.join(', ')}`,
+        not: false,
+      });
+      descParts.push(`행동: ${behaviors.join(', ')}`);
+    }
+
+    // 통신사(carrier) 변환
+    const carrier = parsed.carrier || parsed.carrierTypes;
+    if (carrier && Array.isArray(carrier) && carrier.length > 0) {
+      conditions.push({
+        data: carrier,
+        dataType: 'code',
+        metaType: 'svc',
+        code: 'carrier_type',
+        desc: `통신사: ${carrier.join(', ')}`,
+        not: false,
+      });
+      descParts.push(`통신사: ${carrier.join(', ')}`);
+    }
+
+    // 기기(device) 변환
+    const device = parsed.device || parsed.deviceTypes;
+    if (device && Array.isArray(device) && device.length > 0) {
+      conditions.push({
+        data: device,
+        dataType: 'code',
+        metaType: 'svc',
+        code: 'device_type',
+        desc: `기기: ${device.join(', ')}`,
+        not: false,
+      });
+      descParts.push(`기기: ${device.join(', ')}`);
+    }
+
+    // BizChat API 규격: 루트 객체는 항상 $and 컨테이너여야 함
+    // 조건이 없어도 {$and: []}로 반환
+    const newQuery = { '$and': conditions };
+    const result = JSON.stringify(newQuery);
+    console.log('[Submit] Converted legacy sndMosuQuery:', result);
+    return { query: result, desc: descParts.join(', ') };
+  } catch (e) {
+    console.error('[Submit] Failed to convert sndMosuQuery:', e);
+    // 파싱 실패 시에도 빈 $and 배열로 반환
+    return { query: JSON.stringify({ '$and': [] }), desc: '' };
+  }
+}
+
 const campaigns = pgTable('campaigns', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull(),
@@ -398,20 +563,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
 
       // 타겟팅 정보 추가 (ATS 발송 모수 필터)
-      // BizChat API는 sndMosuQuery를 JSON 문자열로 받음
+      // BizChat API 규격 v0.29.0: sndMosuQuery는 $and/$or + metaType 형식이어야 함
+      let convertedDesc = '';
       if (campaign.sndMosuQuery) {
-        // 이미 문자열이면 그대로, 객체면 stringify
         const queryString = typeof campaign.sndMosuQuery === 'string' 
           ? campaign.sndMosuQuery 
           : JSON.stringify(campaign.sndMosuQuery);
-        createPayload.sndMosuQuery = queryString;
-        console.log('[Submit] sndMosuQuery (string):', queryString);
+        
+        // 구형 형식인 경우 변환
+        const { query: convertedQuery, desc } = convertLegacySndMosuQuery(queryString);
+        createPayload.sndMosuQuery = convertedQuery;
+        convertedDesc = desc;
+        console.log('[Submit] sndMosuQuery (converted):', convertedQuery);
       }
+      
       // BizChat API 규격: sndMosuDesc는 HTML 형식이어야 함
-      // 예: "<html><body><p>서울시 강남구, 남자, 25세 이상</p></body></html>"
-      if (campaign.sndMosuDesc) {
-        // 이미 HTML 형식이면 그대로 사용, 아니면 HTML로 감싸기
-        const desc = campaign.sndMosuDesc;
+      // 우선순위: 1. DB에 저장된 sndMosuDesc, 2. 변환 중 생성된 desc
+      if (campaign.sndMosuDesc || convertedDesc) {
+        const desc = campaign.sndMosuDesc || convertedDesc;
         const isHtml = desc.startsWith('<html>') || desc.includes('<body>');
         createPayload.sndMosuDesc = isHtml 
           ? desc 
@@ -540,13 +709,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       
       // sndMosuDesc/sndMosuQuery 업데이트 (타겟팅 필터)
+      // BizChat API 규격 v0.29.0: sndMosuQuery는 $and/$or + metaType 형식이어야 함
+      let updateConvertedDesc = '';
       if (campaign.sndMosuQuery) {
-        updatePayload.sndMosuQuery = typeof campaign.sndMosuQuery === 'string' 
+        const queryString = typeof campaign.sndMosuQuery === 'string' 
           ? campaign.sndMosuQuery 
           : JSON.stringify(campaign.sndMosuQuery);
+        
+        // 구형 형식인 경우 변환
+        const { query: convertedQuery, desc } = convertLegacySndMosuQuery(queryString);
+        updatePayload.sndMosuQuery = convertedQuery;
+        updateConvertedDesc = desc;
+        console.log('[Submit] Update sndMosuQuery (converted):', convertedQuery);
       }
-      if (campaign.sndMosuDesc) {
-        const desc = campaign.sndMosuDesc;
+      
+      if (campaign.sndMosuDesc || updateConvertedDesc) {
+        const desc = campaign.sndMosuDesc || updateConvertedDesc;
         const isHtml = desc.startsWith('<html>') || desc.includes('<body>');
         updatePayload.sndMosuDesc = isHtml ? desc : `<html><body><p>${desc}</p></body></html>`;
       }

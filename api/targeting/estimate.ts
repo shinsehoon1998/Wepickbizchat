@@ -4,6 +4,27 @@ import { createClient } from '@supabase/supabase-js';
 const BIZCHAT_DEV_URL = process.env.BIZCHAT_DEV_API_URL || 'https://gw-dev.bizchat1.co.kr:8443';
 const BIZCHAT_PROD_URL = process.env.BIZCHAT_PROD_API_URL || 'https://gw.bizchat1.co.kr';
 
+// 지역명 → hcode 매핑 (BizChat API 규격)
+const REGION_HCODE_MAP: Record<string, string> = {
+  '서울': '11',
+  '경기': '41',
+  '인천': '28',
+  '부산': '26',
+  '대구': '27',
+  '광주': '29',
+  '대전': '30',
+  '울산': '31',
+  '세종': '36',
+  '강원': '51',
+  '충북': '43',
+  '충남': '44',
+  '전북': '52',
+  '전남': '46',
+  '경북': '47',
+  '경남': '48',
+  '제주': '50',
+};
+
 function getSupabaseAdmin() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -25,7 +46,89 @@ function generateTid(): string {
   return Date.now().toString();
 }
 
-async function callBizChatATS(
+// BizChat API 규격 v0.29.0에 맞는 ATS 필터 조건 생성
+interface ATSFilterCondition {
+  data: unknown;
+  dataType: 'number' | 'code' | 'boolean' | 'cate';
+  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'STREET' | 'TEL';
+  code: string;
+  desc: string;
+  not: boolean;
+}
+
+// 타겟팅 조건을 BizChat ATS mosu 형식으로 변환
+function buildATSMosuPayload(params: {
+  gender?: string;
+  ageMin?: number;
+  ageMax?: number;
+  regions?: string[];
+}): { payload: { '$and': ATSFilterCondition[] }; desc: string } {
+  const conditions: ATSFilterCondition[] = [];
+  const descParts: string[] = [];
+
+  // 연령 필터 (metaType: svc, code: cust_age_cd)
+  if (params.ageMin !== undefined || params.ageMax !== undefined) {
+    const min = params.ageMin ?? 0;
+    const max = params.ageMax ?? 100;
+    conditions.push({
+      data: { gt: min, lt: max },
+      dataType: 'number',
+      metaType: 'svc',
+      code: 'cust_age_cd',
+      desc: `연령: ${min}세 ~ ${max}세`,
+      not: false,
+    });
+    descParts.push(`연령: ${min}세 ~ ${max}세`);
+  }
+
+  // 성별 필터 (metaType: svc, code: cust_sex_cd)
+  if (params.gender && params.gender !== 'all') {
+    const genderValue = params.gender === 'male' ? '1' : '2';
+    const genderName = params.gender === 'male' ? '남성' : '여성';
+    conditions.push({
+      data: [genderValue],
+      dataType: 'code',
+      metaType: 'svc',
+      code: 'cust_sex_cd',
+      desc: `성별: ${genderName}`,
+      not: false,
+    });
+    descParts.push(`성별: ${genderName}`);
+  }
+
+  // 지역 필터 (metaType: loc, code: home_location)
+  if (params.regions && Array.isArray(params.regions) && params.regions.length > 0) {
+    const hcodes: string[] = [];
+    const regionNames: string[] = [];
+    for (const region of params.regions) {
+      const hcode = REGION_HCODE_MAP[region];
+      if (hcode) {
+        hcodes.push(hcode);
+        regionNames.push(region);
+      }
+    }
+    if (hcodes.length > 0) {
+      conditions.push({
+        data: hcodes,
+        dataType: 'code',
+        metaType: 'loc',
+        code: 'home_location',
+        desc: `추정 집주소: ${regionNames.join(', ')}`,
+        not: false,
+      });
+      descParts.push(`지역: ${regionNames.join(', ')}`);
+    }
+  }
+
+  // BizChat API 규격: 루트 객체는 항상 $and 또는 $or 컨테이너여야 함
+  // 조건이 없어도 {$and: []}로 반환
+  return { 
+    payload: { '$and': conditions },
+    desc: descParts.join(', ')
+  };
+}
+
+async function callBizChatATSMosu(
   filterPayload: Record<string, unknown>,
   useProduction: boolean = false
 ) {
@@ -39,10 +142,11 @@ async function callBizChatATS(
   }
 
   const tid = generateTid();
-  const url = `${baseUrl}/api/v1/ats/filter/count?tid=${tid}`;
+  // BizChat API 규격: /api/v1/ats/mosu 엔드포인트 사용
+  const url = `${baseUrl}/api/v1/ats/mosu?tid=${tid}`;
   
-  console.log(`[BizChat ATS] POST ${url}`);
-  console.log(`[BizChat ATS] Payload:`, JSON.stringify(filterPayload));
+  console.log(`[BizChat ATS Mosu] POST ${url}`);
+  console.log(`[BizChat ATS Mosu] Payload:`, JSON.stringify(filterPayload, null, 2));
 
   const response = await fetch(url, {
     method: 'POST',
@@ -54,7 +158,7 @@ async function callBizChatATS(
   });
 
   const responseText = await response.text();
-  console.log(`[BizChat ATS] Response: ${response.status} - ${responseText.substring(0, 300)}`);
+  console.log(`[BizChat ATS Mosu] Response: ${response.status} - ${responseText.substring(0, 500)}`);
 
   try {
     return JSON.parse(responseText);
@@ -197,61 +301,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (useBizChat !== false) {
       try {
-        const filterPayload: Record<string, unknown> = {};
-        
-        if (gender && gender !== 'all') {
-          filterPayload.gender = gender === 'male' ? 'M' : 'F';
-        }
-        
-        filterPayload.age = {
-          min: ageMin,
-          max: ageMax,
-        };
-        
-        if (regions && Array.isArray(regions) && regions.length > 0) {
-          filterPayload.region = regions;
-        }
-        
-        if (districts && Array.isArray(districts) && districts.length > 0) {
-          filterPayload.district = districts;
-        }
-        
-        if (carrierTypes && Array.isArray(carrierTypes) && carrierTypes.length > 0) {
-          filterPayload.carrier = carrierTypes;
-        }
-        
-        if (deviceTypes && Array.isArray(deviceTypes) && deviceTypes.length > 0) {
-          filterPayload.device = deviceTypes;
-        }
-        
-        const interests: string[] = [];
-        if (shopping11stCategories && Array.isArray(shopping11stCategories)) {
-          interests.push(...shopping11stCategories);
-        }
-        if (webappCategories && Array.isArray(webappCategories)) {
-          interests.push(...webappCategories);
-        }
-        if (interests.length > 0) {
-          filterPayload.interest = interests;
-        }
-        
-        const behaviors: string[] = [];
-        if (callUsageTypes && Array.isArray(callUsageTypes)) {
-          behaviors.push(...callUsageTypes);
-        }
-        if (locationTypes && Array.isArray(locationTypes)) {
-          behaviors.push(...locationTypes);
-        }
-        if (mobilityPatterns && Array.isArray(mobilityPatterns)) {
-          behaviors.push(...mobilityPatterns);
-        }
-        if (behaviors.length > 0) {
-          filterPayload.behavior = behaviors;
-        }
-        
-        if (geofenceIds && Array.isArray(geofenceIds) && geofenceIds.length > 0) {
-          filterPayload.geofence = geofenceIds;
-        }
+        // BizChat ATS 규격에 맞는 페이로드 생성
+        const { payload, desc } = buildATSMosuPayload({
+          gender,
+          ageMin,
+          ageMax,
+          regions,
+        });
 
         // 환경 감지: 개발 완료 전까지 항상 개발 API 사용
         const detectEnv = (): boolean => {
@@ -268,24 +324,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         };
         const useProduction = detectEnv();
         console.log(`[Targeting] Environment: ${useProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
-        const atsResult = await callBizChatATS(filterPayload, useProduction);
+        
+        const atsResult = await callBizChatATSMosu(payload, useProduction);
         
         if (atsResult.code === 'S000001') {
-          const count = atsResult.data?.count || 0;
+          const count = atsResult.data?.cnt || 0;
+          const filterStr = atsResult.data?.filterStr || '';
+          const query = atsResult.data?.query || '';
+          
           return res.status(200).json({
             estimatedCount: count,
             minCount: Math.round(count * 0.9),
             maxCount: Math.round(count * 1.1),
             reachRate: 90,
             source: 'bizchat',
+            // ATS mosu 응답 값들 (캠페인 생성 시 사용)
+            sndMosuQuery: JSON.stringify(payload),
+            sndMosuDesc: filterStr,
+            atsQuery: query,
+            filterDescription: desc,
             rawResponse: atsResult,
           });
         }
         
         console.error('[Targeting] BizChat ATS failed with code:', atsResult.code, 'msg:', atsResult.msg);
         
+        // 실패 시 로컬 추정치 + 올바른 형식의 sndMosuQuery 반환
+        const localResult = calculateLocalEstimate(gender, ageMin, ageMax, regions, advancedOptions);
         return res.status(200).json({
-          ...calculateLocalEstimate(gender, ageMin, ageMax, regions, advancedOptions),
+          ...localResult,
+          sndMosuQuery: JSON.stringify(payload),
+          filterDescription: desc,
           bizChatError: {
             code: atsResult.code,
             message: atsResult.msg || 'BizChat ATS 조회 실패',
@@ -295,8 +364,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       } catch (error) {
         console.error('[Targeting] BizChat ATS error:', error);
         
+        // 에러 시에도 올바른 형식의 sndMosuQuery 반환
+        const { payload, desc } = buildATSMosuPayload({
+          gender,
+          ageMin,
+          ageMax,
+          regions,
+        });
+        
+        const localResult = calculateLocalEstimate(gender, ageMin, ageMax, regions, advancedOptions);
         return res.status(200).json({
-          ...calculateLocalEstimate(gender, ageMin, ageMax, regions, advancedOptions),
+          ...localResult,
+          sndMosuQuery: JSON.stringify(payload),
+          filterDescription: desc,
           bizChatError: {
             code: 'NETWORK_ERROR',
             message: error instanceof Error ? error.message : 'BizChat 서버 연결 실패',
@@ -306,11 +386,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // useBizChat=false인 경우 로컬 추정치만 반환
+    const { payload, desc } = buildATSMosuPayload({
+      gender,
+      ageMin,
+      ageMax,
+      regions,
+    });
+    
     const localEstimate = calculateLocalEstimate(gender, ageMin, ageMax, regions, advancedOptions);
-    return res.status(200).json(localEstimate);
+    return res.status(200).json({
+      ...localEstimate,
+      sndMosuQuery: JSON.stringify(payload),
+      filterDescription: desc,
+    });
     
   } catch (error) {
     console.error('Error estimating targeting:', error);
     return res.status(500).json({ error: 'Failed to estimate targeting' });
   }
 }
+
+// Helper: ATS 페이로드 빌더 export (다른 모듈에서 사용)
+export { buildATSMosuPayload, REGION_HCODE_MAP };
