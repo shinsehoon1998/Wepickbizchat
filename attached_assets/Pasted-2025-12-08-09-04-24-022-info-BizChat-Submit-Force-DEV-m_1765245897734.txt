@@ -1,0 +1,45 @@
+2025-12-08 09:04:24.022 [info] [BizChat Submit] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-08 09:04:24.022 [info] [BizChat Submit] Environment: DEVELOPMENT (VERCEL_ENV=production)
+2025-12-08 09:04:25.474 [info] [Submit] Parsed sndMosuQuery: {"age":{"min":20,"max":60}}
+2025-12-08 09:04:25.474 [info] [Submit] Creating campaign in BizChat...
+2025-12-08 09:04:25.475 [info] [Submit] Full createPayload: {
+  "tgtCompanyName": "위픽",
+  "name": "25120806",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 1000,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 1000,
+  "sndMosu": 1500,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "cb": {
+    "state": "https://wepickbizchat-a33f9wck4-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlLink": {
+      "list": []
+    }
+  },
+  "rcs": [],
+  "sndMosuQuery": {
+    "age": {
+      "min": 20,
+      "max": 60
+    }
+  },
+  "sndMosuDesc": "나이: 20~60세",
+  "atsSndStartDate": 1765326600
+}
+2025-12-08 09:04:25.475 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-08 09:04:25.475 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-08 09:04:25.475 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-08 09:04:25.475 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-08 09:04:25.475 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/create?tid=1765184665474
+2025-12-08 09:04:25.475 [info] [BizChat] Request body: {"tgtCompanyName":"위픽","name":"25120806","sndNum":"001001","rcvType":0,"sndGoalCnt":1000,"billingType":0,"isTmp":0,"settleCnt":1000,"sndMosu":1500,"sndMosuFlag":0,"adverDeny":"1504","cb":{"state":"https://wepickbizchat-a33f9wck4-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"},"mms":{"title":"테스트","msg":"테스트","fileInfo":{},"urlLink":{"list":[]}},"rcs":[],"sndMosuQuery":{"age":{"min":20,"max":60}},"sndMosuDesc":"나이: 20~60세","atsSndStartDate":1765326600}
+2025-12-08 09:04:25.551 [info] [BizChat] Response: 400 - {"tid":"1765184665474","code":"E000002","msg":"Invalid request"}
+2025-12-08 09:04:25.552 [error] [Submit] BizChat API error: { tid: '1765184665474', code: 'E000002', msg: 'Invalid request' }
