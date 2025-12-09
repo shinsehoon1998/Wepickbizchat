@@ -1,0 +1,122 @@
+2025-12-09 05:30:36.333 [info] [Submit] Converted legacy sndMosuQuery: {"$and":[{"data":{"gt":20,"lt":60},"dataType":"number","metaType":"svc","code":"cust_age_cd","desc":"연령: 20세 ~ 60세","not":false},{"data":["41"],"dataType":"code","metaType":"loc","code":"home_location","desc":"추정 집주소: 경기","not":false}]}
+2025-12-09 05:30:36.333 [info] [Submit] sndMosuQuery (converted, as object): {"$and":[{"data":{"gt":20,"lt":60},"dataType":"number","metaType":"svc","code":"cust_age_cd","desc":"연령: 20세 ~ 60세","not":false},{"data":["41"],"dataType":"code","metaType":"loc","code":"home_location","desc":"추정 집주소: 경기","not":false}]}
+2025-12-09 05:30:36.333 [info] [Submit] sndMosuDesc (html): <html><body><p>나이: 20~60세, 지역: 경기</p></body></html>
+2025-12-09 05:30:36.333 [info] [Submit] atsSndStartDate (adjusted): 1765429800 2025-12-11T05:10:00.000Z
+2025-12-09 05:30:36.334 [info] [Submit] Creating campaign in BizChat...
+2025-12-09 05:30:36.334 [info] [Submit] Full createPayload: {
+  "tgtCompanyName": "위픽",
+  "name": "２５１２０９위픽",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 100,
+  "sndMosu": 150,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "cb": {
+    "state": "https://wepickbizchat-ite6rrfzb-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {
+      "list": []
+    },
+    "urlLink": {
+      "list": []
+    }
+  },
+  "sndMosuQuery": {
+    "$and": [
+      {
+        "data": {
+          "gt": 20,
+          "lt": 60
+        },
+        "dataType": "number",
+        "metaType": "svc",
+        "code": "cust_age_cd",
+        "desc": "연령: 20세 ~ 60세",
+        "not": false
+      },
+      {
+        "data": [
+          "41"
+        ],
+        "dataType": "code",
+        "metaType": "loc",
+        "code": "home_location",
+        "desc": "추정 집주소: 경기",
+        "not": false
+      }
+    ]
+  },
+  "sndMosuDesc": "<html><body><p>나이: 20~60세, 지역: 경기</p></body></html>",
+  "atsSndStartDate": 1765429800
+}
+2025-12-09 05:30:36.334 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-09 05:30:36.334 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-09 05:30:36.334 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-09 05:30:36.334 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-09 05:30:36.334 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/create?tid=1765258236334
+2025-12-09 05:30:36.334 [info] [BizChat] Request body: {
+  "tgtCompanyName": "위픽",
+  "name": "２５１２０９위픽",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 100,
+  "sndMosu": 150,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "cb": {
+    "state": "https://wepickbizchat-ite6rrfzb-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {
+      "list": []
+    },
+    "urlLink": {
+      "list": []
+    }
+  },
+  "sndMosuQuery": {
+    "$and": [
+      {
+        "data": {
+          "gt": 20,
+          "lt": 60
+        },
+        "dataType": "number",
+        "metaType": "svc",
+        "code": "cust_age_cd",
+        "desc": "연령: 20세 ~ 60세",
+        "not": false
+      },
+      {
+        "data": [
+          "41"
+        ],
+        "dataType": "code",
+        "metaType": "loc",
+        "code": "home_location",
+        "desc": "추정 집주소: 경기",
+        "not": false
+      }
+    ]
+  },
+  "sndMosuDesc": "<html><body><p>나이: 20~60세, 지역: 경기</p></body></html>",
+  "atsSndStartDate": 1765429800
+}
+2025-12-09 05:30:36.409 [info] [BizChat] Response: 400 - {"tid":"1765258236334","code":"E000002","msg":"Invalid request"}
+2025-12-09 05:30:36.409 [error] [Submit] BizChat API error: { tid: '1765258236334', code: 'E000002', msg: 'Invalid request' }
+2025-12-09 05:30:35.090 [info] The `fetchConnectionCache` option is deprecated (now always `true`)
+2025-12-09 05:30:35.270 [info] [BizChat Submit] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-09 05:30:35.271 [info] [BizChat Submit] Environment: DEVELOPMENT (VERCEL_ENV=production)
+2025-12-09 05:30:35.290 [error] (node:4) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
