@@ -92,6 +92,67 @@ function toUnixTimestamp(date: Date | string | null): number | undefined {
   return Math.floor(d.getTime() / 1000);
 }
 
+// 발송 시간 유효성 검증 (BizChat API 규격 v0.29.0)
+// 1. 현재 시간 대비 1시간 이후여야 함
+// 2. 9시부터 19시(19시 미포함) 사이여야 함
+// 3. 10분 단위로 시간 체크
+function validateSendTime(sendDate: Date | string | null): { valid: boolean; error?: string; adjustedDate?: Date } {
+  if (!sendDate) return { valid: true };
+  
+  const targetDate = typeof sendDate === 'string' ? new Date(sendDate) : new Date(sendDate);
+  const now = new Date();
+  
+  // 1. 발송 시간대 체크 (09:00~19:00, 19시 미포함)
+  const targetHour = targetDate.getHours();
+  if (targetHour < 9 || targetHour >= 19) {
+    return { valid: false, error: '발송 시간은 09:00~19:00 사이여야 합니다' };
+  }
+  
+  // 2. 최소 1시간 여유 체크
+  const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+  if (targetDate < oneHourFromNow) {
+    return { valid: false, error: '발송 시간은 현재 시간으로부터 최소 1시간 이후여야 합니다' };
+  }
+  
+  // 3. 10분 단위 체크 (자동 올림 처리)
+  const adjustedDate = new Date(targetDate);
+  adjustedDate.setSeconds(0);
+  adjustedDate.setMilliseconds(0);
+  const minutes = adjustedDate.getMinutes();
+  const remainder = minutes % 10;
+  if (remainder !== 0) {
+    adjustedDate.setMinutes(minutes + (10 - remainder));
+  }
+  
+  if (adjustedDate.getHours() >= 19) {
+    return { valid: false, error: '발송 시간은 19:00 이전이어야 합니다' };
+  }
+  
+  return { valid: true, adjustedDate };
+}
+
+// 문자열 길이 검증 (BizChat API 규격 v0.29.0)
+function validateStringLengths(data: {
+  name?: string;
+  tgtCompanyName?: string;
+  title?: string;
+  msg?: string;
+}): { valid: boolean; error?: string } {
+  if (data.name && data.name.length > 40) {
+    return { valid: false, error: `캠페인명은 최대 40자까지 입력 가능합니다 (현재: ${data.name.length}자)` };
+  }
+  if (data.tgtCompanyName && data.tgtCompanyName.length > 100) {
+    return { valid: false, error: `고객사명은 최대 100자까지 입력 가능합니다 (현재: ${data.tgtCompanyName.length}자)` };
+  }
+  if (data.title && data.title.length > 30) {
+    return { valid: false, error: `메시지 제목은 최대 30자까지 입력 가능합니다 (현재: ${data.title.length}자)` };
+  }
+  if (data.msg && data.msg.length > 1000) {
+    return { valid: false, error: `메시지 본문은 최대 1000자까지 입력 가능합니다 (현재: ${data.msg.length}자)` };
+  }
+  return { valid: true };
+}
+
 async function callBizChatAPI(
   endpoint: string,
   method: 'GET' | 'POST' = 'POST',
@@ -230,16 +291,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const { scheduledAt } = req.body || {};
 
+    // BizChat API 규격 v0.29.0: 문자열 길이 검증
+    const lengthValidation = validateStringLengths({
+      name: campaign.name,
+      tgtCompanyName: campaign.tgtCompanyName || undefined,
+      title: message?.title || undefined,
+      msg: message?.content,
+    });
+    if (!lengthValidation.valid) {
+      return res.status(400).json({ error: lengthValidation.error });
+    }
+
+    // BizChat API 규격 v0.29.0: 발송 시간 검증
+    const sendDateToValidate = scheduledAt || campaign.atsSndStartDate || campaign.scheduledAt;
+    const timeValidation = validateSendTime(sendDateToValidate);
+    if (!timeValidation.valid) {
+      return res.status(400).json({ error: timeValidation.error });
+    }
+    
+    // 10분 단위로 조정된 발송 시간 사용
+    const adjustedSendDate = timeValidation.adjustedDate || sendDateToValidate;
+
     if (!campaign.bizchatCampaignId) {
+      // billingType 결정 (BizChat API 규격 v0.29.0)
+      // 0: LMS (파일 없음, rcs 비어있음)
+      // 1: RCS MMS (파일 있음, rcs 슬라이드)
+      // 2: MMS (파일 있음, rcs 비어있음)
+      // 3: RCS LMS (파일 없음, rcs 슬라이드)
       let billingType = 0;
+      const hasImage = !!message?.imageUrl;
       if (campaign.messageType === 'RCS') {
-        billingType = campaign.rcsType === 2 ? 1 : 3;
-      } else if (campaign.messageType === 'MMS') {
-        billingType = 2;
+        billingType = hasImage ? 1 : 3; // RCS MMS or RCS LMS
+      } else if (campaign.messageType === 'MMS' || hasImage) {
+        billingType = 2; // MMS
       }
+      // else: LMS (0)
 
       const sndGoalCnt = campaign.sndGoalCnt || campaign.targetCount || 1000;
       const sndMosu = campaign.sndMosu || Math.min(Math.ceil(sndGoalCnt * 1.5), 400000);
+
+      // BizChat API 규격 v0.29.0: billingType별 mms/rcs 구성
+      // - LMS(0): mms만, fileInfo 없음, rcs 빈 배열
+      // - RCS MMS(1): mms + rcs, 파일 있음
+      // - MMS(2): mms만, fileInfo 있음, rcs 빈 배열
+      // - RCS LMS(3): mms + rcs, 파일 없음
+      const isRcs = billingType === 1 || billingType === 3;
+      const needsFile = billingType === 1 || billingType === 2;
+      
+      // MMS 메시지 객체
+      const mmsObject: Record<string, unknown> = {
+        title: message?.title || '',
+        msg: message?.content || '',
+        fileInfo: (needsFile && message?.imageUrl) 
+          ? { list: [{ origId: message.imageUrl }] } 
+          : {}, // 파일이 없거나 불필요하면 empty object
+        urlLink: {}, // 링크가 없으면 empty object
+      };
+      
+      // RCS 메시지 배열 (billingType 1 또는 3일 때만 구성)
+      const rcsArray = isRcs ? [{
+        slideNum: 1,
+        title: message?.title || '',
+        msg: message?.content || '',
+        imgOrigId: (needsFile && message?.imageUrl) ? message.imageUrl : undefined,
+        urlLink: {}, // 링크가 없으면 empty object
+        buttons: {}, // 버튼이 없으면 empty object
+      }] : [];
 
       const createPayload: Record<string, unknown> = {
         tgtCompanyName: campaign.tgtCompanyName || '위픽',
@@ -256,23 +373,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         cb: {
           state: `${CALLBACK_BASE_URL}/api/bizchat/callback/state`,
         },
-        // MMS 메시지 객체 (BizChat API 규격 v0.29.0)
-        // - mms.fileInfo: 이미지 파일 정보 (파일이 없으면 empty object {})
-        // - mms.urlLink: 마케팅 URL 정보 (링크가 없으면 empty object {})
-        mms: {
-          title: message?.title || '',
-          msg: message?.content || '',
-          fileInfo: {}, // 파일이 없으면 empty object
-          urlLink: {}, // 링크가 없으면 empty object (규격 준수)
-        },
-        // RCS 메시지 배열 (billingType이 RCS인 경우에만 필요)
-        rcs: campaign.messageType === 'RCS' ? [{
-          slideNum: 1,
-          title: message?.title || '',
-          msg: message?.content || '',
-          urlLink: {}, // 링크가 없으면 empty object
-          buttons: {}, // 버튼이 없으면 empty object
-        }] : [],
+        mms: mmsObject,
+        rcs: rcsArray,
       };
 
       // 타겟팅 정보 추가 (ATS 발송 모수 필터)
@@ -297,25 +399,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.log('[Submit] sndMosuDesc (html):', createPayload.sndMosuDesc);
       }
 
-      if (scheduledAt) {
-        createPayload.atsSndStartDate = toUnixTimestamp(new Date(scheduledAt));
-      } else if (campaign.atsSndStartDate) {
-        createPayload.atsSndStartDate = toUnixTimestamp(campaign.atsSndStartDate);
-      } else if (campaign.scheduledAt) {
-        createPayload.atsSndStartDate = toUnixTimestamp(campaign.scheduledAt);
+      // 10분 단위로 조정된 발송 시간 적용
+      if (adjustedSendDate) {
+        const adjustedTimestamp = toUnixTimestamp(
+          typeof adjustedSendDate === 'string' ? new Date(adjustedSendDate) : adjustedSendDate
+        );
+        createPayload.atsSndStartDate = adjustedTimestamp;
+        console.log('[Submit] atsSndStartDate (adjusted):', adjustedTimestamp, new Date((adjustedTimestamp || 0) * 1000).toISOString());
       }
 
-      if (campaign.messageType === 'RCS' && campaign.rcsType !== undefined) {
+      // RCS 타입 설정 (billingType 1 또는 3일 때)
+      if (isRcs && campaign.rcsType !== undefined) {
         createPayload.rcsType = campaign.rcsType;
-      }
-
-      if (campaign.messageType === 'MMS' && message?.imageUrl) {
-        createPayload.mms = {
-          ...createPayload.mms as object,
-          fileInfo: {
-            list: [{ origId: message.imageUrl }],
-          },
-        };
+        // slideCnt: rcsType=2(캐러셀)일 때 슬라이드 개수
+        if (campaign.rcsType === 2) {
+          createPayload.slideCnt = rcsArray.length || 1;
+        }
       }
 
       console.log('[Submit] Creating campaign in BizChat...');
@@ -339,17 +438,116 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
+      // DB에 조정된 발송 시간도 저장 (재제출 시 일관성 유지)
+      const updateData: Record<string, unknown> = { 
+        bizchatCampaignId,
+        statusCode: 0,
+        status: 'temp_registered',
+        updatedAt: new Date(),
+      };
+      if (adjustedSendDate) {
+        updateData.atsSndStartDate = typeof adjustedSendDate === 'string' 
+          ? new Date(adjustedSendDate) 
+          : adjustedSendDate;
+        updateData.scheduledAt = updateData.atsSndStartDate;
+      }
       await db.update(campaigns)
-        .set({ 
-          bizchatCampaignId,
-          statusCode: 0,
-          status: 'temp_registered',
-          updatedAt: new Date(),
-        })
+        .set(updateData)
         .where(eq(campaigns.id, id));
 
       console.log(`[Submit] Created BizChat campaign: ${bizchatCampaignId}`);
       campaign.bizchatCampaignId = bizchatCampaignId;
+    } else {
+      // 재제출 시: 기존 BizChat 캠페인의 전체 페이로드 업데이트
+      // billingType 재계산 (메시지 변경 시 반영)
+      let billingType = 0;
+      const hasImage = !!message?.imageUrl;
+      if (campaign.messageType === 'RCS') {
+        billingType = hasImage ? 1 : 3;
+      } else if (campaign.messageType === 'MMS' || hasImage) {
+        billingType = 2;
+      }
+      
+      const isRcs = billingType === 1 || billingType === 3;
+      const needsFile = billingType === 1 || billingType === 2;
+      
+      // 전체 업데이트 페이로드 구성
+      const updatePayload: Record<string, unknown> = {
+        name: campaign.name,
+        tgtCompanyName: campaign.tgtCompanyName || '위픽',
+        billingType,
+        mms: {
+          title: message?.title || '',
+          msg: message?.content || '',
+          fileInfo: (needsFile && message?.imageUrl) 
+            ? { list: [{ origId: message.imageUrl }] } 
+            : {},
+          urlLink: {},
+        },
+        rcs: isRcs ? [{
+          slideNum: 1,
+          title: message?.title || '',
+          msg: message?.content || '',
+          imgOrigId: (needsFile && message?.imageUrl) ? message.imageUrl : undefined,
+          urlLink: {},
+          buttons: {},
+        }] : [],
+      };
+      
+      // 발송 시간 업데이트
+      if (adjustedSendDate) {
+        updatePayload.atsSndStartDate = toUnixTimestamp(
+          typeof adjustedSendDate === 'string' ? new Date(adjustedSendDate) : adjustedSendDate
+        );
+      }
+      
+      // RCS 타입 설정
+      if (isRcs && campaign.rcsType !== undefined) {
+        updatePayload.rcsType = campaign.rcsType;
+        if (campaign.rcsType === 2) {
+          updatePayload.slideCnt = 1;
+        }
+      }
+      
+      // sndMosuDesc/sndMosuQuery 업데이트
+      if (campaign.sndMosuQuery) {
+        updatePayload.sndMosuQuery = typeof campaign.sndMosuQuery === 'string' 
+          ? campaign.sndMosuQuery 
+          : JSON.stringify(campaign.sndMosuQuery);
+      }
+      if (campaign.sndMosuDesc) {
+        const desc = campaign.sndMosuDesc;
+        const isHtml = desc.startsWith('<html>') || desc.includes('<body>');
+        updatePayload.sndMosuDesc = isHtml ? desc : `<html><body><p>${desc}</p></body></html>`;
+      }
+      
+      console.log('[Submit] Updating existing BizChat campaign...');
+      console.log('[Submit] Update payload:', JSON.stringify(updatePayload, null, 2));
+      
+      const updateResult = await callBizChatAPI(
+        `/api/v1/cmpn/update?id=${campaign.bizchatCampaignId}`,
+        'POST',
+        updatePayload,
+        useProduction
+      );
+      
+      if (updateResult.data.code !== 'S000001') {
+        console.warn('[Submit] BizChat update warning:', updateResult.data);
+        // 업데이트 실패해도 승인 요청은 계속 진행
+      } else {
+        console.log('[Submit] BizChat campaign updated successfully');
+      }
+      
+      // DB에도 조정된 시간 저장
+      if (adjustedSendDate) {
+        await db.update(campaigns)
+          .set({ 
+            atsSndStartDate: typeof adjustedSendDate === 'string' ? new Date(adjustedSendDate) : adjustedSendDate,
+            scheduledAt: typeof adjustedSendDate === 'string' ? new Date(adjustedSendDate) : adjustedSendDate,
+            updatedAt: new Date(),
+          })
+          .where(eq(campaigns.id, id));
+      }
     }
 
     console.log('[Submit] Requesting approval...');
@@ -368,13 +566,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    // 승인 요청 후 상태 업데이트 (조정된 발송 시간 유지)
+    const approvalUpdateData: Record<string, unknown> = { 
+      statusCode: 10,
+      status: 'approval_requested',
+      updatedAt: new Date(),
+    };
+    if (adjustedSendDate) {
+      approvalUpdateData.scheduledAt = typeof adjustedSendDate === 'string' 
+        ? new Date(adjustedSendDate) 
+        : adjustedSendDate;
+      approvalUpdateData.atsSndStartDate = approvalUpdateData.scheduledAt;
+    }
     await db.update(campaigns)
-      .set({ 
-        statusCode: 10,
-        status: 'approval_requested',
-        scheduledAt: scheduledAt ? new Date(scheduledAt) : campaign.scheduledAt,
-        updatedAt: new Date(),
-      })
+      .set(approvalUpdateData)
       .where(eq(campaigns.id, id));
 
     console.log(`[Submit] Approval requested for campaign: ${id}`);

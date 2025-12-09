@@ -311,27 +311,29 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
   // - mms.msg: 메시지 본문 (최대 1000자)
   // - mms.fileInfo: 이미지 파일 정보 (파일이 없으면 empty object {})
   // - mms.urlLink: 마케팅 URL 정보 (링크가 없으면 empty object {})
+  // billingType별 파일 규칙:
+  // - LMS(0): 파일 없음
+  // - RCS MMS(1): 파일 있음
+  // - MMS(2): 파일 있음
+  // - RCS LMS(3): 파일 없음
+  const needsFileForBilling = payload.billingType === 1 || payload.billingType === 2;
   const mmsUrlList: string[] = message?.urlLinks || message?.urls || [];
   const mmsUrlLink = mmsUrlList.length > 0 
     ? { list: mmsUrlList.slice(0, 3), reward: message?.urlLinkReward }
     : {}; // 링크가 없으면 empty object (규격 준수)
     
+  // MMS 이미지 첨부 (billingType 규칙에 따라)
+  const hasImage = !!message?.imageUrl;
+  const mmsFileInfo = (needsFileForBilling && hasImage)
+    ? { list: [{ origId: message.imageUrl }] }
+    : {}; // 파일이 없거나 billingType이 파일 불필요하면 empty object
+    
   payload.mms = {
     title: message?.title || '',
     msg: message?.content || '',
-    fileInfo: {}, // 파일이 없으면 empty object
+    fileInfo: mmsFileInfo,
     urlLink: mmsUrlLink,
   };
-
-  // MMS 이미지 첨부
-  if (campaign.messageType === 'MMS' && message?.imageUrl) {
-    payload.mms = {
-      ...payload.mms as object,
-      fileInfo: {
-        list: [{ origId: message.imageUrl }],
-      },
-    };
-  }
 
   // MMS 개별 URL 파일 (CSV)
   if (message?.urlFile) {
@@ -346,7 +348,10 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
   // - billingType이 RCS(1 또는 3)인 경우 필수
   // - rcs[].urlLink: 링크가 없으면 empty object
   // - rcs[].buttons: 버튼이 없으면 empty object
-  if (campaign.messageType === 'RCS') {
+  // - buttons.list[].type: 문자열이어야 함 ('0', '1', '2')
+  const isRcsBilling = payload.billingType === 1 || payload.billingType === 3;
+  
+  if (campaign.messageType === 'RCS' || isRcsBilling) {
     const rcsSlides = message?.rcsSlides || [{ slideNum: 1 }];
     const rcsUrlList: string[] = message?.rcsUrls || mmsUrlList;
     const rcsButtons: RcsButton[] = message?.rcsButtons || [];
@@ -359,7 +364,11 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
         : {}; // 링크가 없으면 empty object
       
       // 버튼 객체 구성 (없으면 empty object)
-      const buttonList = slide.buttons || rcsButtons.slice(0, 2);
+      // BizChat API 규격: button.type은 문자열이어야 함 ('0'=URL, '1'=앱실행, '2'=전화)
+      const buttonList = (slide.buttons || rcsButtons.slice(0, 2)).map((btn: any) => ({
+        ...btn,
+        type: String(btn.type), // 숫자를 문자열로 변환
+      }));
       const buttons = buttonList.length > 0 
         ? { list: buttonList }
         : {}; // 버튼이 없으면 empty object
