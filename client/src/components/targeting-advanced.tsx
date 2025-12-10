@@ -80,10 +80,14 @@ interface BizChatFilterResponse {
 }
 
 // 선택된 카테고리 (ATS mosu 형식)
+// cat1/cat2/cat3에는 cateid 코드를 저장, *Name에는 표시명을 저장
 interface SelectedCategory {
-  cat1: string;
-  cat2?: string;
-  cat3?: string;
+  cat1: string;       // cateid 코드 (예: "01")
+  cat1Name?: string;  // 표시명 (예: "가구/인테리어")
+  cat2?: string;      // cateid 코드 (예: "0101")
+  cat2Name?: string;  // 표시명
+  cat3?: string;      // cateid 코드 (예: "010101")
+  cat3Name?: string;  // 표시명
 }
 
 // 타겟팅 상태 (BizChat 규격 준수)
@@ -170,15 +174,27 @@ function HierarchicalCategorySection({
   const cat2List = cat2Data?.list || [];
   const cat3List = cat3Data?.list || [];
 
-  const getCat1Name = (id: string) => cat1List.find(c => c.id === id)?.name || id;
-  const getCat2Name = (id: string) => cat2List.find(c => c.id === id)?.name || id;
+  // cateid로 표시명 조회 (BizChat API는 cateid 코드를 기대함)
+  const getCat1Name = (cateid: string) => cat1List.find(c => c.cateid === cateid)?.name || cateid;
+  const getCat2Name = (cateid: string) => cat2List.find(c => c.cateid === cateid)?.name || cateid;
+  const getCat3Name = (cateid: string) => cat3List.find(c => c.cateid === cateid)?.name || cateid;
 
-  const addCategory = (cat1: string, cat2?: string, cat3?: string) => {
-    const newCat: SelectedCategory = { cat1: getCat1Name(cat1) };
-    if (cat2) newCat.cat2 = getCat2Name(cat2);
-    if (cat3) newCat.cat3 = cat3List.find(c => c.id === cat3)?.name || cat3;
+  const addCategory = (cat1Cateid: string, cat2Cateid?: string, cat3Cateid?: string) => {
+    // cateid 코드와 표시명을 모두 저장 (BizChat API는 cateid 코드를 기대)
+    const newCat: SelectedCategory = { 
+      cat1: cat1Cateid,  // cateid 코드 저장 (예: "01")
+      cat1Name: getCat1Name(cat1Cateid),  // 표시명 저장 (예: "가구/인테리어")
+    };
+    if (cat2Cateid) {
+      newCat.cat2 = cat2Cateid;  // cateid 코드 (예: "0101")
+      newCat.cat2Name = getCat2Name(cat2Cateid);
+    }
+    if (cat3Cateid) {
+      newCat.cat3 = cat3Cateid;  // cateid 코드 (예: "010101")
+      newCat.cat3Name = getCat3Name(cat3Cateid);
+    }
 
-    // 중복 체크
+    // 중복 체크 (cateid 코드로 비교)
     const isDuplicate = selectedCategories.some(
       c => c.cat1 === newCat.cat1 && c.cat2 === newCat.cat2 && c.cat3 === newCat.cat3
     );
@@ -231,9 +247,9 @@ function HierarchicalCategorySection({
                     className="gap-1"
                     data-testid={`${testIdPrefix}-selected-${index}`}
                   >
-                    {cat.cat1}
-                    {cat.cat2 && ` > ${cat.cat2}`}
-                    {cat.cat3 && ` > ${cat.cat3}`}
+                    {cat.cat1Name || cat.cat1}
+                    {cat.cat2 && ` > ${cat.cat2Name || cat.cat2}`}
+                    {cat.cat3 && ` > ${cat.cat3Name || cat.cat3}`}
                     <X
                       className="h-3 w-3 cursor-pointer hover:text-destructive"
                       onClick={() => removeCategory(index)}
@@ -257,18 +273,18 @@ function HierarchicalCategorySection({
                     <div className="space-y-1">
                       {cat1List.map((cat) => (
                         <div
-                          key={cat.id}
+                          key={cat.cateid}
                           className={cn(
                             "flex items-center justify-between p-2 rounded cursor-pointer text-small",
-                            selectedCat1 === cat.id
+                            selectedCat1 === cat.cateid
                               ? "bg-primary/10 text-primary"
                               : "hover:bg-muted"
                           )}
                           onClick={() => {
-                            setSelectedCat1(cat.id);
+                            setSelectedCat1(cat.cateid);
                             setSelectedCat2(null);
                           }}
-                          data-testid={`${testIdPrefix}-cat1-${cat.id}`}
+                          data-testid={`${testIdPrefix}-cat1-${cat.cateid}`}
                         >
                           <span>{cat.name}</span>
                           <ChevronRight className="h-4 w-4" />
@@ -307,15 +323,15 @@ function HierarchicalCategorySection({
                     <div className="space-y-1">
                       {cat2List.map((cat) => (
                         <div
-                          key={cat.id}
+                          key={cat.cateid}
                           className={cn(
                             "flex items-center justify-between p-2 rounded cursor-pointer text-small",
-                            selectedCat2 === cat.id
+                            selectedCat2 === cat.cateid
                               ? "bg-primary/10 text-primary"
                               : "hover:bg-muted"
                           )}
-                          onClick={() => setSelectedCat2(cat.id)}
-                          data-testid={`${testIdPrefix}-cat2-${cat.id}`}
+                          onClick={() => setSelectedCat2(cat.cateid)}
+                          data-testid={`${testIdPrefix}-cat2-${cat.cateid}`}
                         >
                           <span>{cat.name}</span>
                           <ChevronRight className="h-4 w-4" />
@@ -354,10 +370,10 @@ function HierarchicalCategorySection({
                     <div className="space-y-1">
                       {cat3List.map((cat) => (
                         <div
-                          key={cat.id}
+                          key={cat.cateid}
                           className="flex items-center justify-between p-2 rounded cursor-pointer text-small hover:bg-muted"
-                          onClick={() => addCategory(selectedCat1!, selectedCat2!, cat.id)}
-                          data-testid={`${testIdPrefix}-cat3-${cat.id}`}
+                          onClick={() => addCategory(selectedCat1!, selectedCat2!, cat.cateid)}
+                          data-testid={`${testIdPrefix}-cat3-${cat.cateid}`}
                         >
                           <span>{cat.name}</span>
                           <Plus className="h-4 w-4 text-primary" />
@@ -695,11 +711,12 @@ export default function TargetingAdvanced({
     return () => clearTimeout(debounce);
   }, [targeting, basicTargeting]);
 
+  // 안전하게 배열 길이 확인 (undefined 방지)
   const hasAdvancedFilters =
-    targeting.shopping11stCategories.length > 0 ||
-    targeting.webappCategories.length > 0 ||
-    targeting.locations.length > 0 ||
-    targeting.profiling.length > 0;
+    (targeting?.shopping11stCategories?.length ?? 0) > 0 ||
+    (targeting?.webappCategories?.length ?? 0) > 0 ||
+    (targeting?.locations?.length ?? 0) > 0 ||
+    (targeting?.profiling?.length ?? 0) > 0;
 
   return (
     <div className="space-y-4">
@@ -729,22 +746,22 @@ export default function TargetingAdvanced({
         <Card className="bg-accent/30">
           <CardContent className="py-3">
             <div className="flex flex-wrap gap-1.5">
-              {targeting.shopping11stCategories.map((cat, i) => (
+              {(targeting?.shopping11stCategories ?? []).map((cat, i) => (
                 <Badge key={`11st-${i}`} variant="secondary" className="text-tiny">
-                  11번가: {cat.cat1}{cat.cat2 && ` > ${cat.cat2}`}{cat.cat3 && ` > ${cat.cat3}`}
+                  11번가: {cat.cat1Name || cat.cat1}{cat.cat2 && ` > ${cat.cat2Name || cat.cat2}`}{cat.cat3 && ` > ${cat.cat3Name || cat.cat3}`}
                 </Badge>
               ))}
-              {targeting.webappCategories.map((cat, i) => (
+              {(targeting?.webappCategories ?? []).map((cat, i) => (
                 <Badge key={`webapp-${i}`} variant="secondary" className="text-tiny">
-                  앱: {cat.cat1}{cat.cat2 && ` > ${cat.cat2}`}{cat.cat3 && ` > ${cat.cat3}`}
+                  앱: {cat.cat1Name || cat.cat1}{cat.cat2 && ` > ${cat.cat2Name || cat.cat2}`}{cat.cat3 && ` > ${cat.cat3Name || cat.cat3}`}
                 </Badge>
               ))}
-              {targeting.locations.map((loc, i) => (
+              {(targeting?.locations ?? []).map((loc, i) => (
                 <Badge key={`loc-${i}`} variant="secondary" className="text-tiny">
                   {loc.type === 'home' ? '집' : '직장'}: {loc.name}
                 </Badge>
               ))}
-              {targeting.profiling.map((pro, i) => (
+              {(targeting?.profiling ?? []).map((pro, i) => (
                 <Badge key={`pro-${i}`} variant="secondary" className="text-tiny">
                   {pro.desc}
                 </Badge>
@@ -760,7 +777,7 @@ export default function TargetingAdvanced({
           description="11번가 쇼핑 카테고리 기반 타겟팅"
           icon={ShoppingBag}
           metaType="11st"
-          selectedCategories={targeting.shopping11stCategories}
+          selectedCategories={targeting?.shopping11stCategories ?? []}
           onCategoriesChange={(cats) => 
             onTargetingChange({ ...targeting, shopping11stCategories: cats })
           }
@@ -772,7 +789,7 @@ export default function TargetingAdvanced({
           description="자주 사용하는 앱/웹 카테고리 기반 타겟팅"
           icon={Smartphone}
           metaType="webapp"
-          selectedCategories={targeting.webappCategories}
+          selectedCategories={targeting?.webappCategories ?? []}
           onCategoriesChange={(cats) => 
             onTargetingChange({ ...targeting, webappCategories: cats })
           }
@@ -780,14 +797,14 @@ export default function TargetingAdvanced({
         />
 
         <LocationSearchSection
-          selectedLocations={targeting.locations}
+          selectedLocations={targeting?.locations ?? []}
           onLocationsChange={(locs) =>
             onTargetingChange({ ...targeting, locations: locs })
           }
         />
 
         <ProfilingSection
-          selectedProfiling={targeting.profiling}
+          selectedProfiling={targeting?.profiling ?? []}
           onProfilingChange={(pro) =>
             onTargetingChange({ ...targeting, profiling: pro })
           }

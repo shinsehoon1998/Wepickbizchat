@@ -199,107 +199,236 @@ async function callBizChatAPI(
   return { status: response.status, data };
 }
 
-// 타겟팅 정보를 ATS 쿼리 형식으로 변환
+// 지역명 → hcode 매핑
+const REGION_HCODE_MAP: Record<string, string> = {
+  '서울': '11', '경기': '41', '인천': '28', '부산': '26', '대구': '27',
+  '광주': '29', '대전': '30', '울산': '31', '세종': '36', '강원': '42',
+  '충북': '43', '충남': '44', '전북': '45', '전남': '46', '경북': '47',
+  '경남': '48', '제주': '50',
+};
+
+// BizChat ATS 필터 조건 인터페이스
+interface ATSFilterCondition {
+  data: unknown;
+  dataType: 'number' | 'code' | 'boolean' | 'cate';
+  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'tel' | 'STREET';
+  code: string;
+  desc: string;
+  not: boolean;
+}
+
+// 새로운 타겟팅 형식 (BizChat v0.31.0 규격)
+// cat1/cat2/cat3에는 cateid 코드를 저장, *Name에는 표시명을 저장
+interface SelectedCategory {
+  cat1: string;       // cateid 코드 (예: "01")
+  cat1Name?: string;  // 표시명 (예: "가구/인테리어")
+  cat2?: string;      // cateid 코드 (예: "0101")
+  cat2Name?: string;  // 표시명
+  cat3?: string;      // cateid 코드 (예: "010101")
+  cat3Name?: string;  // 표시명
+}
+
+interface SelectedLocation {
+  code: string;
+  type: 'home' | 'work';
+  name: string;
+}
+
+interface SelectedProfiling {
+  code: string;
+  value: string | { gt: string; lt: string };
+  desc: string;
+}
+
+// 타겟팅 정보를 BizChat ATS mosu 형식으로 변환
 function buildAtsQuery(targetingData: {
   gender?: string;
   ageMin?: number;
   ageMax?: number;
   regions?: string[];
   districts?: string[];
+  // 새로운 형식 (BizChat 규격)
+  shopping11stCategories?: SelectedCategory[];
+  webappCategories?: SelectedCategory[];
+  locations?: SelectedLocation[];
+  profiling?: SelectedProfiling[];
+  // 레거시 형식 (하위 호환)
   carrierTypes?: string[];
   deviceTypes?: string[];
-  shopping11stCategories?: string[];
-  webappCategories?: string[];
   callUsageTypes?: string[];
   locationTypes?: string[];
   mobilityPatterns?: string[];
   geofenceIds?: string[];
-}): { query: Record<string, unknown>; description: string; htmlDescription: string } {
-  const query: Record<string, unknown> = {};
+}): { query: { '$and': ATSFilterCondition[] }; description: string; htmlDescription: string } {
+  const conditions: ATSFilterCondition[] = [];
   const descParts: string[] = [];
 
-  // 성별
-  if (targetingData.gender && targetingData.gender !== 'all') {
-    query.gender = targetingData.gender === 'male' ? 'M' : 'F';
-    descParts.push(`성별: ${targetingData.gender === 'male' ? '남성' : '여성'}`);
-  }
-
-  // 연령
+  // 1. 연령 필터 (metaType: svc, code: cust_age_cd)
   if (targetingData.ageMin !== undefined || targetingData.ageMax !== undefined) {
-    query.age = {
-      min: targetingData.ageMin || 20,
-      max: targetingData.ageMax || 60,
-    };
-    descParts.push(`나이: ${targetingData.ageMin || 20}~${targetingData.ageMax || 60}세`);
+    const min = targetingData.ageMin ?? 0;
+    const max = targetingData.ageMax ?? 100;
+    conditions.push({
+      data: { gt: min, lt: max },
+      dataType: 'number',
+      metaType: 'svc',
+      code: 'cust_age_cd',
+      desc: `연령: ${min}세 ~ ${max}세`,
+      not: false,
+    });
+    descParts.push(`연령: ${min}세 ~ ${max}세`);
   }
 
-  // 지역
+  // 2. 성별 필터 (metaType: svc, code: sex_cd)
+  if (targetingData.gender && targetingData.gender !== 'all') {
+    const genderValue = targetingData.gender === 'male' ? '1' : '2';
+    const genderName = targetingData.gender === 'male' ? '남자' : '여자';
+    conditions.push({
+      data: [genderValue],
+      dataType: 'code',
+      metaType: 'svc',
+      code: 'sex_cd',
+      desc: `성별: ${genderName}`,
+      not: false,
+    });
+    descParts.push(`성별: ${genderName}`);
+  }
+
+  // 3. 기본 지역 필터 (metaType: loc, code: home_location)
   if (targetingData.regions && targetingData.regions.length > 0) {
-    query.region = targetingData.regions;
-    descParts.push(`지역: ${targetingData.regions.join(', ')}`);
+    const hcodes: string[] = [];
+    const regionNames: string[] = [];
+    for (const region of targetingData.regions) {
+      const hcode = REGION_HCODE_MAP[region];
+      if (hcode) {
+        hcodes.push(hcode);
+        regionNames.push(region);
+      }
+    }
+    if (hcodes.length > 0) {
+      conditions.push({
+        data: hcodes,
+        dataType: 'code',
+        metaType: 'loc',
+        code: 'home_location',
+        desc: `추정 집주소: ${regionNames.join(', ')}`,
+        not: false,
+      });
+      descParts.push(`지역: ${regionNames.join(', ')}`);
+    }
   }
 
-  // 세부 지역 (시/군/구)
-  if (targetingData.districts && targetingData.districts.length > 0) {
-    query.district = targetingData.districts;
-    descParts.push(`세부지역: ${targetingData.districts.join(', ')}`);
-  }
-
-  // 통신사
-  if (targetingData.carrierTypes && targetingData.carrierTypes.length > 0) {
-    query.carrier = targetingData.carrierTypes;
-    descParts.push(`통신사: ${targetingData.carrierTypes.join(', ')}`);
-  }
-
-  // 단말기
-  if (targetingData.deviceTypes && targetingData.deviceTypes.length > 0) {
-    query.device = targetingData.deviceTypes;
-    descParts.push(`단말기: ${targetingData.deviceTypes.join(', ')}`);
-  }
-
-  // 관심사 (쇼핑 + 앱 카테고리)
-  const interests: string[] = [];
+  // 4. 11번가 쇼핑 카테고리 (metaType: STREET, dataType: cate)
+  // BizChat ATS mosu 형식: cat1/cat2/cat3에 cateid 코드 사용
   if (targetingData.shopping11stCategories && targetingData.shopping11stCategories.length > 0) {
-    interests.push(...targetingData.shopping11stCategories);
+    // cateid 코드로 API 페이로드 구성
+    const categoryData = targetingData.shopping11stCategories.map(cat => ({
+      cat1: cat.cat1,  // cateid 코드 (예: "01")
+      ...(cat.cat2 && { cat2: cat.cat2 }),  // cateid 코드 (예: "0101")
+      ...(cat.cat3 && { cat3: cat.cat3 }),  // cateid 코드 (예: "010101")
+    }));
+    
+    // 설명에는 표시명 사용
+    const categoryDesc = targetingData.shopping11stCategories.map(cat => {
+      const cat1Display = cat.cat1Name || cat.cat1;
+      const cat2Display = cat.cat2 ? (cat.cat2Name || cat.cat2) : '';
+      const cat3Display = cat.cat3 ? (cat.cat3Name || cat.cat3) : '';
+      return `${cat1Display}${cat2Display ? ' > ' + cat2Display : ''}${cat3Display ? ' > ' + cat3Display : ''}`;
+    }).join(', ');
+    
+    conditions.push({
+      data: categoryData,
+      dataType: 'cate',
+      metaType: 'STREET',
+      code: '',
+      desc: `11번가: ${categoryDesc}`,
+      not: false,
+    });
+    descParts.push(`11번가: ${categoryDesc}`);
   }
+
+  // 5. 웹앱 카테고리 (metaType: app, dataType: cate)
+  // BizChat ATS mosu 형식: cat1/cat2/cat3에 cateid 코드 사용
   if (targetingData.webappCategories && targetingData.webappCategories.length > 0) {
-    interests.push(...targetingData.webappCategories);
-  }
-  if (interests.length > 0) {
-    query.interest = interests;
-    descParts.push(`관심사: ${interests.join(', ')}`);
+    // cateid 코드로 API 페이로드 구성
+    const categoryData = targetingData.webappCategories.map(cat => ({
+      cat1: cat.cat1,  // cateid 코드
+      ...(cat.cat2 && { cat2: cat.cat2 }),  // cateid 코드
+      ...(cat.cat3 && { cat3: cat.cat3 }),  // cateid 코드
+    }));
+    
+    // 설명에는 표시명 사용
+    const categoryDesc = targetingData.webappCategories.map(cat => {
+      const cat1Display = cat.cat1Name || cat.cat1;
+      const cat2Display = cat.cat2 ? (cat.cat2Name || cat.cat2) : '';
+      const cat3Display = cat.cat3 ? (cat.cat3Name || cat.cat3) : '';
+      return `${cat1Display}${cat2Display ? ' > ' + cat2Display : ''}${cat3Display ? ' > ' + cat3Display : ''}`;
+    }).join(', ');
+    
+    conditions.push({
+      data: categoryData,
+      dataType: 'cate',
+      metaType: 'app',
+      code: '',
+      desc: `앱/웹: ${categoryDesc}`,
+      not: false,
+    });
+    descParts.push(`앱/웹: ${categoryDesc}`);
   }
 
-  // 행동 (통화량 + 위치 + 이동패턴)
-  const behaviors: string[] = [];
-  if (targetingData.callUsageTypes && targetingData.callUsageTypes.length > 0) {
-    behaviors.push(...targetingData.callUsageTypes);
-  }
-  if (targetingData.locationTypes && targetingData.locationTypes.length > 0) {
-    behaviors.push(...targetingData.locationTypes);
-  }
-  if (targetingData.mobilityPatterns && targetingData.mobilityPatterns.length > 0) {
-    behaviors.push(...targetingData.mobilityPatterns);
-  }
-  if (behaviors.length > 0) {
-    query.behavior = behaviors;
-    descParts.push(`행동: ${behaviors.join(', ')}`);
+  // 6. 고급 위치 타겟팅 (metaType: loc)
+  if (targetingData.locations && targetingData.locations.length > 0) {
+    const homeLocations = targetingData.locations.filter(l => l.type === 'home');
+    const workLocations = targetingData.locations.filter(l => l.type === 'work');
+    
+    if (homeLocations.length > 0) {
+      const hcodes = homeLocations.map(l => l.code);
+      const names = homeLocations.map(l => l.name);
+      conditions.push({
+        data: hcodes,
+        dataType: 'code',
+        metaType: 'loc',
+        code: 'home_location',
+        desc: `추정 집주소: ${names.join(', ')}`,
+        not: false,
+      });
+      descParts.push(`집주소: ${names.join(', ')}`);
+    }
+    
+    if (workLocations.length > 0) {
+      const hcodes = workLocations.map(l => l.code);
+      const names = workLocations.map(l => l.name);
+      conditions.push({
+        data: hcodes,
+        dataType: 'code',
+        metaType: 'loc',
+        code: 'work_location',
+        desc: `추정 직장주소: ${names.join(', ')}`,
+        not: false,
+      });
+      descParts.push(`직장주소: ${names.join(', ')}`);
+    }
   }
 
-  // 지오펜스
-  if (targetingData.geofenceIds && targetingData.geofenceIds.length > 0) {
-    query.geofence = targetingData.geofenceIds;
-    descParts.push(`지오펜스: ${targetingData.geofenceIds.length}개`);
+  // 7. 프로파일링 필터 (metaType: pro)
+  if (targetingData.profiling && targetingData.profiling.length > 0) {
+    for (const pro of targetingData.profiling) {
+      conditions.push({
+        data: pro.value,
+        dataType: typeof pro.value === 'string' ? 'boolean' : 'number',
+        metaType: 'pro',
+        code: pro.code,
+        desc: pro.desc,
+        not: false,
+      });
+      descParts.push(pro.desc);
+    }
   }
 
   const plainDescription = descParts.length > 0 ? descParts.join(', ') : '전체 대상';
-  
-  // BizChat API 규격: sndMosuDesc는 HTML 형식이어야 함
-  // 예: "<html><body><p>서울시 강남구, 남자, 25세 이상</p></body></html>"
   const htmlDescription = `<html><body><p>${plainDescription}</p></body></html>`;
 
   return {
-    query,
+    query: { '$and': conditions },
     description: plainDescription,
     htmlDescription,
   };
@@ -590,6 +719,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (userBalance < estimatedCost) return res.status(400).json({ error: '잔액이 부족합니다' });
 
       // 타겟팅 정보를 ATS 쿼리로 변환
+      // 새로운 형식: shopping11stCategories, webappCategories가 객체 배열일 수 있음
+      // 레거시 형식: 문자열 배열
       const atsResult = buildAtsQuery({
         gender: data.gender,
         ageMin: data.ageMin,
@@ -598,8 +729,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         districts: data.districts,
         carrierTypes: data.carrierTypes,
         deviceTypes: data.deviceTypes,
-        shopping11stCategories: data.shopping11stCategories,
-        webappCategories: data.webappCategories,
+        // 새로운 형식: 객체 배열 (BizChat 규격)
+        shopping11stCategories: data.shopping11stCategories as unknown as SelectedCategory[],
+        webappCategories: data.webappCategories as unknown as SelectedCategory[],
+        locations: (data as any).locations as SelectedLocation[] | undefined,
+        profiling: (data as any).profiling as SelectedProfiling[] | undefined,
+        // 레거시 형식
         callUsageTypes: data.callUsageTypes,
         locationTypes: data.locationTypes,
         mobilityPatterns: data.mobilityPatterns,
@@ -640,6 +775,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         imageUrl: template.imageUrl,
       });
 
+      // 새로운 형식의 타겟팅 데이터를 atsQuery에 JSON으로 저장
+      const fullTargetingData = {
+        gender: data.gender,
+        ageMin: data.ageMin,
+        ageMax: data.ageMax,
+        regions: data.regions,
+        shopping11stCategories: data.shopping11stCategories,
+        webappCategories: data.webappCategories,
+        locations: (data as any).locations,
+        profiling: (data as any).profiling,
+      };
+
       await db.insert(targeting).values({
         id: randomUUID(),
         campaignId,
@@ -650,8 +797,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         districts: data.districts || [],
         carrierTypes: data.carrierTypes || [],
         deviceTypes: data.deviceTypes || [],
-        shopping11stCategories: data.shopping11stCategories || [],
-        webappCategories: data.webappCategories || [],
+        shopping11stCategories: [], // 새로운 형식은 atsQuery에 JSON으로 저장
+        webappCategories: [], // 새로운 형식은 atsQuery에 JSON으로 저장
         callUsageTypes: data.callUsageTypes || [],
         locationTypes: data.locationTypes || [],
         mobilityPatterns: data.mobilityPatterns || [],

@@ -51,15 +51,16 @@ async function fetch11stCategories(cateid?: string): Promise<any> {
   }
 
   // BizChat 형식을 UI 형식으로 변환
-  // BizChat: { list: [{ id: "01", name: "가구/인테리어" }] }
-  // UI: [{ id: "01", name: "가구/인테리어", cateid: "01" }]
+  // BizChat 응답: { list: [{ id: "01", cateid: "01", name: "가구/인테리어" }] }
+  // cateid가 실제 API 호출에 사용되는 코드이고, id는 표시용 식별자일 수 있음
+  // BizChat API 규격에 따라 cateid 필드를 우선 사용
   return {
     metaType: data.data?.metaType || 'STREET',
     dataType: data.data?.dataType || 'cate',
     list: (data.data?.list || []).map((item: any) => ({
       id: item.id,
       name: item.name,
-      cateid: item.id,
+      cateid: item.cateid ?? item.id,  // cateid 우선, 없으면 id 사용 (하위 호환)
     })),
   };
 }
@@ -101,13 +102,15 @@ async function fetchWebappCategories(cateid?: string): Promise<any> {
     throw new Error(`BizChat API error: ${data.code} - ${data.msg}`);
   }
 
+  // BizChat 응답: { list: [{ id: "01", cateid: "01", name: "게임" }] }
+  // cateid가 실제 API 호출에 사용되는 코드
   return {
     metaType: data.data?.metaType || 'APP',
     dataType: data.data?.dataType || 'cate',
     list: (data.data?.list || []).map((item: any) => ({
       id: item.id,
       name: item.name,
-      cateid: item.id,
+      cateid: item.cateid ?? item.id,  // cateid 우선, 없으면 id 사용 (하위 호환)
     })),
   };
 }
