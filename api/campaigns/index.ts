@@ -821,6 +821,20 @@ const createCampaignSchema = z.object({
   locationTypes: z.array(z.string()).optional(),
   mobilityPatterns: z.array(z.string()).optional(),
   geofenceIds: z.array(z.string()).optional(),
+  geofences: z.array(z.object({
+    id: z.number(),
+    name: z.string(),
+    targets: z.array(z.object({
+      gender: z.number(),
+      minAge: z.number(),
+      maxAge: z.number(),
+      stayMin: z.number(),
+      radius: z.number(),
+      address: z.string(),
+      lat: z.string().optional(),
+      lon: z.string().optional(),
+    })),
+  })).optional(),
   targetCount: z.number().min(100).default(1000),
   budget: z.number().min(10000),
   scheduledAt: z.string().datetime().optional().or(z.literal('')).transform(val => val === '' ? undefined : val),
@@ -891,7 +905,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         callUsageTypes: data.callUsageTypes,
         locationTypes: data.locationTypes,
         mobilityPatterns: data.mobilityPatterns,
-        geofenceIds: data.geofenceIds,
+        geofenceIds: data.geofenceIds || (data.geofences?.map(g => String(g.id)) ?? []),
       });
 
       // ATS mosu API를 호출하여 SQL 쿼리 획득 (DB 저장 전에 먼저 호출)
@@ -973,7 +987,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         callUsageTypes: data.callUsageTypes || [],
         locationTypes: data.locationTypes || [],
         mobilityPatterns: data.mobilityPatterns || [],
-        geofenceIds: data.geofenceIds || [],
+        geofenceIds: data.geofenceIds || (data.geofences?.map(g => String(g.id)) ?? []),
         atsQuery: JSON.stringify({
           jsonQuery: atsResult.query, // UI 편집용 원본 JSON
           sqlQuery: sndMosuQuerySQL, // BizChat API 전송용 SQL
