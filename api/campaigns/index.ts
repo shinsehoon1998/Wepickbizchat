@@ -652,6 +652,11 @@ async function createCampaignInBizChat(
     atsSndStartDate?: Date | null;
     sndMosuQuery?: string;
     sndMosuDesc?: string;
+    // Maptics 지오펜스 관련 파라미터 (rcvType=1,2일 때 사용)
+    sndGeofenceId?: number;
+    collStartDate?: Date | null;  // 수집 시작 일시
+    collEndDate?: Date | null;    // 수집 종료 일시
+    collSndDate?: Date | null;    // 발송 시작 일시 (rcvType=2)
   },
   messageData: {
     title?: string;
@@ -764,6 +769,34 @@ async function createCampaignInBizChat(
   // RCS 타입
   if (campaignData.messageType === 'RCS' && campaignData.rcsType !== undefined) {
     payload.rcsType = campaignData.rcsType;
+  }
+
+  // Maptics 지오펜스 (rcvType=1: 실시간, rcvType=2: 모아서)
+  if (rcvType === 1 || rcvType === 2) {
+    // 지오펜스 ID 필수
+    if (campaignData.sndGeofenceId) {
+      payload.sndGeofenceId = campaignData.sndGeofenceId;
+    }
+    
+    // 수집 시작/종료 일시 (필수)
+    if (campaignData.collStartDate) {
+      payload.collStartDate = Math.floor(new Date(campaignData.collStartDate).getTime() / 1000);
+    }
+    if (campaignData.collEndDate) {
+      payload.collEndDate = Math.floor(new Date(campaignData.collEndDate).getTime() / 1000);
+    }
+    
+    // rcvType=2 (모아서 보내기)일 때 발송 시작 일시
+    if (rcvType === 2 && campaignData.collSndDate) {
+      payload.collSndDate = Math.floor(new Date(campaignData.collSndDate).getTime() / 1000);
+    }
+    
+    // Maptics는 ATS mosu가 아닌 지오펜스로 타겟팅하므로, atsSndStartDate 제거
+    delete payload.atsSndStartDate;
+    delete payload.sndMosu;
+    delete payload.sndMosuFlag;
+    delete payload.sndMosuDesc;
+    delete payload.sndMosuQuery;
   }
 
   return callBizChatAPI('/api/v1/cmpn/create', 'POST', payload, useProduction);
@@ -884,60 +917,69 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const estimatedCost = data.targetCount * 50;
       if (userBalance < estimatedCost) return res.status(400).json({ error: '잔액이 부족합니다' });
 
-      // 타겟팅 정보를 ATS 쿼리로 변환
-      // 새로운 형식: shopping11stCategories, webappCategories가 객체 배열일 수 있음
-      // 레거시 형식: 문자열 배열
-      const atsResult = buildAtsQuery({
-        gender: data.gender,
-        ageMin: data.ageMin,
-        ageMax: data.ageMax,
-        regions: data.regions,
-        districts: data.districts,
-        carrierTypes: data.carrierTypes,
-        deviceTypes: data.deviceTypes,
-        // 새로운 형식: 객체 배열 (BizChat 규격)
-        shopping11stCategories: data.shopping11stCategories as unknown as SelectedCategory[],
-        webappCategories: data.webappCategories as unknown as SelectedCategory[],
-        callCategories: data.callCategories as unknown as SelectedCategory[],
-        locations: data.locations as SelectedLocation[] | undefined,
-        profiling: data.profiling as SelectedProfiling[] | undefined,
-        // 레거시 형식
-        callUsageTypes: data.callUsageTypes,
-        locationTypes: data.locationTypes,
-        mobilityPatterns: data.mobilityPatterns,
-        geofenceIds: data.geofenceIds || (data.geofences?.map(g => String(g.id)) ?? []),
-      });
+      // 지오펜스 선택 여부 먼저 확인 (ATS vs Maptics 분기)
+      const geofenceIds = data.geofenceIds || (data.geofences?.map(g => String(g.id)) ?? []);
+      const hasGeofence = geofenceIds.length > 0;
+      const rcvType = hasGeofence ? 2 : 0; // 0=ATS 일반, 2=Maptics 모아서
 
-      // ATS mosu API를 호출하여 SQL 쿼리 획득 (DB 저장 전에 먼저 호출)
-      // BizChat API 규격: sndMosuQuery는 SQL 형식이어야 함 (JSON이 아님)
+      console.log(`[Campaign] rcvType=${rcvType}, hasGeofence=${hasGeofence}`);
+
+      // ATS 일반 (rcvType=0)일 때만 ATS mosu API 호출
+      // Maptics (rcvType=1,2)는 지오펜스로 타겟팅하므로 ATS mosu 불필요
       let sndMosuQuerySQL = '';
-      let sndMosuDescHTML = atsResult.htmlDescription;
+      let sndMosuDescHTML = '';
       let atsMosuCount: number | undefined = undefined;
-      
-      console.log('[Campaign] Calling ATS mosu API to get SQL query...');
-      const atsMosuResult = await callATSMosuAPI(atsResult.query, useProduction);
-      
-      if (atsMosuResult.success) {
-        sndMosuQuerySQL = atsMosuResult.query;
-        atsMosuCount = atsMosuResult.count;
-        // ATS API에서 반환한 filterStr(HTML)이 있으면 사용
-        if (atsMosuResult.filterStr) {
-          sndMosuDescHTML = atsMosuResult.filterStr;
-        }
-        console.log(`[Campaign] ATS mosu API success - SQL query obtained, count: ${atsMosuCount}`);
-      } else {
-        // ATS API 실패 시 hard failure - BizChat은 SQL 형식만 허용
-        console.error('[Campaign] ATS mosu API failed:', atsMosuResult.error);
-        return res.status(503).json({ 
-          error: 'ATS 타겟팅 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.',
-          code: 'ATS_MOSU_UNAVAILABLE',
-          details: atsMosuResult.error,
+      let atsResult: { query: { '$and': ATSFilterCondition[] }; description: string; htmlDescription: string } | null = null;
+
+      if (!hasGeofence) {
+        // ATS 타겟팅 정보를 ATS 쿼리로 변환
+        atsResult = buildAtsQuery({
+          gender: data.gender,
+          ageMin: data.ageMin,
+          ageMax: data.ageMax,
+          regions: data.regions,
+          districts: data.districts,
+          carrierTypes: data.carrierTypes,
+          deviceTypes: data.deviceTypes,
+          shopping11stCategories: data.shopping11stCategories as unknown as SelectedCategory[],
+          webappCategories: data.webappCategories as unknown as SelectedCategory[],
+          callCategories: data.callCategories as unknown as SelectedCategory[],
+          locations: data.locations as SelectedLocation[] | undefined,
+          profiling: data.profiling as SelectedProfiling[] | undefined,
+          callUsageTypes: data.callUsageTypes,
+          locationTypes: data.locationTypes,
+          mobilityPatterns: data.mobilityPatterns,
+          geofenceIds: [],
         });
+
+        sndMosuDescHTML = atsResult.htmlDescription;
+
+        console.log('[Campaign] Calling ATS mosu API to get SQL query...');
+        const atsMosuResult = await callATSMosuAPI(atsResult.query, useProduction);
+        
+        if (atsMosuResult.success) {
+          sndMosuQuerySQL = atsMosuResult.query;
+          atsMosuCount = atsMosuResult.count;
+          if (atsMosuResult.filterStr) {
+            sndMosuDescHTML = atsMosuResult.filterStr;
+          }
+          console.log(`[Campaign] ATS mosu API success - SQL query obtained, count: ${atsMosuCount}`);
+        } else {
+          console.error('[Campaign] ATS mosu API failed:', atsMosuResult.error);
+          return res.status(503).json({ 
+            error: 'ATS 타겟팅 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.',
+            code: 'ATS_MOSU_UNAVAILABLE',
+            details: atsMosuResult.error,
+          });
+        }
+      } else {
+        // Maptics 지오펜스 캠페인: ATS mosu 건너뜀
+        console.log('[Campaign] Using Maptics geofence targeting, skipping ATS mosu API');
       }
 
       const campaignId = randomUUID();
 
-      // 1. 로컬 DB에 캠페인 저장 (초기 상태: draft) - ATS mosu API 결과 사용
+      // 1. 로컬 DB에 캠페인 저장 (초기 상태: draft)
       const campaignResult = await db.insert(campaigns).values({
         id: campaignId,
         userId,
@@ -948,12 +990,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         sndNum: data.sndNum,
         statusCode: 5, // draft (BizChat 등록 전)
         status: 'draft',
-        rcvType: 0,
+        rcvType: rcvType,
         billingType: data.messageType === 'MMS' ? 2 : (data.messageType === 'RCS' ? 3 : 0),
         sndGoalCnt: data.targetCount,
-        sndMosu: atsMosuCount ?? Math.min(Math.ceil(data.targetCount * 1.5), 400000),
-        sndMosuQuery: sndMosuQuerySQL, // SQL 형식의 쿼리 저장
-        sndMosuDesc: sndMosuDescHTML, // HTML 형식의 설명 저장
+        // Maptics는 sndMosu 사용 안함
+        sndMosu: hasGeofence ? null : (atsMosuCount ?? Math.min(Math.ceil(data.targetCount * 1.5), 400000)),
+        sndMosuQuery: hasGeofence ? null : sndMosuQuerySQL,
+        sndMosuDesc: hasGeofence ? null : sndMosuDescHTML,
         settleCnt: data.targetCount,
         targetCount: data.targetCount,
         budget: data.budget.toString(),
@@ -969,9 +1012,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         imageUrl: template.imageUrl,
       });
 
-      // 타겟팅 데이터와 SQL 쿼리 저장
-      // targeting.atsQuery에는 원본 JSON 쿼리 저장 (UI에서 다시 편집할 때 사용)
-      // campaigns.sndMosuQuery에는 SQL 형식 저장 (BizChat API 전송용)
+      // 타겟팅 데이터 저장
       await db.insert(targeting).values({
         id: randomUUID(),
         campaignId,
@@ -982,24 +1023,72 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         districts: data.districts || [],
         carrierTypes: data.carrierTypes || [],
         deviceTypes: data.deviceTypes || [],
-        shopping11stCategories: [], // 새로운 형식은 atsQuery에 JSON으로 저장
-        webappCategories: [], // 새로운 형식은 atsQuery에 JSON으로 저장
+        shopping11stCategories: [],
+        webappCategories: [],
         callUsageTypes: data.callUsageTypes || [],
         locationTypes: data.locationTypes || [],
         mobilityPatterns: data.mobilityPatterns || [],
-        geofenceIds: data.geofenceIds || (data.geofences?.map(g => String(g.id)) ?? []),
-        atsQuery: JSON.stringify({
-          jsonQuery: atsResult.query, // UI 편집용 원본 JSON
-          sqlQuery: sndMosuQuerySQL, // BizChat API 전송용 SQL
-          estimatedCount: atsMosuCount,
-        }),
+        geofenceIds: geofenceIds,
+        atsQuery: hasGeofence 
+          ? JSON.stringify({ geofenceIds, rcvType: 2 })  // Maptics 메타데이터
+          : JSON.stringify({
+              jsonQuery: atsResult?.query,
+              sqlQuery: sndMosuQuerySQL,
+              estimatedCount: atsMosuCount,
+            }),
       });
 
-      // 2. BizChat API에 캠페인 등록 (임시등록 상태 0)
-      // rcvType=0일 때 atsSndStartDate 필수 - 없으면 기본값 설정 (현재 시간 + 1시간)
-      const defaultSendDate = new Date();
-      defaultSendDate.setHours(defaultSendDate.getHours() + 1);
-      const atsSndStartDate = data.scheduledAt ? new Date(data.scheduledAt) : defaultSendDate;
+      // 2. BizChat API에 캠페인 등록
+      // 발송 시간 계산 (10분 단위 올림, 현재+1시간 이후)
+      const calculateValidSendDateForCampaign = (requestedDate: Date | null | undefined): Date => {
+        const now = new Date();
+        const minStartTime = new Date(now.getTime() + 60 * 60 * 1000); // 현재 + 1시간
+        
+        let targetDate = requestedDate ? new Date(requestedDate) : minStartTime;
+        if (targetDate < minStartTime) {
+          targetDate = minStartTime;
+        }
+        
+        targetDate.setSeconds(0);
+        targetDate.setMilliseconds(0);
+        
+        const minutes = targetDate.getMinutes();
+        const remainder = minutes % 10;
+        if (remainder > 0) {
+          targetDate.setMinutes(minutes + (10 - remainder));
+        }
+        
+        return targetDate;
+      };
+
+      const scheduledDate = data.scheduledAt ? new Date(data.scheduledAt) : null;
+      const atsSndStartDate = calculateValidSendDateForCampaign(scheduledDate);
+
+      // Maptics 모아서 보내기(rcvType=2)용 일시 설정 (BizChat 규격 준수)
+      // collStartDate: 수집 시작 (현재 시간, 10분 단위 올림)
+      // collEndDate: 수집 종료 (collSndDate - 1시간, collStart 이후여야 함)
+      // collSndDate: 발송 시작 (10분 단위 올림, 현재+2시간 이후로 설정해 수집 시간 확보)
+      const now = new Date();
+      now.setSeconds(0);
+      now.setMilliseconds(0);
+      const nowMinutes = now.getMinutes();
+      const nowRemainder = nowMinutes % 10;
+      if (nowRemainder > 0) {
+        now.setMinutes(nowMinutes + (10 - nowRemainder));
+      }
+      const collStartDate = now;
+      
+      // Maptics는 최소 2시간 후 발송 (수집 시간 확보)
+      const minMapticsDate = new Date(collStartDate.getTime() + 2 * 60 * 60 * 1000);
+      const collSndDate = hasGeofence 
+        ? (atsSndStartDate > minMapticsDate ? atsSndStartDate : minMapticsDate)
+        : atsSndStartDate;
+      
+      // collEndDate는 collSndDate - 1시간, 단 collStartDate 이후여야 함
+      let collEndDate = new Date(collSndDate.getTime() - 60 * 60 * 1000);
+      if (collEndDate <= collStartDate) {
+        collEndDate = new Date(collStartDate.getTime() + 30 * 60 * 1000); // 최소 30분 수집
+      }
 
       try {
         // 문자열 길이 검증
@@ -1013,7 +1102,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(400).json({ error: lengthValidation.error });
         }
 
-        // ATS mosu API 결과를 사용하여 BizChat에 등록
+        // BizChat에 등록 (지오펜스 여부에 따라 다른 파라미터 사용)
         const bizchatResult = await createCampaignInBizChat(
           {
             name: data.name,
@@ -1021,10 +1110,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             messageType: data.messageType,
             sndNum: data.sndNum,
             targetCount: data.targetCount,
-            rcvType: 0,
+            rcvType: rcvType,
+            // ATS 일반 (rcvType=0)용
             atsSndStartDate: atsSndStartDate,
-            sndMosuQuery: sndMosuQuerySQL, // SQL 형식의 쿼리 사용 (이미 위에서 획득)
-            sndMosuDesc: sndMosuDescHTML, // HTML 형식의 설명 사용 (이미 위에서 획득)
+            sndMosuQuery: sndMosuQuerySQL,
+            sndMosuDesc: sndMosuDescHTML,
+            // Maptics 지오펜스 (rcvType=2)용
+            sndGeofenceId: hasGeofence ? Number(geofenceIds[0]) : undefined,
+            collStartDate: hasGeofence ? collStartDate : undefined,
+            collEndDate: hasGeofence ? collEndDate : undefined,
+            collSndDate: hasGeofence ? collSndDate : undefined,
           },
           {
             title: template.title || undefined,
