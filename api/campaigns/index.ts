@@ -1076,38 +1076,136 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const atsSndStartDate = calculateValidSendDateForCampaign(scheduledDate);
 
       // Maptics 모아서 보내기(rcvType=2)용 일시 설정 (BizChat 규격 v0.29.0 준수)
-      // BizChat 규격: collStartDate는 캠페인 생성 요청 시간 보다 +1시간 미래여야 함
-      // collStartDate: 수집 시작 (현재 + 1시간 이후, 10분 단위 올림)
-      // collEndDate: 수집 종료 (collStartDate < collEndDate < collSndDate)
-      // collSndDate: 발송 시작 (collEndDate 이후, 09:00~20:00 범위)
+      // BizChat 규격: 
+      // - collStartDate는 캠페인 생성 요청 시간 보다 +1시간 미래여야 함
+      // - collSndDate는 한국시간 09:00~20:00 범위 내여야 함
+      // - collStartDate < collEndDate < collSndDate
+      
+      // 10분 단위 올림 헬퍼 함수
+      const roundUpTo10Min = (date: Date): Date => {
+        const result = new Date(date);
+        result.setSeconds(0);
+        result.setMilliseconds(0);
+        const minutes = result.getMinutes();
+        const remainder = minutes % 10;
+        if (remainder > 0) {
+          result.setMinutes(minutes + (10 - remainder));
+        }
+        return result;
+      };
+      
+      // 한국시간(KST) 기준 발송 가능 시간대로 조정하는 함수
+      // KST = UTC + 9시간, 발송 가능 시간: 09:00~20:00 KST
+      // KST 09:00 = UTC 00:00, KST 20:00 = UTC 11:00
+      const clampToKSTWindow = (dateUTC: Date, minTime: Date): Date => {
+        const KST_OFFSET_HOURS = 9;
+        
+        // UTC 시간 기준으로 KST 시간 계산
+        const utcHours = dateUTC.getUTCHours();
+        // KST 시간 = UTC + 9 (날짜 넘어갈 수 있음)
+        const kstHours = utcHours + KST_OFFSET_HOURS;
+        const kstHoursNormalized = kstHours % 24;
+        const isNextDayKST = kstHours >= 24;
+        
+        // KST 09:00~19:59 범위 = UTC 00:00~10:59 범위
+        // (KST 20:00 = UTC 11:00)
+        const isInWindow = kstHoursNormalized >= 9 && kstHoursNormalized < 20;
+        
+        if (isInWindow) {
+          // 이미 발송 가능 시간대 내
+          // minTime과 비교하여 더 늦은 시간 반환
+          const effectiveDate = dateUTC > minTime ? dateUTC : minTime;
+          // 반환값도 KST 범위 내인지 확인
+          const resultKstHours = (effectiveDate.getUTCHours() + KST_OFFSET_HOURS) % 24;
+          if (resultKstHours >= 9 && resultKstHours < 20) {
+            return roundUpTo10Min(effectiveDate);
+          }
+          // minTime이 범위 밖이면 다음 09:00으로 이동
+        }
+        
+        // 발송 불가 시간대 → 다음 가능한 KST 09:00 (= UTC 00:00)으로 조정
+        const adjusted = new Date(dateUTC);
+        
+        if (kstHoursNormalized >= 20) {
+          // KST 20:00~23:59 (UTC 11:00~14:59) → 다음날 KST 09:00
+          // 다음날 UTC 00:00으로 설정
+          adjusted.setUTCDate(adjusted.getUTCDate() + 1);
+          adjusted.setUTCHours(0, 0, 0, 0);
+        } else if (kstHoursNormalized < 9) {
+          // KST 00:00~08:59 
+          if (isNextDayKST) {
+            // UTC 15:00~23:59 → 이미 KST 기준 다음날이므로 당일 UTC 00:00
+            // 하지만 UTC 00:00은 과거일 수 있으므로 다음날로
+            adjusted.setUTCDate(adjusted.getUTCDate() + 1);
+          }
+          // UTC 00:00 (= KST 09:00)으로 설정
+          adjusted.setUTCHours(0, 0, 0, 0);
+        }
+        
+        // minTime 이후 보장 + KST 범위 재확인
+        let result = adjusted > minTime ? adjusted : minTime;
+        
+        // minTime이 KST 범위 밖일 수 있으므로 재확인
+        const resultKstHours = (result.getUTCHours() + KST_OFFSET_HOURS) % 24;
+        if (resultKstHours >= 20 || resultKstHours < 9) {
+          // minTime이 범위 밖이면 다음 KST 09:00으로 조정
+          result = new Date(result);
+          if (resultKstHours >= 20) {
+            result.setUTCDate(result.getUTCDate() + 1);
+          } else {
+            result.setUTCDate(result.getUTCDate() + 1);
+          }
+          result.setUTCHours(0, 0, 0, 0);
+        }
+        
+        const finalKstHours = (result.getUTCHours() + KST_OFFSET_HOURS) % 24;
+        console.log(`[Campaign] KST window clamp: ${dateUTC.toISOString()} → ${result.toISOString()} (KST ${String(finalKstHours).padStart(2, '0')}:${String(result.getUTCMinutes()).padStart(2, '0')})`);
+        return roundUpTo10Min(result);
+      };
+      
       const now = new Date();
       now.setSeconds(0);
       now.setMilliseconds(0);
       
-      // collStartDate = 현재 + 1시간 이후 (10분 단위 올림) - BizChat 필수 조건
-      const minCollStartDate = new Date(now.getTime() + 60 * 60 * 1000); // 현재 + 1시간
-      const collStartMinutes = minCollStartDate.getMinutes();
-      const collStartRemainder = collStartMinutes % 10;
-      if (collStartRemainder > 0) {
-        minCollStartDate.setMinutes(collStartMinutes + (10 - collStartRemainder));
-      }
-      const collStartDate = minCollStartDate;
+      // Step 1: collStartDate 계산 (현재 + 1시간 이후, 10분 단위 올림) - BizChat 필수 조건
+      const minCollStartTime = roundUpTo10Min(new Date(now.getTime() + 60 * 60 * 1000));
       
-      // collSndDate = collStartDate + 최소 2시간 (수집 시간 확보)
-      // 사용자 지정 발송 시간이 더 늦으면 그 시간 사용
-      const minCollSndDate = new Date(collStartDate.getTime() + 2 * 60 * 60 * 1000);
-      const collSndDate = hasGeofence 
-        ? (atsSndStartDate > minCollSndDate ? atsSndStartDate : minCollSndDate)
+      // Step 2: collSndDate 계산 (collStartDate + 2시간 이상, 한국시간 09:00~20:00 범위)
+      const minCollSndTime = new Date(minCollStartTime.getTime() + 2 * 60 * 60 * 1000); // 최소 수집 시간 2시간 확보
+      const userRequestedTime = data.scheduledAt ? new Date(data.scheduledAt) : minCollSndTime;
+      
+      // 사용자 요청 시간과 최소 시간 중 늦은 것 선택, 한국시간 범위로 조정
+      let tentativeCollSndDate = hasGeofence 
+        ? (userRequestedTime > minCollSndTime ? userRequestedTime : minCollSndTime)
         : atsSndStartDate;
+      // clampToKSTWindow: 한국시간 09:00~20:00 범위로 조정 + minCollStartTime 이후 보장 + 10분 올림
+      let collSndDate = clampToKSTWindow(tentativeCollSndDate, minCollStartTime);
       
-      // collEndDate = collSndDate - 30분 (collStartDate < collEndDate < collSndDate 조건 충족)
-      let collEndDate = new Date(collSndDate.getTime() - 30 * 60 * 1000);
+      // Step 3: collSndDate가 조정되면 collStartDate도 재계산
+      // collStartDate = max(현재+1시간, collSndDate-2시간), 10분 단위 올림
+      let collStartDate = new Date(collSndDate.getTime() - 2 * 60 * 60 * 1000);
+      if (collStartDate < minCollStartTime) {
+        collStartDate = new Date(minCollStartTime);
+      }
+      collStartDate = roundUpTo10Min(collStartDate);
+      
+      // Step 4: collEndDate = max(collStartDate+30분, collSndDate-30분), 10분 단위 올림
+      const endFromStart = new Date(collStartDate.getTime() + 30 * 60 * 1000);
+      const endFromSnd = new Date(collSndDate.getTime() - 30 * 60 * 1000);
+      let collEndDate = endFromStart > endFromSnd ? endFromStart : endFromSnd;
+      collEndDate = roundUpTo10Min(collEndDate);
+      
+      // Step 5: 최종 검증 - collStartDate < collEndDate < collSndDate
       if (collEndDate <= collStartDate) {
-        // collEndDate가 collStartDate 이후가 되도록 보장
-        collEndDate = new Date(collStartDate.getTime() + 30 * 60 * 1000);
+        collEndDate = roundUpTo10Min(new Date(collStartDate.getTime() + 30 * 60 * 1000));
+      }
+      if (collEndDate >= collSndDate) {
+        collSndDate = roundUpTo10Min(new Date(collEndDate.getTime() + 30 * 60 * 1000));
+        // 재조정된 collSndDate도 한국시간 범위 확인
+        collSndDate = clampToKSTWindow(collSndDate, minCollStartTime);
       }
       
-      console.log(`[Campaign] Maptics dates - collStartDate: ${collStartDate.toISOString()}, collEndDate: ${collEndDate.toISOString()}, collSndDate: ${collSndDate.toISOString()}`);
+      console.log(`[Campaign] Maptics dates (KST adjusted) - collStartDate: ${collStartDate.toISOString()}, collEndDate: ${collEndDate.toISOString()}, collSndDate: ${collSndDate.toISOString()}`);
 
       try {
         // 문자열 길이 검증
