@@ -21,7 +21,7 @@ async function verifyAuth(req: VercelRequest) {
 
 function generateEncData(mid: string, ediDate: string, goodsAmt: string, merchantKey: string): string {
   const data = mid + ediDate + goodsAmt + merchantKey;
-  return createHash('sha256').update(data).digest('hex');
+  return createHash('sha256').update(data).digest('hex').toUpperCase();
 }
 
 function getEdiDate(): string {
