@@ -92,7 +92,7 @@ interface SelectedLocation {
 
 interface SelectedProfiling {
   code: string;
-  value: string | { gt: string; lt: string };
+  value: string | number | boolean | { gt: string | number; lt: string | number };
   desc: string;
 }
 
@@ -261,11 +261,33 @@ function buildATSMosuPayload(params: TargetingParams): { payload: { '$and': ATSF
   }
 
   // 7. 프로파일링 필터 (metaType: pro)
+  // BizChat API 규격: 범위 값은 {gt: number, lt: number} 형식
   if (params.profiling && params.profiling.length > 0) {
     for (const pro of params.profiling) {
+      // 값 처리: 문자열 gt/lt를 숫자로 변환
+      let processedValue: unknown = pro.value;
+      let dataType: 'number' | 'boolean' | 'code' = 'number';
+      
+      if (typeof pro.value === 'object' && pro.value !== null && 'gt' in pro.value) {
+        // 범위 값 - 숫자로 변환
+        processedValue = {
+          gt: typeof pro.value.gt === 'string' ? parseFloat(pro.value.gt) : pro.value.gt,
+          lt: typeof pro.value.lt === 'string' ? parseFloat(pro.value.lt) : pro.value.lt,
+        };
+        dataType = 'number';
+      } else if (typeof pro.value === 'boolean') {
+        dataType = 'boolean';
+      } else if (typeof pro.value === 'string') {
+        // 문자열 값 (예: 'Y', 'N') - code 타입으로 처리
+        dataType = 'code';
+        processedValue = [pro.value]; // BizChat API는 배열 형식을 기대
+      } else if (typeof pro.value === 'number') {
+        dataType = 'number';
+      }
+      
       conditions.push({
-        data: pro.value,
-        dataType: typeof pro.value === 'string' ? 'boolean' : 'number',
+        data: processedValue,
+        dataType: dataType,
         metaType: 'pro',
         code: pro.code,
         desc: pro.desc,

@@ -475,11 +475,34 @@ function buildAtsQuery(targetingData: {
   }
 
   // 7. 프로파일링 필터 (metaType: pro)
+  // BizChat API 규격: 범위 값은 {gt: number, lt: number} 형식
   if (targetingData.profiling && targetingData.profiling.length > 0) {
     for (const pro of targetingData.profiling) {
+      // 값 처리: 문자열 gt/lt를 숫자로 변환
+      let processedValue: unknown = pro.value;
+      let dataType: 'number' | 'boolean' | 'code' = 'number';
+      
+      if (typeof pro.value === 'object' && pro.value !== null && 'gt' in pro.value) {
+        // 범위 값 - 숫자로 변환
+        const rangeValue = pro.value as { gt?: string | number; lt?: string | number };
+        processedValue = {
+          gt: typeof rangeValue.gt === 'string' ? parseFloat(rangeValue.gt) : rangeValue.gt,
+          lt: typeof rangeValue.lt === 'string' ? parseFloat(rangeValue.lt) : rangeValue.lt,
+        };
+        dataType = 'number';
+      } else if (typeof pro.value === 'boolean') {
+        dataType = 'boolean';
+      } else if (typeof pro.value === 'string') {
+        // 문자열 값 (예: 'Y', 'N') - code 타입으로 처리
+        dataType = 'code';
+        processedValue = [pro.value]; // BizChat API는 배열 형식을 기대
+      } else if (typeof pro.value === 'number') {
+        dataType = 'number';
+      }
+      
       conditions.push({
-        data: pro.value,
-        dataType: typeof pro.value === 'string' ? 'boolean' : 'number',
+        data: processedValue,
+        dataType: dataType,
         metaType: 'pro',
         code: pro.code,
         desc: pro.desc,
@@ -734,9 +757,10 @@ const selectedCategorySchema = z.object({
 });
 
 // 프로파일링 스키마 - BizChat ATS 규격에 맞게 범위 값({gt, lt})도 지원
+// 프론트엔드에서 문자열로 전송되는 경우도 처리하기 위해 coerce 사용
 const profilingRangeSchema = z.object({
-  gt: z.number().optional(),
-  lt: z.number().optional(),
+  gt: z.coerce.number().optional(),
+  lt: z.coerce.number().optional(),
 });
 
 const selectedProfilingSchema = z.object({
