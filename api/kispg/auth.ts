@@ -37,7 +37,8 @@ function getEdiDate(): string {
 
 function generateOrderNo(userId: string): string {
   const timestamp = Date.now().toString().slice(-10);
-  return `BC${timestamp}_${userId}`;
+  const shortUserId = userId.replace(/-/g, '').slice(0, 8);
+  return `BC${timestamp}_${shortUserId}`;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {

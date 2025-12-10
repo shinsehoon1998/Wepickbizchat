@@ -140,9 +140,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.redirect(302, errorUrl.toString());
     }
 
-    const userId = ordNo.includes('_') ? ordNo.split('_').slice(1).join('_') : null;
+    const shortUserId = ordNo.includes('_') ? ordNo.split('_')[1] : null;
     
-    if (!userId) {
+    if (!shortUserId) {
       console.error('Could not extract userId from ordNo:', ordNo);
       const errorUrl = new URL(`${baseUrl}/billing`);
       errorUrl.searchParams.set('error', 'true');
@@ -153,7 +153,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const db = getDb();
     const amount = parseFloat(amt);
 
-    const userResult = await db.select().from(users).where(eq(users.id, userId));
+    const allUsers = await db.select().from(users);
+    const userResult = allUsers.filter(u => u.id.replace(/-/g, '').startsWith(shortUserId));
     if (!userResult[0]) {
       const errorUrl = new URL(`${baseUrl}/billing`);
       errorUrl.searchParams.set('error', 'true');
@@ -161,6 +162,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.redirect(302, errorUrl.toString());
     }
 
+    const userId = userResult[0].id;
     const currentBalance = parseFloat(userResult[0].balance as string) || 0;
     const newBalance = currentBalance + amount;
 
