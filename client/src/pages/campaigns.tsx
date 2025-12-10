@@ -13,6 +13,7 @@ import {
   Clock,
   Play,
   FileCheck,
+  TestTube,
 } from "lucide-react";
 import { useState } from "react";
 import { formatCurrency, formatNumber, formatDateTime, getMessageTypeLabel, CAMPAIGN_STATUS } from "@/lib/authUtils";
@@ -173,12 +174,20 @@ export default function Campaigns() {
             생성한 모든 캠페인을 관리해요
           </p>
         </div>
-        <Button asChild className="gap-2 w-fit" data-testid="button-new-campaign-list">
-          <Link href="/campaigns/new">
-            <PlusCircle className="h-4 w-4" />
-            캠페인 만들기
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button asChild variant="outline" className="gap-2" data-testid="button-test-campaign">
+            <Link href="/campaigns/test">
+              <TestTube className="h-4 w-4" />
+              테스트 발송
+            </Link>
+          </Button>
+          <Button asChild className="gap-2" data-testid="button-new-campaign-list">
+            <Link href="/campaigns/new">
+              <PlusCircle className="h-4 w-4" />
+              캠페인 만들기
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Card>

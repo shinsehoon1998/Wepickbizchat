@@ -29,6 +29,7 @@ import SendHistory from "@/pages/send-history";
 import SenderNumbers from "@/pages/sender-numbers";
 import Billing from "@/pages/billing";
 import Reports from "@/pages/reports";
+import TestCampaign from "@/pages/test-campaign";
 import NotFound from "@/pages/not-found";
 
 function navigate(href: string) {
@@ -190,6 +191,7 @@ function Router() {
       <Route path="/templates/:id" component={() => <ProtectedRoute component={TemplatesNew} />} />
       <Route path="/campaigns" component={() => <ProtectedRoute component={Campaigns} />} />
       <Route path="/campaigns/new" component={() => <ProtectedRoute component={CampaignsNew} />} />
+      <Route path="/campaigns/test" component={() => <ProtectedRoute component={TestCampaign} />} />
       <Route path="/campaigns/:id/edit" component={() => <ProtectedRoute component={CampaignsNew} />} />
       <Route path="/campaigns/:id" component={() => <ProtectedRoute component={CampaignDetail} />} />
       <Route path="/send-history" component={() => <ProtectedRoute component={SendHistory} />} />
