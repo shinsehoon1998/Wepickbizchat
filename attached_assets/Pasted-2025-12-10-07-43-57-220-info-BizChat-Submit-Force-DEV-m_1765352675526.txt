@@ -1,0 +1,95 @@
+2025-12-10 07:43:57.220 [info] [BizChat Submit] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-10 07:43:57.220 [info] [BizChat Submit] Environment: DEVELOPMENT (VERCEL_ENV=production)
+2025-12-10 07:43:58.283 [info] [Submit] Skipping unmapped behavior: LOC_002
+2025-12-10 07:43:58.283 [info] [Submit] Converted legacy sndMosuQuery: {"$and":[{"data":{"gt":20,"lt":60},"dataType":"number","metaType":"svc","code":"cust_age_cd","desc":"연령: 20세 ~ 60세","not":false},{"data":[{"cat1":"가구/인테리어","cat2":"침대/소파"},{"cat1":"게임","cat2":"보드게임"}],"dataType":"cate","metaType":"app","code":"","desc":"앱/웹: 가구/인테리어 > 침대/소파, 게임 > 보드게임","not":false},{"data":{"gt":0,"lt":1},"dataType":"number","metaType":"pro","code":"cpm12","desc":"MMS스코어: 0 ~ 1","not":false}]}
+2025-12-10 07:43:58.283 [info] [Submit] Calling ATS mosu API to get SQL query...
+2025-12-10 07:43:58.283 [info] [Submit] Filter payload: {
+  "$and": [
+    {
+      "data": {
+        "gt": 20,
+        "lt": 60
+      },
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 20세 ~ 60세",
+      "not": false
+    },
+    {
+      "data": [
+        {
+          "cat1": "가구/인테리어",
+          "cat2": "침대/소파"
+        },
+        {
+          "cat1": "게임",
+          "cat2": "보드게임"
+        }
+      ],
+      "dataType": "cate",
+      "metaType": "app",
+      "code": "",
+      "desc": "앱/웹: 가구/인테리어 > 침대/소파, 게임 > 보드게임",
+      "not": false
+    },
+    {
+      "data": {
+        "gt": 0,
+        "lt": 1
+      },
+      "dataType": "number",
+      "metaType": "pro",
+      "code": "cpm12",
+      "desc": "MMS스코어: 0 ~ 1",
+      "not": false
+    }
+  ]
+}
+2025-12-10 07:43:58.283 [info] [ATS Mosu] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/ats/mosu?tid=1765352638283
+2025-12-10 07:43:58.284 [info] [ATS Mosu] Payload: {
+  "$and": [
+    {
+      "data": {
+        "gt": 20,
+        "lt": 60
+      },
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 20세 ~ 60세",
+      "not": false
+    },
+    {
+      "data": [
+        {
+          "cat1": "가구/인테리어",
+          "cat2": "침대/소파"
+        },
+        {
+          "cat1": "게임",
+          "cat2": "보드게임"
+        }
+      ],
+      "dataType": "cate",
+      "metaType": "app",
+      "code": "",
+      "desc": "앱/웹: 가구/인테리어 > 침대/소파, 게임 > 보드게임",
+      "not": false
+    },
+    {
+      "data": {
+        "gt": 0,
+        "lt": 1
+      },
+      "dataType": "number",
+      "metaType": "pro",
+      "code": "cpm12",
+      "desc": "MMS스코어: 0 ~ 1",
+      "not": false
+    }
+  ]
+}
+2025-12-10 07:43:58.482 [info] [ATS Mosu] Response: 400 - {"tid":"1765352638283","code":"E001005","msg":"ATS error"}
+2025-12-10 07:43:58.482 [error] [ATS Mosu] Failed - code: E001005, msg: ATS error
+2025-12-10 07:43:58.482 [error] [Submit] ATS mosu API failed: ATS API failed: E001005 - ATS error
