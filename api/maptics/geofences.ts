@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { z } from 'zod';
-import { verifyAuth, createGeofence, updateGeofence, deleteGeofence, GeofenceTarget } from '../bizchat/maptics';
+import { verifyAuth, createGeofence, updateGeofence, deleteGeofence, GeofenceTarget } from '../bizchat/maptics.js';
 
 const geofenceTargetSchema = z.object({
   gender: z.number().min(0).max(2),
