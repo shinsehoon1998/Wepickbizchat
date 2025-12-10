@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ShoppingBag,
   Smartphone,
+  Phone,
   MapPin,
   Target,
   ChevronDown,
@@ -96,6 +97,8 @@ export interface AdvancedTargetingState {
   shopping11stCategories: SelectedCategory[];
   // 웹앱 카테고리 (cat1/cat2/cat3 형식)
   webappCategories: SelectedCategory[];
+  // 통화Usage 카테고리 (cat1/cat2/cat3 형식)
+  callCategories: SelectedCategory[];
   // 위치 필터 (hcode 배열)
   locations: {
     code: string;
@@ -134,7 +137,7 @@ function HierarchicalCategorySection({
   title: string;
   description: string;
   icon: typeof ShoppingBag;
-  metaType: '11st' | 'webapp';
+  metaType: '11st' | 'webapp' | 'call';
   selectedCategories: SelectedCategory[];
   onCategoriesChange: (categories: SelectedCategory[]) => void;
   testIdPrefix: string;
@@ -715,6 +718,7 @@ export default function TargetingAdvanced({
   const hasAdvancedFilters =
     (targeting?.shopping11stCategories?.length ?? 0) > 0 ||
     (targeting?.webappCategories?.length ?? 0) > 0 ||
+    (targeting?.callCategories?.length ?? 0) > 0 ||
     (targeting?.locations?.length ?? 0) > 0 ||
     (targeting?.profiling?.length ?? 0) > 0;
 
@@ -756,6 +760,11 @@ export default function TargetingAdvanced({
                   앱: {cat.cat1Name || cat.cat1}{cat.cat2 && ` > ${cat.cat2Name || cat.cat2}`}{cat.cat3 && ` > ${cat.cat3Name || cat.cat3}`}
                 </Badge>
               ))}
+              {(targeting?.callCategories ?? []).map((cat, i) => (
+                <Badge key={`call-${i}`} variant="secondary" className="text-tiny">
+                  통화: {cat.cat1Name || cat.cat1}{cat.cat2 && ` > ${cat.cat2Name || cat.cat2}`}{cat.cat3 && ` > ${cat.cat3Name || cat.cat3}`}
+                </Badge>
+              ))}
               {(targeting?.locations ?? []).map((loc, i) => (
                 <Badge key={`loc-${i}`} variant="secondary" className="text-tiny">
                   {loc.type === 'home' ? '집' : '직장'}: {loc.name}
@@ -794,6 +803,18 @@ export default function TargetingAdvanced({
             onTargetingChange({ ...targeting, webappCategories: cats })
           }
           testIdPrefix="webapp"
+        />
+
+        <HierarchicalCategorySection
+          title="통화 Usage 관심사"
+          description="통화 사용 패턴 기반 타겟팅"
+          icon={Phone}
+          metaType="call"
+          selectedCategories={targeting?.callCategories ?? []}
+          onCategoriesChange={(cats) => 
+            onTargetingChange({ ...targeting, callCategories: cats })
+          }
+          testIdPrefix="call"
         />
 
         <LocationSearchSection
