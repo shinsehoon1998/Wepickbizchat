@@ -85,6 +85,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const authParams = {
       payMethod: 'CARD',
+      model: '1',
       trxCd: '0',
       mid,
       goodsNm: 'BizChat 잔액 충전',
@@ -97,7 +98,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       encData,
       returnUrl,
       payReqType: '1',
-      userId: auth.userId,
     };
 
     return res.status(200).json({
