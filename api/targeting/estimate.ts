@@ -60,7 +60,7 @@ function generateTid(): string {
 interface ATSFilterCondition {
   data: unknown;
   dataType: 'number' | 'code' | 'boolean' | 'cate';
-  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'tel' | 'STREET';
+  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'tel' | '11st' | 'webapp';
   code: string;
   desc: string;
   not: boolean;
@@ -168,8 +168,9 @@ function buildATSMosuPayload(params: TargetingParams): { payload: { '$and': ATSF
     }
   }
 
-  // 4. 11번가 쇼핑 카테고리 (metaType: STREET, dataType: cate)
+  // 4. 11번가 쇼핑 카테고리 (metaType: 11st, dataType: cate)
   // BizChat ATS mosu 형식: cat1/cat2/cat3에 cateid 코드 사용
+  // 주의: BizChat meta API는 "STREET"를 반환하지만, mosu API는 "11st" 사용
   if (params.shopping11stCategories && params.shopping11stCategories.length > 0) {
     // cateid 코드로 API 페이로드 구성
     const categoryData: CategoryData[] = params.shopping11stCategories.map(cat => ({
@@ -189,7 +190,7 @@ function buildATSMosuPayload(params: TargetingParams): { payload: { '$and': ATSF
     conditions.push({
       data: categoryData,
       dataType: 'cate',
-      metaType: 'STREET',  // 11번가는 STREET 메타타입 사용
+      metaType: '11st',  // BizChat ATS mosu API에서 11번가는 '11st' 사용
       code: '',
       desc: `11번가: ${categoryDesc}`,
       not: false,

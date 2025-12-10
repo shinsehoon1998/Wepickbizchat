@@ -276,7 +276,7 @@ const REGION_HCODE_MAP: Record<string, string> = {
 interface ATSFilterCondition {
   data: unknown;
   dataType: 'number' | 'code' | 'boolean' | 'cate';
-  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'tel' | 'STREET';
+  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'tel' | '11st' | 'webapp';
   code: string;
   desc: string;
   not: boolean;
@@ -382,8 +382,9 @@ function buildAtsQuery(targetingData: {
     }
   }
 
-  // 4. 11번가 쇼핑 카테고리 (metaType: STREET, dataType: cate)
+  // 4. 11번가 쇼핑 카테고리 (metaType: 11st, dataType: cate)
   // BizChat ATS mosu 형식: cat1/cat2/cat3에 cateid 코드 사용
+  // 주의: BizChat meta API는 "STREET"를 반환하지만, mosu API는 "11st" 사용
   if (targetingData.shopping11stCategories && targetingData.shopping11stCategories.length > 0) {
     // cateid 코드로 API 페이로드 구성
     const categoryData = targetingData.shopping11stCategories.map(cat => ({
@@ -403,7 +404,7 @@ function buildAtsQuery(targetingData: {
     conditions.push({
       data: categoryData,
       dataType: 'cate',
-      metaType: 'STREET',
+      metaType: '11st',  // BizChat ATS mosu API에서 11번가는 '11st' 사용
       code: '',
       desc: `11번가: ${categoryDesc}`,
       not: false,
@@ -757,9 +758,9 @@ const createCampaignSchema = z.object({
   districts: z.array(z.string()).optional(),
   carrierTypes: z.array(z.string()).optional(),
   deviceTypes: z.array(z.string()).optional(),
-  // 새로운 형식: 객체 배열 (BizChat 규격)
-  shopping11stCategories: z.array(z.union([z.string(), selectedCategorySchema])).optional(),
-  webappCategories: z.array(z.union([z.string(), selectedCategorySchema])).optional(),
+  // 카테고리 타겟팅: 객체 배열 형식 (BizChat 규격)
+  shopping11stCategories: z.array(selectedCategorySchema).optional(),
+  webappCategories: z.array(selectedCategorySchema).optional(),
   locations: z.array(selectedLocationSchema).optional(), // 위치 타겟팅
   profiling: z.array(selectedProfilingSchema).optional(), // 프로파일링 타겟팅
   callUsageTypes: z.array(z.string()).optional(),
