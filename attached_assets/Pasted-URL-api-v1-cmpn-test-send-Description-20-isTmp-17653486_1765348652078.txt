@@ -1,0 +1,334 @@
+URL	/api/v1/cmpn/test/send				
+Description	"캠패인 테스트 발송. 최대 20명한테 발송이 가능하다.
+임시 저장된 캠페인(캠페인 생성시 isTmp 파라미터를 1로 설정된 캠페인)은 테스트 발송이 불가능 하다."				
+Method	POST				
+Header	Authorization: {token}				
+					
+Request					
+In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	id	Y	string	"19ca34b180394f15a9c66f798b65ef95"	대상 캠패인 아이디
+Body	mdn	Y	string array	["01012345678"]	mdn 정보. 전화번호 형태의 문자열 배열이며 최대 20개까지 입력이 가능하다.
+	sendTime	N	number	1705298638	캠패인 테스트 발송 시간. 예약 발송일 경우에만 사용하며 값이 없을 경우 즉시 발송한다. 초단위 timestamp 형태
+Example(Query string)	"아래 데이터는 실제 데이터로 변환하여 입력해야한다.
+- id : 캠페인 id
+
+tid=1706073253324&id=19ca34b180394f15a9c66f798b65ef95"				
+Example(Body)	"{
+    ""mdn"": [""01012345678""],
+    ""sendTime"": 1705298638
+}"				
+					
+Response					
+구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+	code	Y	string	"S000001"	API 성공, 실패 코드
+	msg	Y	string	"success"	API 성공, 실패 메시지
+Example	"{
+    ""tid"": ""1706073253324"",
+    ""code"": ""S000001"",
+    ""msg"": ""success""
+}"				
+					
+URL	/api/v1/cmpn/test/send/cancel				
+Description	캠패인 테스트 발송 취소. 예약된 캠패인 테스트 발송을 모두 취소한다.				
+Method	POST				
+Header	Authorization: {token}				
+					
+Request					
+In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	id	Y	string	"19ca34b180394f15a9c66f798b65ef95"	대상 캠패인 아이디
+Example(Query string)	"아래 데이터는 실제 데이터로 변환하여 입력해야한다.
+- id : 캠페인 id
+
+tid=1706073253324&id=19ca34b180394f15a9c66f798b65ef95"				
+					
+Response					
+구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+	code	Y	string	"S000001"	API 성공, 실패 코드
+	msg	Y	string	"success"	API 성공, 실패 메시지
+Example	"{
+    ""tid"": ""1706073253324"",
+    ""code"": ""S000001"",
+    ""msg"": ""success""
+}"				
+					
+URL	/api/v1/cmpn/test				
+Description	캠패인 테스트 조회(테스트 메시지 발송 결과 조회). 해당 캠페인으로 테스트 발송된 모든 결과를 조회 한다.				
+Method	GET				
+Header	Authorization: {token}				
+					
+Request					
+In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	id	Y	string	"ff1e695ff6364daa8cefed57f5506605"	대상 캠패인 아이디
+Example(Query string)	tid=1706073253324&id=ff1e695ff6364daa8cefed57f5506605				
+					
+Response					
+구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+	code	Y	string	"S000001"	API 성공, 실패 코드
+	msg	Y	string	"success"	API 성공, 실패 메시지
+	data	Y	object	{}	결과 데이터
+	data.list	Y	object array	{}	테스트 결과 목록
+	data.list[].recvMdn	Y	string	"01010000001"	수신자 mdn
+	data.list[].reserveTime	Y	number	1209382344	메시지 발송 시간. unix timestamp 형태
+	data.list[].svcStatus	Y	string	"001000"	"호 종료 코드(메시지 발송 코드). 참고로 사용하고 메시지 발송 성공/실패는 svcStatus2 를 사용 한다.
+- 001000 : 성공
+- 기타 : 실패(REST API - 메시지 결과 코드 참고)"
+	data.list[].svcStatus2	Y	string	"201000"	"단말기에 메시지 발송 되었는지 구별 코드. 성공이면 단말기에 메시지 수신됨 
+- 201000 : 성공 
+- 기타 : 실패(REST API - 메시지 결과 코드 참고)"
+Example	"{
+    ""tid"": ""1719998971777"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""list"": [
+            {
+                ""recvMdn"": ""01031626351"",
+                ""customerReserveTime"": ""20240703142524"",
+                ""svcStatus"": ""001000"",
+                ""svcStatus2"": ""201000""
+            },
+            {
+                ""recvMdn"": ""01031626351"",
+                ""customerReserveTime"": ""20240703140654"",
+                ""svcStatus"": ""001000"",
+                ""svcStatus2"": ""201000""
+            }
+        ]
+    }
+}"				
+					
+URL	/api/v1/cmpn/verify/mdn				
+Description	캠패인 대상 검증. 캠패인 제작 이후 업로드한 mdn 파일과 발송 목표 건수를 비교한다. 캠패인 수신자 구분이 수신 mdn 직접 지정일 경우에만 사용 가능하다.				
+Method	POST				
+Header	Authorization: {token}				
+					
+Request					
+In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	id	Y	string	"19ca34b180394f15a9c66f798b65ef95"	대상 캠패인 아이디
+Example(Query string)	"아래 데이터는 실제 데이터로 변환하여 입력해야한다.
+- id : 캠페인 id
+
+tid=1706073253324&id=19ca34b180394f15a9c66f798b65ef95"				
+					
+Response					
+구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+	code	Y	string	"S000001"	API 성공, 실패 코드
+	msg	Y	string	"success"	API 성공, 실패 메시지
+	data	Y	object	{}	결과 데이터
+	data.goalCount	Y	number	10	캠패인에 입력된 목표 건수
+	data.validCount	Y	number	1	MDN 파일의 유효 건수
+	data.duplicate	Y	object	{}	MDN 파일의 중복 데이터 정보
+	data.duplicate.count	Y	number	199998	MDN 파일의 전체 중복 건수
+	data.duplicate.list	Y	object array	[]	MDN 파일의 중복 데이터 목록
+	data.duplicate.list[].mdn	Y	string	"01010000000"	MDN 파일의 중복 번호
+	data.duplicate.list[].count	Y	number	133333	MDN 파일의 중복 번호 개수
+	data.invalid	Y	object	{}	MDN 파일의 잘못된 데이터 정보
+	data.invalid.count	Y	number	1	MDN 파일의 잘못된 번호 개수
+	data.invalid.list	Y	string array	[]	MDN 파일의 잘못된 번호 목록
+Example	"{
+    ""tid"": ""1706073253324"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""goalCount"": 0,
+        ""validCount"": 1,
+        ""duplicate"": {
+            ""count"": 199998,
+            ""list"": [
+                {
+                    ""mdn"": ""01030985066"",
+                    ""count"": 133333
+                },
+                {
+                    ""mdn"": ""0123"",
+                    ""count"": 66665
+                }
+            ]
+        },
+        ""invalid"": {
+            ""count"": 1,
+            ""list"": [
+                ""0123""
+            ]
+        }
+    }
+}"				
+					
+URL	/cmpn/stat/read				
+Description	"캠패인 통계 조회. 통계 데이터는 5분 주기로 갱신 된다.
+
+링크 개별 클릭 카운트및 반응률 계산은 2종류로 계산 된다. 
+- 접근하는 브라우저의 UA, IP 를 제한하여 계산된 반응률 
+- 접근하는 브라우저의 IP 만 제한하여 계산된 반응률"				
+Method	GET				
+Header	Authorization: {token}				
+					
+Request					
+In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	id	Y	string	"19ca34b180394f15a9c66f798b65ef95"	대상 캠패인 아이디
+Example(Query string)	"아래 데이터는 실제 데이터로 변환하여 입력해야한다.
+- id : 캠페인 id
+
+tid=1706073253324&id=19ca34b180394f15a9c66f798b65ef95"				
+					
+Response					
+구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+	code	Y	string	"S000001"	API 성공, 실패 코드
+	msg	Y	string	"success"	API 성공, 실패 메시지
+	data	Y	object	{}	결과 데이터
+	data.statDate	Y	string	"20240312"	통계 수집 일자. YYYYMMDD 포멧
+	data.mdnCnt	Y	number	51100	발송 대상자 수. 메시지 발송한 카운트 이며, 발송 완료시 까지 값은 계속 변경 된다.
+	data.dupExcludeCnt	Y	number	35	타 캠패인 수신자 수
+	data.adRcvExcludeCnt	Y	number	194	광고 수신 미동의 수신자 수
+	data.sendTryCnt	Y	number	50871	발송 시도자 수 (발송 대상자 수 - 타 캠패인 수신자 수 - 광고 수신 미동의 수신자 수)
+	data.msgRecvCnt	Y	number	50512	캠패인 메시지 수신자 수. (RCS 메시지 수신자 수 + VMG 메시지 수신자 수)
+	data.rcsMsgRecvCnt	Y	number	39282	RCS 메시지 수신자 수
+	data.vmgMsgRecvCnt	Y	number	11230	일반 메시지 수신자 수
+	data.msgNotRecvCnt	Y	number	359	메시지 미수신자 수. (발송 시도자 수 - 캠페인 메시지 수신자 수)
+	data.msgReactCnt	Y	number	2126	메시지 반응자 수. (일반 메시지 반응자 수 + RCS 메시지 반응자 수). UA, IP 제한으로 계산된 값
+	data.msgReactRatio	Y	string	"4.2"	"메시지 반응률. (메시지 반응자 수 / 캠패인 메시지 수신자 수 * 100). 
+소수점 2자리까지 표기된다.
+UA, IP 제한으로 계산된 값"
+	data.rcsMsgReactCnt	Y	number	1656	RCS 메시지 반응자 수. RCS 본문, 버튼, Option 반응자 수 유니크 값. UA, IP 제한으로 계산된 값
+	data.rcsMsgReactRatio	Y	string	"4.21"	"RCS 메시지 반응률. (RCS 메시지 반응자 수 / RCS 메시지 수신자 수 * 100). 
+소수점 2자리까지 표기된다.
+UA, IP 제한으로 계산된 값"
+	msg.vmgMsgReactCnt	Y	number	470	일반 메시지 반응자 수. 본문 URL 선택한 수신자 수의 유니크 값. UA, IP 제한으로 계산된 값
+	msg.vmgMsgReactRatio	Y	string	"4.18"	"일반 메시지 반응률. (일반 메시지 반응자 수 / 일반 메시지 수신자 수 * 100).
+소수점 2자리까지 표기된다.
+UA, IP 제한으로 계산된 값"
+	data.msgReactCnt2	Y	number	2126	메시지 반응자 수. (일반 메시지 반응자 수 + RCS 메시지 반응자 수). UA 제한으로 계산된 값
+	data.msgReactRatio2	Y	string	"4.2"	"메시지 반응률. (메시지 반응자 수 / 캠패인 메시지 수신자 수 * 100). 
+소수점 2자리까지 표기된다.
+UA 제한으로 계산된 값"
+	data.rcsMsgReactCnt2	Y	number	1656	RCS 메시지 반응자 수. RCS 본문, 버튼, Option 반응자 수 유니크 값. UA 제한으로 계산된 값
+	data.rcsMsgReactRatio2	Y	string	"4.21"	"RCS 메시지 반응률. (RCS 메시지 반응자 수 / RCS 메시지 수신자 수 * 100). 
+소수점 2자리까지 표기된다.
+UA 제한으로 계산된 값"
+	msg.vmgMsgReactCnt2	Y	number	470	일반 메시지 반응자 수. 본문 URL 선택한 수신자 수의 유니크 값. UA 제한으로 계산된 값
+	msg.vmgMsgReactRatio2	Y	string	"4.18"	"일반 메시지 반응률. (일반 메시지 반응자 수 / 일반 메시지 수신자 수 * 100).
+소수점 2자리까지 표기된다.
+UA 제한으로 계산된 값"
+	rcsMsgReadCnt	Y	number	0	메시지 확인자 수(read). 
+	rcsMsgReadRatio	Y	string	"0.00"	"RCS 메시지 확인률. (RCS 메시지 확인자 수 / RCS 메시지 수신자 수 * 100). 
+소수점 2자리까지 표기된다."
+	url	Y	object	{}	메시지 반응 상세 정보. UA, IP 제한으로 계산된 값
+	url.list	Y	array	[]	메시지 반응 URL별 상세 정보
+	url.list[].msgType	Y	number	12	"메시지 종류.
+- 1 : fallback 메시지
+- 11 : 캠패인 LMS
+- 12 : 캠패인 MMS
+- 21 : 캠패인 RCS(스탠다드)
+- 22 : 캠패인 RCS(LMS)
+- 23 : 캠패인 RCS(슬라이드)
+- 24 : 캠패인 RCS(이미지 강조A)
+- 25 : 캠패인 RCS(이미지 강조B)
+- 26 : 캠패인 상품소개세로"
+	url.list[].slideNum	Y	number	1	개인화 URL 이 포함되는 슬라이드 넘버. 최소값 1. 메시지 구분이 RCS(슬라이드)가 아니면 항상 1
+	url.list[].linkType	Y	number	0	"개인화 URL 이 들어가는 위치.
+- 0 : 메시지 본문 
+- 1 : RCS 버튼 
+- 2 : RCS 상품소개세로 옵션
+- 3 : fallback 메시지"
+	url.list[].linkNum	Y	number	1	캠패인 및 실시간 메시지에서 링크 넘버
+	url.list[].cnt	Y	number	1	unique 한 클릭 횟수
+	url2	Y	object	{}	메시지 반응 상세 정보. UA 제한으로 계산된 값
+	url2.list	Y	array	[]	메시지 반응 URL별 상세 정보
+	url2.list[].msgType	Y	number	12	"메시지 종류.
+- 1 : fallback 메시지
+- 11 : 캠패인 LMS
+- 12 : 캠패인 MMS
+- 21 : 캠패인 RCS(스탠다드)
+- 22 : 캠패인 RCS(LMS)
+- 23 : 캠패인 RCS(슬라이드)
+- 24 : 캠패인 RCS(이미지 강조A)
+- 25 : 캠패인 RCS(이미지 강조B)
+- 26 : 캠패인 상품소개세로"
+	url2.list[].slideNum	Y	number	1	개인화 URL 이 포함되는 슬라이드 넘버. 최소값 1. 메시지 구분이 RCS(슬라이드)가 아니면 항상 1
+	url2.list[].linkType	Y	number	0	"개인화 URL 이 들어가는 위치.
+- 0 : 메시지 본문 
+- 1 : RCS 버튼 
+- 2 : RCS 상품소개세로 옵션
+- 3 : fallback 메시지"
+	url2.list[].linkNum	Y	number	1	캠패인 및 실시간 메시지에서 링크 넘버
+	url2.list[].cnt	Y	number	1	unique 한 클릭 횟수
+Example	"{
+    ""tid"": ""1706073253324"",
+    ""code"": ""S000001"",
+    ""msg"": ""success"",
+    ""data"": {
+        ""statDate"": ""20240312"",
+        ""mdnCnt"": 51100,
+        ""dupExcludeCnt"": 35,
+        ""adRcvExcludeCnt"": 194,
+        ""sendTryCnt"": 50871,
+        ""msgRecvCnt"": 50512,
+        ""rcsMsgRecvCnt"": 39282,
+        ""vmgMsgRecvCnt"": 11230,
+        ""msgNotRecvCnt"": 359,
+        ""msgReactCnt"": 2126,
+        ""msgReactRatio"": ""4.2"",
+        ""rcsMsgReactCnt"": 1656,
+        ""rcsMsgReactRatio"": ""4.21"",
+        ""vmgMsgReactCnt"": 470,
+        ""vmgMsgReactRatio"": ""4.18"",
+        ""msgReactCnt2"": 2126,
+        ""msgReactRatio2"": ""4.2"",
+        ""rcsMsgReactCnt2"": 1656,
+        ""rcsMsgReactRatio2"": ""4.21"",
+        ""vmgMsgReactCnt2"": 470,
+        ""vmgMsgReactRatio2"": ""4.18"",
+        ""rcsMsgReadCnt"": 0,
+        ""rcsMsgReadRatio"": ""0.00"",
+        ""url"": {
+            ""list"": [
+                {
+                    ""msgType"": 12,
+                    ""slideNum"": 1,
+                    ""linkType"": 0,
+                    ""linkNum"": 1,
+                    ""cnt"": 1
+                }
+            ]
+        }
+    }
+}"				
+					
+URL	등록된 callback url				
+Description	캠패인 상태 알림. Bizchat 에서 연동 서버로 보내는 규격이며 HTTP status 코드를 200로 리턴해야한다.				
+Method	POST				
+Header	Authorization: {token}				
+					
+Request					
+In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+Body	id	Y	string	"ff1e695ff6364daa8cefed57f5506605"	대상 캠패인 아이디
+	state	Y	number	0	"캠패인 진행 상태
+- 20 : 발송 준비 
+- 17 : 반려
+- 25 : 취소
+- 30 : 진행중
+- 35 : 중단
+- 40 : 종료"
+	stateUpdateDate	Y	number	1705298638	캠패인 상태 업데이트 일시. 초단위 timestamp 형태
+	stateReason	Y	string	""	캠패인 진행 상태에 따른 사유
+Example(Query string)	tid=1706073253324				
+Example(Body)	"{
+    ""id"": ""ff1e695ff6364daa8cefed57f5506605"",
+    ""status"": 12,
+    ""stateUpdateDate"": ""1705298638"",
+    ""stateReason"": """"
+}"				
+					
+Response					
+구분	Parameter	Mandatory	Data Type	Value(Example)	Description

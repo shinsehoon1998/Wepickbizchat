@@ -128,6 +128,15 @@ export default function CampaignDetail() {
   const [testMdnInput, setTestMdnInput] = useState('');
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isLoadingTestResults, setIsLoadingTestResults] = useState(false);
+  
+  // MDN 검증 결과 상태
+  const [mdnValidation, setMdnValidation] = useState<{
+    goalCount?: number;
+    validCount?: number;
+    duplicate?: { count: number; list: Array<{ mdn: string; count: number }> };
+    invalid?: { count: number; list: string[] };
+  } | null>(null);
+  const [isValidatingMdn, setIsValidatingMdn] = useState(false);
 
   const { data: campaign, isLoading, error } = useQuery<CampaignDetail>({
     queryKey: ["/api/campaigns", campaignId],
@@ -422,8 +431,58 @@ export default function CampaignDetail() {
     }
   };
 
+  // MDN 검증 함수 (rcvType=10 캠페인용)
+  const handleVerifyMdn = async () => {
+    if (!campaign?.bizchatCampaignId) {
+      toast({
+        title: "검증 불가",
+        description: "BizChat 캠페인 ID가 없어요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsValidatingMdn(true);
+    try {
+      const response = await apiRequest("POST", "/api/bizchat/campaigns", {
+        action: "verifyMdn",
+        campaignId: campaign.id,
+      });
+      const data = await response.json();
+
+      if (data.success && data.result?.data) {
+        setMdnValidation(data.result.data);
+        const validCount = data.result.data.validCount || 0;
+        const invalidCount = data.result.data.invalid?.count || 0;
+        const duplicateCount = data.result.data.duplicate?.count || 0;
+        
+        toast({
+          title: "MDN 검증 완료",
+          description: `유효: ${validCount}건 / 중복: ${duplicateCount}건 / 무효: ${invalidCount}건`,
+        });
+      } else {
+        toast({
+          title: "MDN 검증 실패",
+          description: data.error || "검증에 실패했어요.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "검증 실패",
+        description: "서버와 통신하는 중 오류가 발생했어요.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsValidatingMdn(false);
+    }
+  };
+
   // 테스트 발송 가능 여부 체크 (isTmp=0이고 BizChat에 등록된 캠페인만)
   const canTestSend = campaign?.bizchatCampaignId && campaign?.statusCode !== undefined && campaign.statusCode >= 0;
+  
+  // MDN 직접 지정 캠페인 여부 (rcvType=10)
+  const isDirectMdn = campaign?.rcvType === 10;
 
   if (isLoading) {
     return (
@@ -461,9 +520,9 @@ export default function CampaignDetail() {
     );
   }
 
-  const canEdit = campaign.status === "draft" || campaign.status === "rejected";
-  const canSubmit = campaign.status === "draft" || campaign.status === "rejected";
-  const canDelete = campaign.status === "draft";
+  const canEdit = campaign.status === "draft" || campaign.status === "rejected" || campaign.status === "temp_registered";
+  const canSubmit = campaign.status === "draft" || campaign.status === "rejected" || campaign.status === "temp_registered";
+  const canDelete = campaign.status === "draft" || campaign.status === "temp_registered";
   const canApprove = campaign.status === "pending";
   const canStart = campaign.status === "approved";
   const budget = parseFloat(campaign.budget as string || "0");
@@ -933,7 +992,60 @@ export default function CampaignDetail() {
                         )}
                         결과 새로고침
                       </Button>
+                      {isDirectMdn && (
+                        <Button 
+                          variant="secondary"
+                          onClick={handleVerifyMdn}
+                          disabled={isValidatingMdn}
+                          className="gap-2"
+                          data-testid="button-verify-mdn"
+                        >
+                          {isValidatingMdn ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <FileCheck className="h-4 w-4" />
+                          )}
+                          MDN 검증
+                        </Button>
+                      )}
                     </div>
+                    
+                    {/* MDN 검증 결과 표시 */}
+                    {mdnValidation && isDirectMdn && (
+                      <div className="p-4 bg-muted rounded-lg space-y-3">
+                        <h5 className="font-medium flex items-center gap-2">
+                          <FileCheck className="h-4 w-4" />
+                          MDN 검증 결과
+                        </h5>
+                        <div className="grid gap-2 md:grid-cols-4">
+                          <div className="text-center p-2 bg-background rounded border">
+                            <p className="text-lg font-bold">{formatNumber(mdnValidation.goalCount || 0)}</p>
+                            <p className="text-tiny text-muted-foreground">목표 건수</p>
+                          </div>
+                          <div className="text-center p-2 bg-background rounded border">
+                            <p className="text-lg font-bold text-success">{formatNumber(mdnValidation.validCount || 0)}</p>
+                            <p className="text-tiny text-muted-foreground">유효 건수</p>
+                          </div>
+                          <div className="text-center p-2 bg-background rounded border">
+                            <p className="text-lg font-bold text-warning">{formatNumber(mdnValidation.duplicate?.count || 0)}</p>
+                            <p className="text-tiny text-muted-foreground">중복 건수</p>
+                          </div>
+                          <div className="text-center p-2 bg-background rounded border">
+                            <p className="text-lg font-bold text-destructive">{formatNumber(mdnValidation.invalid?.count || 0)}</p>
+                            <p className="text-tiny text-muted-foreground">무효 건수</p>
+                          </div>
+                        </div>
+                        {mdnValidation.invalid && mdnValidation.invalid.list && mdnValidation.invalid.list.length > 0 && (
+                          <div className="text-small">
+                            <p className="text-muted-foreground mb-1">무효 번호 예시:</p>
+                            <p className="font-mono text-destructive">
+                              {mdnValidation.invalid.list.slice(0, 5).join(', ')}
+                              {mdnValidation.invalid.list.length > 5 && ` 외 ${mdnValidation.invalid.list.length - 5}건`}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="border-t pt-4">

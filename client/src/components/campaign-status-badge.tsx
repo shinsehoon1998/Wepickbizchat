@@ -24,6 +24,8 @@ export function CampaignStatusBadge({ status, statusCode, className }: CampaignS
     switch (status) {
       case 'draft':
         return 'bg-muted text-muted-foreground border-muted-border';
+      case 'temp_registered':
+        return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800';
       case 'pending':
         return 'bg-warning/10 text-warning border-warning/20';
       case 'approved':

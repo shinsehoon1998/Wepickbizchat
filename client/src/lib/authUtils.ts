@@ -97,6 +97,7 @@ export function formatDateTime(date: Date | string): string {
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     draft: '초안',
+    temp_registered: '상태 0',
     pending: '승인 대기',
     approved: '승인 완료',
     running: '발송 중',
