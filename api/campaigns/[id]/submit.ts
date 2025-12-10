@@ -165,56 +165,23 @@ function convertLegacySndMosuQuery(queryStr: string): { query: string; desc: str
       }
     }
 
-    // 관심사(interests) 변환 - BizChat 규격: app 메타타입, cate 데이터타입, 카테고리 구조
+    // 관심사(interests) - BizChat ATS에서 실제 지원하는 카테고리가 아닌 경우 스킵
+    // 현재 UI에서 선택하는 관심사 코드(11ST_002, APP_002 등)는 내부 코드이며,
+    // BizChat ATS는 실제 카테고리명(예: "게임", "VR/AR게임")만 지원
+    // 정확한 카테고리 매핑이 완료되기 전까지는 app 필터를 제외
     const interests = parsed.interest || parsed.interests;
     if (interests && Array.isArray(interests) && interests.length > 0) {
-      const categoryData: CategoryData[] = [];
-      const interestNames: string[] = [];
-      
-      for (const interest of interests) {
-        const category = APP_CATEGORY_MAP[interest];
-        if (category) {
-          categoryData.push(category);
-          interestNames.push(category.cat1 + (category.cat2 ? ` > ${category.cat2}` : ''));
-        }
-      }
-      
-      if (categoryData.length > 0) {
-        conditions.push({
-          data: categoryData,
-          dataType: 'cate',
-          metaType: 'app',
-          code: '',  // BizChat 규격: app/tel 카테고리는 code가 빈 문자열
-          desc: `앱/웹: ${interestNames.join(', ')}`,
-          not: false,
-        });
-        descParts.push(`앱/웹: ${interestNames.join(', ')}`);
-      } else {
-        // 매핑되지 않은 관심사는 로그만 남기고 스킵
-        console.log('[Submit] Skipping unmapped interests:', interests);
-      }
+      console.log('[Submit] Skipping app filter until proper category mapping is implemented:', interests);
+      // TODO: BizChat /api/v1/ats/meta/webapp API로 실제 카테고리 조회 후 매핑 필요
     }
 
-    // 행동(behaviors) 변환 - BizChat 규격: pro 메타타입, 각 필터별 고유 code
+    // 행동(behaviors) - BizChat ATS에서 실제 지원하는 pro 코드만 허용
+    // 현재 UI에서 선택하는 행동 코드(LOC_001, CALL_002 등)는 내부 코드이며,
+    // 정확한 매핑이 완료되기 전까지는 pro 필터를 제외
     const behaviors = parsed.behavior || parsed.behaviors;
     if (behaviors && Array.isArray(behaviors) && behaviors.length > 0) {
-      for (const behavior of behaviors) {
-        const proConfig = PROFILING_CODE_MAP[behavior];
-        if (proConfig) {
-          conditions.push({
-            data: proConfig.dataType === 'boolean' ? 'Y' : { gt: 0, lt: 1 },
-            dataType: proConfig.dataType,
-            metaType: 'pro',
-            code: proConfig.code,
-            desc: `${proConfig.desc}: ${proConfig.dataType === 'boolean' ? 'Y' : '0 ~ 1'}`,
-            not: false,
-          });
-          descParts.push(proConfig.desc);
-        } else {
-          // 매핑되지 않은 행동은 로그만 남기고 스킵
-          console.log('[Submit] Skipping unmapped behavior:', behavior);
-        }
-      }
+      console.log('[Submit] Skipping pro filter until proper code mapping is verified:', behaviors);
+      // TODO: BizChat /api/v1/ats/meta/filter?type=pro API로 실제 코드 확인 후 매핑 필요
     }
 
     // 통신사(carrier) - BizChat 규격에 없음, 스킵
@@ -263,48 +230,19 @@ function validateAndConvertCondition(cond: Record<string, unknown>): ATSFilterCo
     }
   }
 
-  // app/tel 메타타입 검증 - 카테고리 형식이어야 함
+  // app/tel 메타타입 - 정확한 카테고리 매핑이 완료되기 전까지 스킵
+  // BizChat ATS는 실제 카테고리명(예: "게임", "VR/AR게임")만 지원하며,
+  // 현재 UI에서 사용하는 코드(11ST_002 등)와 매핑되지 않음
   if (metaType === 'app' || metaType === 'tel') {
-    if (dataType !== 'cate') {
-      console.log(`[Submit] ${metaType} must use dataType "cate", converting...`);
-      // 배열 데이터를 카테고리 형식으로 변환 시도
-      if (Array.isArray(data)) {
-        const categoryData: CategoryData[] = [];
-        for (const item of data) {
-          if (typeof item === 'string') {
-            const category = APP_CATEGORY_MAP[item];
-            if (category) {
-              categoryData.push(category);
-            }
-          } else if (typeof item === 'object' && item !== null && 'cat1' in item) {
-            categoryData.push(item as CategoryData);
-          }
-        }
-        if (categoryData.length > 0) {
-          data = categoryData;
-        } else {
-          console.log(`[Submit] Could not convert ${metaType} data to category format, skipping`);
-          return null;
-        }
-      }
-    }
-    return {
-      data,
-      dataType: 'cate',
-      metaType: metaType as 'app' | 'tel',
-      code: '',  // app/tel은 code가 빈 문자열
-      desc,
-      not,
-    };
+    console.log(`[Submit] Skipping ${metaType} filter until proper category mapping is implemented`);
+    return null;
   }
 
-  // pro 메타타입 검증 - 올바른 code 사용
+  // pro 메타타입 - 정확한 코드 매핑이 완료되기 전까지 스킵
+  // 현재 UI에서 사용하는 코드(LOC_001, CALL_002 등)가 BizChat ATS 코드와 매핑되지 않음
   if (metaType === 'pro') {
-    const validProCodes = Object.values(PROFILING_CODE_MAP).map(p => p.code);
-    if (!validProCodes.includes(code) && code !== 'profiling') {
-      // 알 수 없는 pro 코드 허용 (BizChat에서 새로운 코드가 추가될 수 있음)
-      console.log(`[Submit] Unknown pro code "${code}", allowing`);
-    }
+    console.log(`[Submit] Skipping pro filter until proper code mapping is verified`);
+    return null;
   }
 
   // loc 메타타입 검증

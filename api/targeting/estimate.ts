@@ -184,12 +184,13 @@ function buildATSMosuPayload(params: {
   }
 
   // 행동(behaviors) 변환 - BizChat 규격: pro 메타타입, 각 필터별 고유 code
+  // 규격서: pro 필터의 숫자 범위는 문자열로 전송 (예: "0.5", "0.8")
   if (params.behaviors && Array.isArray(params.behaviors) && params.behaviors.length > 0) {
     for (const behavior of params.behaviors) {
       const proConfig = PROFILING_CODE_MAP[behavior];
       if (proConfig) {
         conditions.push({
-          data: proConfig.dataType === 'boolean' ? 'Y' : { gt: '0', lt: '1' },
+          data: proConfig.dataType === 'boolean' ? 'Y' : { gt: '0', lt: '1' },  // 문자열로 전송
           dataType: proConfig.dataType,
           metaType: 'pro',
           code: proConfig.code,
