@@ -745,7 +745,7 @@ async function createCampaignInBizChat(
       fileInfo: {}, // 파일이 포함되지 않으면 empty object
       urlLink: {}, // 링크가 없으면 empty object (규격 준수)
     },
-    rcs: [],
+    // rcs 필드는 RCS 캠페인일 때만 포함 (LMS/MMS일 때 제외)
   };
 
   // 발송 모수 설명/쿼리 (ATS 타겟팅 정보)
@@ -766,10 +766,21 @@ async function createCampaignInBizChat(
     };
   }
 
-  // RCS 타입
+  // RCS 타입 및 rcs 배열 (RCS 캠페인일 때만 포함)
   if (campaignData.messageType === 'RCS' && campaignData.rcsType !== undefined) {
     payload.rcsType = campaignData.rcsType;
+    // RCS 메시지 배열 - RCS 캠페인일 때만 포함
+    payload.rcs = [{
+      slideNum: 1,
+      title: messageData.title || '',
+      msg: messageData.content || '',
+      urlFile: '',
+      urlLink: {},
+      buttons: {},
+      opts: {},
+    }];
   }
+  // LMS/MMS일 때는 rcs 필드 자체를 포함하지 않음 (빈 배열도 X)
 
   // Maptics 지오펜스 (rcvType=1: 실시간, rcvType=2: 모아서)
   if (rcvType === 1 || rcvType === 2) {
