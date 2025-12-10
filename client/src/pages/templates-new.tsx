@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { supabase } from "@/lib/supabase";
 import { 
   ArrowLeft, 
   MessageSquare, 
@@ -195,7 +196,8 @@ export default function TemplatesNew() {
         form.setValue("imageUrl", base64Data);
 
         try {
-          const token = localStorage.getItem("supabase_token");
+          const { data: { session } } = await supabase.auth.getSession();
+          const token = session?.access_token;
           const response = await fetch("/api/bizchat/file", {
             method: "POST",
             headers: {
