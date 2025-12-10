@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
+import FormData from 'form-data';
 
 const BIZCHAT_DEV_URL = process.env.BIZCHAT_DEV_API_URL || 'https://gw-dev.bizchat1.co.kr:8443';
 const BIZCHAT_PROD_URL = process.env.BIZCHAT_PROD_API_URL || 'https://gw.bizchat1.co.kr';
@@ -84,20 +85,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     console.log(`[BizChat File] Uploading file: ${fileName} -> ${safeFileName}`);
 
+    // form-data 패키지 사용 (Vercel 서버리스 환경에서 올바른 multipart boundary 생성)
     const formData = new FormData();
     
     const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
     const binaryData = Buffer.from(base64Data, 'base64');
-    const blob = new Blob([binaryData], { type: fileType || 'image/jpeg' });
     
-    formData.append('file', blob, safeFileName);
+    // Buffer를 직접 append (form-data 패키지 방식)
+    formData.append('file', binaryData, {
+      filename: safeFileName,
+      contentType: fileType || 'image/jpeg',
+    });
+
+    // form-data 패키지는 getBuffer()로 전체 body를 생성
+    const formBuffer = formData.getBuffer();
+    const formHeaders = formData.getHeaders();
 
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Authorization': apiKey,
+        ...formHeaders, // multipart boundary 포함
       },
-      body: formData,
+      body: formBuffer,
     });
 
     const responseText = await response.text();
