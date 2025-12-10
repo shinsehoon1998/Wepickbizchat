@@ -1073,7 +1073,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
 
       const scheduledDate = data.scheduledAt ? new Date(data.scheduledAt) : null;
-      const atsSndStartDate = calculateValidSendDateForCampaign(scheduledDate);
+      let atsSndStartDate = calculateValidSendDateForCampaign(scheduledDate);
 
       // Maptics 모아서 보내기(rcvType=2)용 일시 설정 (BizChat 규격 v0.29.0 준수)
       // BizChat 규격: 
@@ -1164,6 +1164,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
       
       const now = new Date();
+      
+      // ATS 캠페인 (rcvType=0)도 KST 09:00~19:00 범위 적용
+      if (!hasGeofence) {
+        const minAtsTime = new Date(now.getTime() + 60 * 60 * 1000); // 현재 + 1시간
+        atsSndStartDate = clampToKSTWindow(atsSndStartDate, minAtsTime);
+        console.log(`[Campaign] ATS atsSndStartDate (KST adjusted): ${atsSndStartDate.toISOString()}`);
+      }
       now.setSeconds(0);
       now.setMilliseconds(0);
       

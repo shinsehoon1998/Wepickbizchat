@@ -1,0 +1,99 @@
+2025-12-10 12:45:58.254 [info] [BizChat] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-10 12:45:58.254 [info] [Campaign] Environment: DEVELOPMENT
+2025-12-10 12:45:59.759 [info] [Campaign] rcvType=0, hasGeofence=false
+2025-12-10 12:45:59.760 [info] [Campaign] Calling ATS mosu API to get SQL query...
+2025-12-10 12:45:59.760 [info] [ATS Mosu] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/ats/mosu?tid=1765370759759
+2025-12-10 12:45:59.760 [info] [ATS Mosu] Payload: {
+  "$and": [
+    {
+      "data": {
+        "gt": 20,
+        "lt": 60
+      },
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 20세 ~ 60세",
+      "not": false
+    },
+    {
+      "data": [
+        {
+          "cat1": "디지털/가전/컴퓨터",
+          "cat2": "휴대폰",
+          "cat3": "휴대폰인기브랜드"
+        }
+      ],
+      "dataType": "cate",
+      "metaType": "STREET",
+      "code": "",
+      "desc": "11번가: 디지털/가전/컴퓨터 > 휴대폰 > 휴대폰인기브랜드",
+      "not": false
+    },
+    {
+      "data": [
+        {
+          "cat1": "교육/학습",
+          "cat2": "교육정보",
+          "cat3": "나이스플러스(NEIS+) "
+        }
+      ],
+      "dataType": "cate",
+      "metaType": "app",
+      "code": "",
+      "desc": "앱/웹: 교육/학습 > 교육정보 > 나이스플러스(NEIS+) ",
+      "not": false
+    },
+    {
+      "data": [
+        {
+          "cat1": "교통",
+          "cat2": "자동차시설",
+          "cat3": "타이어"
+        }
+      ],
+      "dataType": "cate",
+      "metaType": "TEL",
+      "code": "",
+      "desc": "통화: 교통 > 자동차시설 > 타이어",
+      "not": false
+    }
+  ]
+}
+2025-12-10 12:46:01.201 [info] [ATS Mosu] Response: 200 - {"tid":"1765370759759","code":"S000001","msg":"Success","data":{"cnt":0,"filterStr":"<table><tr><td id='oper0' rowspan='4' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:c
+2025-12-10 12:46:01.201 [info] [ATS Mosu] Success - query: ( ( (cust_age_cd >= 20 and cust_age_cd <= 60) ) AND ( ((street like '032124%' or street like '%,032124%')) ) AND ( ((app like '020219240%' or app like '%,020219240%')) ) AND ( ((call like '030307%' or...
+2025-12-10 12:46:01.201 [info] [Campaign] ATS mosu API success - SQL query obtained, count: 0
+2025-12-10 12:46:01.751 [info] [Campaign] KST window clamp: 2025-12-10T13:50:00.000Z → 2025-12-11T00:00:00.000Z (KST 09:00)
+2025-12-10 12:46:01.751 [info] [Campaign] Maptics dates (KST adjusted) - collStartDate: 2025-12-10T22:00:00.000Z, collEndDate: 2025-12-10T23:30:00.000Z, collSndDate: 2025-12-11T00:00:00.000Z
+2025-12-10 12:46:01.751 [info] [BizChat] Environment: DEVELOPMENT
+2025-12-10 12:46:01.751 [info] [BizChat] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-10 12:46:01.751 [info] [BizChat] API key exists: true, length: 64
+2025-12-10 12:46:01.751 [info] [BizChat] VERCEL_ENV: production, NODE_ENV: production
+2025-12-10 12:46:01.752 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/create?tid=1765370761751
+2025-12-10 12:46:01.752 [info] [BizChat] Request body: {
+  "tgtCompanyName": "위픽",
+  "name": "복합타겟 테스팅",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 1000,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 1000,
+  "sndMosu": 1500,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "atsSndStartDate": 1765374600,
+  "cb": {
+    "state": "https://wepickbizchat-akjf9ulue-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlLink": {}
+  },
+  "sndMosuDesc": "<table><tr><td id='oper0' rowspan='4' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>회선특성-연령: 20세 ~ 60세</td></tr></tr><tr><td id='oper2' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>11번가-11번가: 디지털/가전/컴퓨터 &gt; 휴대폰 > 휴대폰인기브랜드</td></tr></tr><tr><td id='oper3' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>앱/웹 Usage-앱/웹: 교육/학습 &gt; 교육정보 > 나이스플러스(NEIS+) </td></tr></tr><tr><td id='oper4' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>통화 Usage-통화: 교통 &gt; 자동차시설 > 타이어</td></tr></tr></table>",
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 60) ) AND ( ((street like '032124%' or street like '%,032124%')) ) AND ( ((app like '020219240%' or app like '%,020219240%')) ) AND ( ((call like '030307%' or call like '%,030307%')) ) ) and indv_info_use_agree_yn = 'Y'"
+}
+2025-12-10 12:46:01.817 [info] [BizChat] Response: 400 - {"tid":"1765370761751","code":"E100007","msg":"Invalid request"}
+2025-12-10 12:46:01.818 [error] [Campaign] BizChat registration failed: { tid: '1765370761751', code: 'E100007', msg: 'Invalid request' }
