@@ -7,7 +7,10 @@ import {
   MousePointerClick,
   AlertCircle,
   Download,
-  Calendar
+  Calendar,
+  RefreshCw,
+  Loader2,
+  Eye
 } from "lucide-react";
 import { useState } from "react";
 import { formatNumber, formatDateTime, formatCurrency } from "@/lib/authUtils";
@@ -25,15 +28,50 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import type { Campaign, Report } from "@shared/schema";
 
 interface CampaignWithReport extends Campaign {
   report?: Report;
 }
 
+interface BizChatStatsData {
+  statDate: string;
+  mdnCnt: number;
+  dupExcludeCnt: number;
+  adRcvExcludeCnt: number;
+  sendTryCnt: number;
+  msgRecvCnt: number;
+  rcsMsgRecvCnt: number;
+  vmgMsgRecvCnt: number;
+  msgNotRecvCnt: number;
+  msgReactCnt: number;
+  msgReactRatio: string;
+  rcsMsgReactCnt: number;
+  rcsMsgReactRatio: string;
+  vmgMsgReactCnt: number;
+  vmgMsgReactRatio: string;
+  rcsMsgReadCnt: number;
+  rcsMsgReadRatio: string;
+}
+
 export default function Reports() {
   const [periodFilter, setPeriodFilter] = useState<string>("all");
+  const { toast } = useToast();
+  const [selectedCampaign, setSelectedCampaign] = useState<CampaignWithReport | null>(null);
+  const [campaignStats, setCampaignStats] = useState<BizChatStatsData | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const { data: campaigns, isLoading } = useQuery<CampaignWithReport[]>({
     queryKey: ["/api/campaigns?includeReports=true"],
@@ -57,6 +95,48 @@ export default function Reports() {
   const clickRate = totalStats.success > 0 
     ? ((totalStats.clicks / totalStats.success) * 100).toFixed(1)
     : "0";
+
+  const fetchCampaignStats = async (campaign: CampaignWithReport) => {
+    if (!campaign.bizchatCampaignId) {
+      toast({
+        title: "통계 조회 불가",
+        description: "BizChat에 등록되지 않은 캠페인이에요.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedCampaign(campaign);
+    setIsDialogOpen(true);
+    setIsLoadingStats(true);
+    setCampaignStats(null);
+
+    try {
+      const response = await apiRequest("POST", "/api/bizchat/stats", {
+        action: "fetchStats",
+        campaignId: campaign.id,
+      });
+      const data = await response.json();
+
+      if (data.success && data.data) {
+        setCampaignStats(data.data);
+      } else {
+        toast({
+          title: "통계 조회 실패",
+          description: data.error || "통계를 가져오는데 실패했어요.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "통계 조회 실패",
+        description: "서버와 통신하는 중 오류가 발생했어요.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -216,7 +296,7 @@ export default function Reports() {
       <Card>
         <CardHeader>
           <CardTitle>캠페인별 성과</CardTitle>
-          <CardDescription>각 캠페인의 상세 성과를 확인해보세요</CardDescription>
+          <CardDescription>각 캠페인의 상세 성과를 확인해보세요. BizChat 통계 버튼을 눌러 실시간 통계를 조회할 수 있어요.</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -251,9 +331,21 @@ export default function Reports() {
                     data-testid={`row-report-${campaign.id}`}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-1">
+                      <div className="flex items-center gap-3 mb-1 flex-wrap">
                         <p className="font-medium truncate">{campaign.name}</p>
                         <CampaignStatusBadge status={campaign.status} />
+                        {campaign.bizchatCampaignId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => fetchCampaignStats(campaign)}
+                            className="gap-1 h-7"
+                            data-testid={`button-stats-${campaign.id}`}
+                          >
+                            <Eye className="h-3 w-3" />
+                            BizChat 통계
+                          </Button>
+                        )}
                       </div>
                       <p className="text-small text-muted-foreground">
                         {formatDateTime(campaign.createdAt!)} · {campaign.messageType}
@@ -286,6 +378,119 @@ export default function Reports() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-primary" />
+              BizChat 실시간 통계
+            </DialogTitle>
+            <DialogDescription>
+              {selectedCampaign?.name} · 통계는 5분 주기로 갱신됩니다
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingStats ? (
+            <div className="py-8 flex flex-col items-center justify-center gap-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-muted-foreground">BizChat 통계를 조회하고 있어요...</p>
+            </div>
+          ) : campaignStats ? (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-4">
+                <div className="text-center p-3 bg-muted rounded-lg">
+                  <p className="text-2xl font-bold text-primary">
+                    {formatNumber(campaignStats.mdnCnt || 0)}
+                  </p>
+                  <p className="text-tiny text-muted-foreground">발송 대상자</p>
+                </div>
+                <div className="text-center p-3 bg-muted rounded-lg">
+                  <p className="text-2xl font-bold text-chart-4">
+                    {formatNumber(campaignStats.sendTryCnt || 0)}
+                  </p>
+                  <p className="text-tiny text-muted-foreground">발송 시도</p>
+                </div>
+                <div className="text-center p-3 bg-muted rounded-lg">
+                  <p className="text-2xl font-bold text-success">
+                    {formatNumber(campaignStats.msgRecvCnt || 0)}
+                  </p>
+                  <p className="text-tiny text-muted-foreground">수신 성공</p>
+                </div>
+                <div className="text-center p-3 bg-muted rounded-lg">
+                  <p className="text-2xl font-bold text-destructive">
+                    {formatNumber(campaignStats.msgNotRecvCnt || 0)}
+                  </p>
+                  <p className="text-tiny text-muted-foreground">수신 실패</p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="p-4 bg-muted/50 rounded-lg border space-y-2">
+                  <h4 className="font-medium text-small flex items-center gap-2">
+                    메시지 유형별 수신
+                  </h4>
+                  <div className="flex justify-between text-small">
+                    <span className="text-muted-foreground">RCS 수신</span>
+                    <span className="font-medium">{formatNumber(campaignStats.rcsMsgRecvCnt || 0)}명</span>
+                  </div>
+                  <div className="flex justify-between text-small">
+                    <span className="text-muted-foreground">일반(VMG) 수신</span>
+                    <span className="font-medium">{formatNumber(campaignStats.vmgMsgRecvCnt || 0)}명</span>
+                  </div>
+                </div>
+                <div className="p-4 bg-muted/50 rounded-lg border space-y-2">
+                  <h4 className="font-medium text-small flex items-center gap-2">
+                    제외 현황
+                  </h4>
+                  <div className="flex justify-between text-small">
+                    <span className="text-muted-foreground">타 캠페인 수신자</span>
+                    <span className="font-medium">{formatNumber(campaignStats.dupExcludeCnt || 0)}명</span>
+                  </div>
+                  <div className="flex justify-between text-small">
+                    <span className="text-muted-foreground">광고 수신 미동의</span>
+                    <span className="font-medium">{formatNumber(campaignStats.adRcvExcludeCnt || 0)}명</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <h4 className="font-medium text-small mb-3 flex items-center gap-2">
+                  <MousePointerClick className="h-4 w-4 text-primary" />
+                  반응 통계
+                </h4>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-primary">{campaignStats.msgReactRatio || '0'}%</p>
+                    <p className="text-tiny text-muted-foreground">전체 반응률</p>
+                    <p className="text-tiny text-muted-foreground">{formatNumber(campaignStats.msgReactCnt || 0)}명</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-chart-5">{campaignStats.rcsMsgReactRatio || '0'}%</p>
+                    <p className="text-tiny text-muted-foreground">RCS 반응률</p>
+                    <p className="text-tiny text-muted-foreground">{formatNumber(campaignStats.rcsMsgReactCnt || 0)}명</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-chart-3">{campaignStats.vmgMsgReactRatio || '0'}%</p>
+                    <p className="text-tiny text-muted-foreground">일반 반응률</p>
+                    <p className="text-tiny text-muted-foreground">{formatNumber(campaignStats.vmgMsgReactCnt || 0)}명</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center text-tiny text-muted-foreground">
+                <span>통계 수집일: {campaignStats.statDate ? `${campaignStats.statDate.slice(0,4)}-${campaignStats.statDate.slice(4,6)}-${campaignStats.statDate.slice(6,8)}` : '-'}</span>
+                <Badge variant="outline">5분 주기 갱신</Badge>
+              </div>
+            </div>
+          ) : (
+            <div className="py-8 text-center text-muted-foreground">
+              <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>통계 데이터를 가져오지 못했어요</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
