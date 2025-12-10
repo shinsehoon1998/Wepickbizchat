@@ -68,12 +68,12 @@ function navigate(href: string) {
 
 
 const RCS_TYPES = [
-  { value: 0, label: "스탠다드", maxChars: 1100, imageSpec: "400x240 또는 500x300, 최대 0.3MB" },
-  { value: 1, label: "LMS", maxChars: 1100, imageSpec: "이미지 없음" },
-  { value: 2, label: "슬라이드", maxChars: 300, imageSpec: "464x336, 슬라이드당 최대 300KB (총 1MB)" },
-  { value: 3, label: "이미지 강조 A", maxChars: 1100, imageSpec: "900x1200, 최대 1MB" },
-  { value: 4, label: "이미지 강조 B", maxChars: 1100, imageSpec: "900x900, 최대 1MB" },
-  { value: 5, label: "상품 소개 (세로)", maxChars: 1100, imageSpec: "900x560, 최대 1MB" },
+  { value: 0, label: "스탠다드", maxChars: 1100, imageSpec: "400x240 또는 500x300, 최대 0.3MB", aspectRatio: "5/3" },
+  { value: 1, label: "LMS", maxChars: 1100, imageSpec: "이미지 없음", aspectRatio: null },
+  { value: 2, label: "슬라이드", maxChars: 300, imageSpec: "464x336, 슬라이드당 최대 300KB (총 1MB)", aspectRatio: "464/336" },
+  { value: 3, label: "이미지 강조 A", maxChars: 1100, imageSpec: "900x1200, 최대 1MB", aspectRatio: "3/4" },
+  { value: 4, label: "이미지 강조 B", maxChars: 1100, imageSpec: "900x900, 최대 1MB", aspectRatio: "1/1" },
+  { value: 5, label: "상품 소개 (세로)", maxChars: 1100, imageSpec: "900x560, 최대 1MB", aspectRatio: "900/560" },
 ];
 
 const MMS_IMAGE_SPEC = {
@@ -798,7 +798,14 @@ export default function TemplatesNew() {
                   )}
                   
                   {imagePreview && (
-                    <div className="rounded-lg overflow-hidden bg-muted aspect-video flex items-center justify-center">
+                    <div 
+                      className="rounded-lg overflow-hidden bg-muted flex items-center justify-center"
+                      style={{
+                        aspectRatio: watchedValues.messageType === "RCS" 
+                          ? (RCS_TYPES.find(t => t.value === watchedValues.rcsType)?.aspectRatio || "16/9")
+                          : "4/3"
+                      }}
+                    >
                       <img 
                         src={imagePreview} 
                         alt="미리보기" 
