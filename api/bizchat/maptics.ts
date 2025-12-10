@@ -1,0 +1,157 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+
+const BIZCHAT_DEV_URL = process.env.BIZCHAT_DEV_API_URL || 'https://gw-dev.bizchat1.co.kr:8443';
+const BIZCHAT_PROD_URL = process.env.BIZCHAT_PROD_API_URL || 'https://gw.bizchat1.co.kr';
+
+function getSupabaseAdmin() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Supabase configuration is missing');
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
+export async function verifyAuth(req: VercelRequest) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(authHeader.replace('Bearer ', ''));
+    if (error || !user) return null;
+    return { userId: user.id, email: user.email || '' };
+  } catch { return null; }
+}
+
+export function generateTid(): string {
+  return Date.now().toString();
+}
+
+export function getBizChatApiUrl(): string {
+  return process.env.BIZCHAT_USE_PROD === 'true' ? BIZCHAT_PROD_URL : BIZCHAT_DEV_URL;
+}
+
+export function getBizChatApiKey(): string {
+  const key = process.env.BIZCHAT_USE_PROD === 'true' 
+    ? process.env.BIZCHAT_PROD_API_KEY 
+    : process.env.BIZCHAT_DEV_API_KEY;
+  if (!key) throw new Error('BizChat API key not configured');
+  return key;
+}
+
+export interface POISearchResult {
+  road: string;
+  lat: string;
+  lon: string;
+}
+
+export interface GeofenceTarget {
+  gender: number;
+  minAge: number;
+  maxAge: number;
+  stayMin: number;
+  radius: number;
+  address: string;
+}
+
+export interface GeofenceCreateRequest {
+  name: string;
+  target: GeofenceTarget[];
+}
+
+export async function searchPOI(skey: string, type: 'poi' | 'addr'): Promise<POISearchResult[]> {
+  const baseUrl = getBizChatApiUrl();
+  const apiKey = getBizChatApiKey();
+  const tid = generateTid();
+
+  const response = await fetch(`${baseUrl}/api/v1/maptics/poi?tid=${tid}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': apiKey,
+    },
+    body: JSON.stringify({ skey, type }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`BizChat POI API error: ${response.status}`);
+  }
+
+  const result = await response.json();
+  if (result.code !== 'S000001') {
+    throw new Error(`BizChat POI API failed: ${result.msg}`);
+  }
+
+  return result.data?.list || [];
+}
+
+export async function createGeofence(name: string, target: GeofenceTarget[]): Promise<number> {
+  const baseUrl = getBizChatApiUrl();
+  const apiKey = getBizChatApiKey();
+  const tid = generateTid();
+
+  const response = await fetch(`${baseUrl}/api/v1/maptics/geofences/save?tid=${tid}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': apiKey,
+    },
+    body: JSON.stringify({ name, target }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`BizChat Geofence create API error: ${response.status}`);
+  }
+
+  const result = await response.json();
+  if (result.code !== 'S000001') {
+    throw new Error(`BizChat Geofence create failed: ${result.msg}`);
+  }
+
+  return result.data?.id;
+}
+
+export async function updateGeofence(targetId: number, name: string, target: GeofenceTarget[]): Promise<void> {
+  const baseUrl = getBizChatApiUrl();
+  const apiKey = getBizChatApiKey();
+  const tid = generateTid();
+
+  const response = await fetch(`${baseUrl}/api/v1/maptics/geofences/update?tid=${tid}&targetId=${targetId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': apiKey,
+    },
+    body: JSON.stringify({ name, target }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`BizChat Geofence update API error: ${response.status}`);
+  }
+
+  const result = await response.json();
+  if (result.code !== 'S000001') {
+    throw new Error(`BizChat Geofence update failed: ${result.msg}`);
+  }
+}
+
+export async function deleteGeofence(targetId: number): Promise<void> {
+  const baseUrl = getBizChatApiUrl();
+  const apiKey = getBizChatApiKey();
+  const tid = generateTid();
+
+  const response = await fetch(`${baseUrl}/api/v1/maptics/geofences/delete?tid=${tid}&targetId=${targetId}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': apiKey,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`BizChat Geofence delete API error: ${response.status}`);
+  }
+
+  const result = await response.json();
+  if (result.code !== 'S000001') {
+    throw new Error(`BizChat Geofence delete failed: ${result.msg}`);
+  }
+}
