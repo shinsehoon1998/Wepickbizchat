@@ -60,7 +60,7 @@ function generateTid(): string {
 interface ATSFilterCondition {
   data: unknown;
   dataType: 'number' | 'code' | 'boolean' | 'cate';
-  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'tel' | '11st' | 'webapp';
+  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'tel' | 'STREET' | 'TEL';
   code: string;
   desc: string;
   not: boolean;
@@ -168,15 +168,14 @@ function buildATSMosuPayload(params: TargetingParams): { payload: { '$and': ATSF
     }
   }
 
-  // 4. 11번가 쇼핑 카테고리 (metaType: 11st, dataType: cate)
-  // BizChat ATS mosu 형식: cat1/cat2/cat3에 cateid 코드 사용
-  // 주의: BizChat meta API는 "STREET"를 반환하지만, mosu API는 "11st" 사용
+  // 4. 11번가 쇼핑 카테고리 (metaType: STREET, dataType: cate)
+  // BizChat ATS mosu 형식: cat1/cat2/cat3에 카테고리 이름 사용 (cateid 코드가 아님!)
   if (params.shopping11stCategories && params.shopping11stCategories.length > 0) {
-    // cateid 코드로 API 페이로드 구성
+    // 카테고리 이름으로 API 페이로드 구성 (API 규격 v0.29.0)
     const categoryData: CategoryData[] = params.shopping11stCategories.map(cat => ({
-      cat1: cat.cat1,  // cateid 코드 (예: "01")
-      ...(cat.cat2 && { cat2: cat.cat2 }),  // cateid 코드 (예: "0101")
-      ...(cat.cat3 && { cat3: cat.cat3 }),  // cateid 코드 (예: "010101")
+      cat1: cat.cat1Name || cat.cat1,  // 카테고리 이름 (예: "가구/인테리어")
+      ...(cat.cat2 && { cat2: cat.cat2Name || cat.cat2 }),  // 카테고리 이름 (예: "침대/소파")
+      ...(cat.cat3 && { cat3: cat.cat3Name || cat.cat3 }),  // 카테고리 이름 (예: "펠트")
     }));
     
     // 설명에는 표시명 사용
@@ -190,7 +189,7 @@ function buildATSMosuPayload(params: TargetingParams): { payload: { '$and': ATSF
     conditions.push({
       data: categoryData,
       dataType: 'cate',
-      metaType: '11st',  // BizChat ATS mosu API에서 11번가는 '11st' 사용
+      metaType: 'STREET',  // BizChat ATS mosu API 규격: 11번가는 'STREET'
       code: '',
       desc: `11번가: ${categoryDesc}`,
       not: false,
@@ -199,13 +198,13 @@ function buildATSMosuPayload(params: TargetingParams): { payload: { '$and': ATSF
   }
 
   // 5. 웹앱 카테고리 (metaType: app, dataType: cate)
-  // BizChat ATS mosu 형식: cat1/cat2/cat3에 cateid 코드 사용
+  // BizChat ATS mosu 형식: cat1/cat2/cat3에 카테고리 이름 사용 (cateid 코드가 아님!)
   if (params.webappCategories && params.webappCategories.length > 0) {
-    // cateid 코드로 API 페이로드 구성
+    // 카테고리 이름으로 API 페이로드 구성 (API 규격 v0.29.0)
     const categoryData: CategoryData[] = params.webappCategories.map(cat => ({
-      cat1: cat.cat1,  // cateid 코드
-      ...(cat.cat2 && { cat2: cat.cat2 }),  // cateid 코드
-      ...(cat.cat3 && { cat3: cat.cat3 }),  // cateid 코드
+      cat1: cat.cat1Name || cat.cat1,  // 카테고리 이름 (예: "게임")
+      ...(cat.cat2 && { cat2: cat.cat2Name || cat.cat2 }),  // 카테고리 이름 (예: "VR/AR게임")
+      ...(cat.cat3 && { cat3: cat.cat3Name || cat.cat3 }),  // 카테고리 이름 (예: "포켓몬 고")
     }));
     
     // 설명에는 표시명 사용
@@ -219,7 +218,7 @@ function buildATSMosuPayload(params: TargetingParams): { payload: { '$and': ATSF
     conditions.push({
       data: categoryData,
       dataType: 'cate',
-      metaType: 'app',
+      metaType: 'app',  // BizChat ATS mosu API 규격: 웹앱은 'app' (소문자)
       code: '',
       desc: `앱/웹: ${categoryDesc}`,
       not: false,
