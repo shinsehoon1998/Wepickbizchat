@@ -229,6 +229,11 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
   const sndGoalCnt = campaign.sndGoalCnt || campaign.targetCount || 1000;
   const sndMosu = campaign.sndMosu || Math.min(Math.ceil(sndGoalCnt * 1.5), 400000);
 
+  // rcvType에 따라 ATS vs Maptics 분기
+  // rcvType=0,10: ATS 일반 (sndMosu, sndMosuQuery, sndMosuDesc, atsSndStartDate 필요)
+  // rcvType=1,2: Maptics 지오펜스 (collStartDate, collEndDate, collSndDate, sndGeofenceId 필요, ATS 필드 제외)
+  const isMaptics = campaign.rcvType === 1 || campaign.rcvType === 2;
+  
   const payload: Record<string, unknown> = {
     // 필수 파라미터
     tgtCompanyName: campaign.tgtCompanyName || '위픽',
@@ -237,12 +242,8 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
     rcvType: campaign.rcvType ?? 0,
     sndGoalCnt: sndGoalCnt,
     billingType: billingType,
-    isTmp: campaign.isTmp ?? 0, // 임시저장 여부 (0: 아니오, 1: 네)
-    settleCnt: campaign.settleCnt ?? sndGoalCnt, // 0도 유효한 값 (무료 캠페인)
-    
-    // ATS 발송 모수 (rcvType=0일 때)
-    sndMosu: sndMosu,
-    sndMosuFlag: campaign.sndMosuFlag ?? 0, // 150% 체크 (0: 사용, 1: 미사용)
+    isTmp: campaign.isTmp ?? 0,
+    settleCnt: campaign.settleCnt ?? sndGoalCnt,
     
     // 무료 수신거부 번호
     adverDeny: campaign.adverDeny || '1504',
@@ -253,41 +254,61 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
     },
   };
 
-  // 발송 시작일 (unix timestamp, 초단위) - rcvType=0,10일 때
-  if (campaign.atsSndStartDate || campaign.scheduledAt) {
-    payload.atsSndStartDate = toUnixTimestamp(campaign.atsSndStartDate || campaign.scheduledAt);
+  // ATS 전용 필드 (rcvType=0,10일 때만 포함)
+  if (!isMaptics) {
+    payload.sndMosu = sndMosu;
+    payload.sndMosuFlag = campaign.sndMosuFlag ?? 0;
+    
+    // 발송 시작일 (unix timestamp, 초단위)
+    if (campaign.atsSndStartDate || campaign.scheduledAt) {
+      payload.atsSndStartDate = toUnixTimestamp(campaign.atsSndStartDate || campaign.scheduledAt);
+    }
+    
+    // 발송 모수 필터 설명 (HTML 형식)
+    if (campaign.sndMosuDesc) {
+      const desc = campaign.sndMosuDesc;
+      const isHtml = typeof desc === 'string' && (desc.startsWith('<html>') || desc.includes('<body>'));
+      payload.sndMosuDesc = isHtml 
+        ? desc 
+        : `<html><body><p>${desc}</p></body></html>`;
+    }
+    
+    // 발송 모수 쿼리 (SQL 문자열)
+    if (campaign.sndMosuQuery) {
+      const query = campaign.sndMosuQuery;
+      payload.sndMosuQuery = typeof query === 'string' ? query : JSON.stringify(query);
+    }
   }
 
-  // Maptics 관련 필드 (rcvType=1,2일 때)
-  if (campaign.rcvType === 1 || campaign.rcvType === 2) {
-    if (campaign.collStartDate) payload.collStartDate = toUnixTimestamp(campaign.collStartDate);
-    if (campaign.collEndDate) payload.collEndDate = toUnixTimestamp(campaign.collEndDate);
-    if (campaign.collSndDate) payload.collSndDate = toUnixTimestamp(campaign.collSndDate);
-    if (campaign.sndGeofenceId) payload.sndGeofenceId = campaign.sndGeofenceId;
-    if (campaign.sndDayDiv !== undefined) payload.sndDayDiv = campaign.sndDayDiv;
-    if (campaign.rtStartHhmm) payload.rtStartHhmm = campaign.rtStartHhmm;
-    if (campaign.rtEndHhmm) payload.rtEndHhmm = campaign.rtEndHhmm;
+  // Maptics 전용 필드 (rcvType=1,2일 때만 포함)
+  if (isMaptics) {
+    // 지오펜스 ID (필수)
+    if (campaign.sndGeofenceId) {
+      payload.sndGeofenceId = campaign.sndGeofenceId;
+    }
+    // 수집 시작일시 (필수)
+    if (campaign.collStartDate) {
+      payload.collStartDate = toUnixTimestamp(campaign.collStartDate);
+    }
+    // 수집 종료일시 (필수)
+    if (campaign.collEndDate) {
+      payload.collEndDate = toUnixTimestamp(campaign.collEndDate);
+    }
+    // 발송 시작일시 (필수)
+    if (campaign.collSndDate) {
+      payload.collSndDate = toUnixTimestamp(campaign.collSndDate);
+    }
+    // 실시간 발송 옵션 (rcvType=1일 때)
+    if (campaign.rcvType === 1) {
+      if (campaign.sndDayDiv !== undefined) payload.sndDayDiv = campaign.sndDayDiv;
+      if (campaign.rtStartHhmm) payload.rtStartHhmm = campaign.rtStartHhmm;
+      if (campaign.rtEndHhmm) payload.rtEndHhmm = campaign.rtEndHhmm;
+    }
   }
 
   // MDN 직접 지정 (rcvType=10일 때)
   if (campaign.rcvType === 10 && campaign.mdnFileId) {
     payload.mdnFileId = campaign.mdnFileId;
-  }
-
-  // 발송 모수 필터 설명/쿼리 (ATS 타겟팅 정보)
-  // BizChat API 규격: sndMosuDesc는 HTML 형식이어야 함
-  // 예: "<html><body><p>서울시 강남구, 남자, 25세 이상</p></body></html>"
-  if (campaign.sndMosuDesc) {
-    const desc = campaign.sndMosuDesc;
-    const isHtml = typeof desc === 'string' && (desc.startsWith('<html>') || desc.includes('<body>'));
-    payload.sndMosuDesc = isHtml 
-      ? desc 
-      : `<html><body><p>${desc}</p></body></html>`;
-  }
-  // BizChat API 규격: sndMosuQuery는 JSON 문자열이어야 함
-  if (campaign.sndMosuQuery) {
-    const query = campaign.sndMosuQuery;
-    payload.sndMosuQuery = typeof query === 'string' ? query : JSON.stringify(query);
   }
 
   // RCS 타입 (200 = RCS 아님)
@@ -405,10 +426,8 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
         opts, // 상품소개세로 옵션 (없으면 빈 객체)
       };
     });
-  } else {
-    // LMS/MMS일 때도 rcs 필드는 빈 배열로 포함 (문서 예제 참고)
-    payload.rcs = [];
   }
+  // LMS/MMS일 때는 rcs 필드 자체를 생략 (빈 배열도 포함하지 않음)
 
   return callBizChatAPI('/api/v1/cmpn/create', 'POST', payload, useProduction);
 }
