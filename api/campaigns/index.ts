@@ -1095,8 +1095,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       };
       
       // 한국시간(KST) 기준 발송 가능 시간대로 조정하는 함수
-      // KST = UTC + 9시간, 발송 가능 시간: 09:00~20:00 KST
-      // KST 09:00 = UTC 00:00, KST 20:00 = UTC 11:00
+      // KST = UTC + 9시간, 발송 가능 시간: 09:00~19:00 KST (ATS/Maptics 동일)
+      // KST 09:00 = UTC 00:00, KST 19:00 = UTC 10:00
       const clampToKSTWindow = (dateUTC: Date, minTime: Date): Date => {
         const KST_OFFSET_HOURS = 9;
         
@@ -1107,9 +1107,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const kstHoursNormalized = kstHours % 24;
         const isNextDayKST = kstHours >= 24;
         
-        // KST 09:00~19:59 범위 = UTC 00:00~10:59 범위
-        // (KST 20:00 = UTC 11:00)
-        const isInWindow = kstHoursNormalized >= 9 && kstHoursNormalized < 20;
+        // KST 09:00~18:59 범위 = UTC 00:00~09:59 범위
+        // (KST 19:00 = UTC 10:00)
+        const isInWindow = kstHoursNormalized >= 9 && kstHoursNormalized < 19;
         
         if (isInWindow) {
           // 이미 발송 가능 시간대 내
@@ -1117,7 +1117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const effectiveDate = dateUTC > minTime ? dateUTC : minTime;
           // 반환값도 KST 범위 내인지 확인
           const resultKstHours = (effectiveDate.getUTCHours() + KST_OFFSET_HOURS) % 24;
-          if (resultKstHours >= 9 && resultKstHours < 20) {
+          if (resultKstHours >= 9 && resultKstHours < 19) {
             return roundUpTo10Min(effectiveDate);
           }
           // minTime이 범위 밖이면 다음 09:00으로 이동
@@ -1126,8 +1126,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 발송 불가 시간대 → 다음 가능한 KST 09:00 (= UTC 00:00)으로 조정
         const adjusted = new Date(dateUTC);
         
-        if (kstHoursNormalized >= 20) {
-          // KST 20:00~23:59 (UTC 11:00~14:59) → 다음날 KST 09:00
+        if (kstHoursNormalized >= 19) {
+          // KST 19:00~23:59 (UTC 10:00~14:59) → 다음날 KST 09:00
           // 다음날 UTC 00:00으로 설정
           adjusted.setUTCDate(adjusted.getUTCDate() + 1);
           adjusted.setUTCHours(0, 0, 0, 0);
@@ -1147,10 +1147,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         // minTime이 KST 범위 밖일 수 있으므로 재확인
         const resultKstHours = (result.getUTCHours() + KST_OFFSET_HOURS) % 24;
-        if (resultKstHours >= 20 || resultKstHours < 9) {
+        if (resultKstHours >= 19 || resultKstHours < 9) {
           // minTime이 범위 밖이면 다음 KST 09:00으로 조정
           result = new Date(result);
-          if (resultKstHours >= 20) {
+          if (resultKstHours >= 19) {
             result.setUTCDate(result.getUTCDate() + 1);
           } else {
             result.setUTCDate(result.getUTCDate() + 1);
