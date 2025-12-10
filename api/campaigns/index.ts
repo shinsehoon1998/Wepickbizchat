@@ -856,9 +856,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         console.log(`[Campaign] ATS mosu API success - SQL query obtained, count: ${atsMosuCount}`);
       } else {
-        console.warn('[Campaign] ATS mosu API failed:', atsMosuResult.error);
-        // ATS API 실패 시 JSON 쿼리를 fallback으로 사용 (BizChat에서 오류 발생할 수 있음)
-        sndMosuQuerySQL = JSON.stringify(atsResult.query);
+        // ATS API 실패 시 hard failure - BizChat은 SQL 형식만 허용
+        console.error('[Campaign] ATS mosu API failed:', atsMosuResult.error);
+        return res.status(503).json({ 
+          error: 'ATS 타겟팅 서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.',
+          code: 'ATS_MOSU_UNAVAILABLE',
+          details: atsMosuResult.error,
+        });
       }
 
       const campaignId = randomUUID();
