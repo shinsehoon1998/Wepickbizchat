@@ -1,0 +1,139 @@
+URL	/api/v1/cmpn				
+Description	캠패인 조회				
+Method	GET				
+Header	Authorization: {token}				
+					
+Request					
+In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	id	Y	string	"19ca34b180394f15a9c66f798b65df95"	대상 아이디
+Example(Query string)	"아래 데이터는 실제 데이터로 변환하여 입력해야한다.
+- id : 캠페인 id
+
+tid=1706073253324&id=19ca34b180394f15a9c66f798b65ef95"				
+					
+Response					
+구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+	code	Y	string	"S000001"	API 성공, 실패 코드
+	msg	Y	string	"success"	API 성공, 실패 메시지
+	data	Y	object	캠패인	캠패인 상세 정보
+Example	"{
+    ""tid"": ""1717547712622"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""id"": ""50d8d0dd7ccf3cfea138f494daf0f1dd"",
+        ""customerName"": ""유엔젤 (ASUM)"",
+        ""tgtCompanyName"": ""유엔젤"",
+        ""name"": ""유엔젤 이벤트 (lms)"",
+        ""sndNum"": ""001001"",
+        ""rcvType"": 10,
+        ""sndType"": 0,
+        ""sndGoalCnt"": 10,
+        ""atsSndStartDate"": 1717552800,
+        ""atsSndEndDate"": 1717556400,
+        ""collStartDate"": 0,
+        ""collEndDate"": 0,
+        ""collSndDate"": 0,
+        ""startDate"": 1717552800,
+        ""endDate"": 1717556400,
+        ""sndDayDiv"": 0,
+        ""billingType"": 0,
+        ""rcsType"": 200,
+        ""slideCnt"": 0,
+        ""state"": 15,
+        ""stateUpdDate"": 0,
+        ""stateReason"": """",
+        ""apprUserId"": """",
+        ""mdnFileId"": ""ebe7525e815d3c01855e30c758bcb34f504202"",
+        ""isTmp"": 0,
+        ""sndGeofenceId"": 0,
+        ""sndMosu"": 0,
+        ""sndMosuDesc"": """",
+        ""sndMosuQuery"": """",
+        ""useCoupon"": 0,
+        ""coupon"": """",
+        ""free"": 0,
+        ""cb"": {
+            ""recv"": ""http://www.google.com3"",
+            ""urlClick"": ""http://www.google.com4"",
+            ""state"": ""http://www.google.com1"",
+            ""send"": ""http://www.google.com2""
+        },
+        ""crtDate"": 1717547329,
+        ""updDate"": 1717547329,
+        ""mms"": {
+            ""id"": ""6dba1540f110334eb64aab41aab56658"",
+            ""title"": ""유엔젤 이벤트 (lms)"",
+            ""msg"": ""(lms) 구정을 맞이하여 만원 이상 구매 고객에게 복조리를 증정해드립니다. [URL분석1] [URL분석2] [URL분석3]"",
+            ""fileInfo"": {},
+            ""urlFile"": """",
+            ""urlLink"": {
+                ""list"": [
+                    ""https://www.google.com"",
+                    ""https://www.apple.com"",
+                    ""https://www.kakao.com""
+                ]
+            },
+            ""crtDate"": 1717547329,
+            ""updDate"": 1717547329
+        },
+        ""rcs"": [
+            {
+                ""id"": ""27d6eea6b9f8305f9f5e37c5e1d9b724"",
+                ""slideNum"": 1,
+                ""title"": ""유엔젤 이벤트 (rcs mms - 스탠다드)"",
+                ""msg"": ""구정을 맞이하여 만원 이상 구매 고객에게 복조리를 증정해드립니다."",
+                ""imgOrigId"": ""7046614d3c1f34138ba25471d40a2a60304202"",
+                ""imgRcsId"": ""06774019d05f3cf993956b4788c8ab7c"",
+                ""urlFile"": """",
+                ""buttons"": {
+                    ""list"": [
+                        {
+                            ""name"": ""URL 연결"",
+                            ""type"": ""0"",
+                            ""val1"": ""https://www.google.com"",
+                           ""val2"": """"
+                        },
+                        {
+                            ""name"": ""전화걸기"",
+                            ""type"": ""1"",
+                            ""val1"": ""01030985066"",
+                            ""val2"": """"
+                        }
+                    ]
+                },
+                ""urlLink"": {
+                    ""list"": [
+                        ""https://www.google.com""
+                    ]
+                },
+                ""opts"": {
+                    ""list"": [
+                        {
+                            ""link"": ""https://www.tworld.co.kr/web/home"",
+                            ""descr"": ""SKT 홈 1"",
+                            ""rcsId"": ""eb235bd37a3e30a0a474dbed8f71e2f3"",
+                            ""origId"": ""25dc9efa851e376eb33358a664716a5e504202""
+                        },
+                        {
+                            ""link"": ""https://www.tworld.co.kr/web/home"",
+                            ""descr"": ""SKT 홈 2"",
+                            ""rcsId"": ""eb235bd37a3e30a0a474dbed8f71e2f3"",
+                            ""origId"": ""25dc9efa851e376eb33358a664716a5e504202""
+                        },
+                        {
+                            ""link"": ""https://www.tworld.co.kr/web/home"",
+                            ""descr"": ""SKT 홈 3"",
+                            ""rcsId"": ""eb235bd37a3e30a0a474dbed8f71e2f3"",
+                            ""origId"": ""25dc9efa851e376eb33358a664716a5e504202""
+                        }
+                    ]
+                },
+                ""crtDate"": 1716948433,
+                ""updDate"": 1716948433
+            }
+        ]
+    }
+}"				
