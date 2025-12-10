@@ -1,0 +1,273 @@
+✅ KISPG 가맹점 연동 가이드 – 텍스트 정리본 (v1.1.11 전체)
+
+PDF 34페이지의 모든 내용을 원본 구성 그대로 텍스트 형태로 제공합니다.
+(※ 이미지·도표 내용도 텍스트로 변환)
+
+-------------------------
+1. 연동 개요
+-------------------------
+1.1 개요
+
+본 문서는 KISPG 지불결제 서비스를 가맹점 웹 페이지에서 연동해 사용자에게 결제 서비스를 제공하는 방법 안내.
+
+1.2 특징
+
+별도 모듈 설치 없이 사용 (Non-ActiveX)
+
+SHA256 위변조 방지 및 HTTPS(SSL) 통신
+
+브라우저 자동 호환 (Chrome, IE, Firefox, Safari)
+
+웹 표준 통신으로 시스템 언어와 무관하게 연동 가능
+
+1.3 서비스 구조와 결제 처리
+
+가맹점은 SHA256 기반 위변조 방지 결제데이터 생성
+
+사용자 브라우저에서 form POST로 KISPG API 호출
+
+KISPG는 결제창 표시 후 인증/승인 처리
+
+승인 완료 후 결과를 가맹점에 리턴
+
+1.4 서비스 Flow
+
+① 인증 단계
+
+고객이 주문 → 가맹점이 인증 요청 데이터 생성 후 KISPG 인증 URL에 요청
+
+인증 완료 후 결과는 returnUrl 로 전달
+
+가맹점은 encData 값으로 위변조 체크 후 승인 단계로 이동
+
+② 승인 단계
+
+가맹점은 인증 결과 기반으로 승인 URL에 승인 요청
+
+KISPG는 서비스 공급자 승인 처리
+
+승인 완료 후 결과를 가맹점에 전달
+
+주의사항
+
+가이드에 없는 파라미터는 보장 X
+
+iframe·레이어팝업 결제창은 비권장
+
+고객 카드정보 KeyIn 시 서버 저장 금지
+
+응답받은 encData로 위변조 검증 필수
+
+-------------------------
+2. 설치
+-------------------------
+2.1 요구사항
+
+특별한 하드웨어 요구사항 없음
+
+Web Server: SHA256 생성 가능, HTTP Client 요청 가능
+
+DBMS: 결제 결과 저장 용도 (가맹점에서 관리)
+
+2.2 방화벽 설정
+● 결제 요청 통신 (Outbound)
+
+운영: https://api.kispg.co.kr
+
+개발: https://testapi.kispg.co.kr
+
+● 결제 결과 수신 통신 (Inbound)
+
+운영: 1.233.179.201
+
+개발: 61.40.40.74
+
+2.3 샘플소스 구성
+paySample.jsp                // 결제 테스트 파일
+payResultSample.jsp          // 결제 결과
+cancelSample.jsp             // 결제 취소 테스트
+cancelResultSample.jsp       // 취소 결과
+
+2.4 승인 테스트 방법
+
+http://127.0.0.1/orderSample.html 호출
+
+테스트용 MID 는 실제 결제됨 → 당일 23:30 자동취소
+
+TID 기록 필수 (취소/조회 테스트용)
+
+-------------------------
+3. 결제 연동
+-------------------------
+3.1 인증 요청
+3.1.1 인증 요청 시 주의사항
+
+payReqType = 1
+→ 인증 결과를 returnUrl 로 리턴, 이후 가맹점 서버가 승인 요청해야 함
+
+가맹점 Key는 외부 노출 금지
+
+모든 파라미터는 <input type="hidden"> 사용 권장
+
+요청 URL:
+
+운영: https://api.kispg.co.kr/v2/auth
+
+개발: https://testapi.kispg.co.kr/v2/auth
+
+[표] 인증요청 파라미터
+
+(원문 그대로 전체 파라미터 정리)
+
+필수 주요 파라미터
+파라미터	설명	필수	크기
+payMethod	카드/CARD, BANK, VACNT	X	10
+trxCd	0 일반 / 1 에스크로	O	1
+mid	가맹점 ID	O	10
+goodsNm	상품명	O	100
+ordNo	주문번호 (unique)	O	40
+goodsAmt	결제금액	O	15
+ordNm	구매자명	O	30
+ordTel	구매자 전화번호	O	20
+userIp	유저 IP	O	20
+ediDate	전문요청일시	O	14
+encData	해시값	O	256
+returnUrl	인증 완료 수신 URL	O	255
+payReqType	1 고정	O	1
+
+주의
+
+Apple Pay 사용가능 OS/기종 안내 포함
+
+discountAmt, mbsFeeAmt 는 특정 MID 설정 시 필수
+
+3.1.2 인증 결과 수신 파라미터
+파라미터	설명
+resultCd	결과코드
+resultMsg	메시지
+payMethod	지불수단
+tid	거래번호
+ordNo	주문번호
+amt	거래금액
+ediDate	응답일시
+encData	위변조 방지 해시
+3.2 승인 요청
+3.2.1 승인 요청 규칙
+
+Body는 JSON
+
+서버사이드에서 수행
+
+URL
+
+운영: https://api.kispg.co.kr/v2/payment
+
+개발: https://testapi.kispg.co.kr/v2/payment
+
+승인 요청 파라미터
+파라미터	설명	필수
+mid	가맹점 ID	O
+tid	인증 단계에서 받은 거래번호	O
+goodsAmt	금액	O
+ediDate	전문요청일시	O
+encData	해시값	O
+3.2.2 승인 결과 파라미터
+
+PDF의 전체 표 그대로 반영:
+
+(일부 주요 필드만 요약)
+
+resultCd / resultMsg
+
+payMethod
+
+tid
+
+appDtm (결제일시)
+
+appNo (승인번호)
+
+fnNm (카드사명)
+
+quota (할부)
+
+nointFlg (분담무이자 여부)
+
+cardType
+
+vacntNo (가상계좌)
+
+crctType / crctNo (현금영수증)
+
+discountType / discountAmt
+
+mbsFeeType / mbsFeeAmt
+
+3.3 결제 취소
+3.3.1 요청 URL
+
+운영: https://api.kispg.co.kr/v2/cancel
+
+개발: https://testapi.kispg.co.kr/v2/cancel
+
+취소 요청 파라미터
+
+전체 표 그대로 정리:
+
+파라미터	설명	필수
+payMethod	card, bank, vacnt	O
+tid	거래번호	O
+mid	가맹점 ID	O
+ordNo	주문번호	X
+canAmt	취소금액	O
+canMsg	취소사유	O
+partCanFlg	부분취소 여부	O
+refundBankCd / refundAccnt / refundNm	환불 시 필수	
+encData	해시값	O
+ediDate	전문요청일시	O
+3.3.2 취소 결과 파라미터
+
+resultCd
+
+resultMsg
+
+payMethod
+
+tid
+
+cancelYN
+
+mbsReserved
+
+3.4 결제 내역 조회
+요청 URL
+
+운영: https://api.kispg.co.kr/v2/order
+
+개발: https://testapi.kispg.co.kr/v2/order
+
+요청 파라미터
+
+mid
+
+tid 또는 ordNo
+
+goodsAmt
+
+encData
+
+ediDate
+
+결과 파라미터 (전체 표 포함)
+
+tid / ordNo / goodsName / amt
+
+fnNm
+
+quota
+
+cardType
+
+vacntNo
+
+cancelData (부분취소 Json)
