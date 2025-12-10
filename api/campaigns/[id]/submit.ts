@@ -770,6 +770,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const sndGoalCnt = campaign.sndGoalCnt || campaign.targetCount || 1000;
       const sndMosu = campaign.sndMosu || Math.min(Math.ceil(sndGoalCnt * 1.5), 400000);
       
+      // URL 리스트 추출
+      const updateMmsUrlList: string[] = (message as any)?.urlLinks || (message as any)?.urls || [];
+      const updateMmsUrlLink = updateMmsUrlList.length > 0 
+        ? { list: updateMmsUrlList.slice(0, 3) }
+        : {}; // 링크가 없으면 빈 객체 {} (문서 규격)
+      
       // BizChat API 규격 v0.29.0: 전체 업데이트 페이로드 구성
       const updatePayload: Record<string, unknown> = {
         name: campaign.name,
@@ -786,21 +792,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           msg: message?.content || '',
           fileInfo: (needsFile && message?.imageUrl) 
             ? { list: [{ origId: message.imageUrl }] } 
-            : { list: [] }, // 파일 없으면 빈 list 배열
-          urlLink: { list: [] }, // URL 없으면 빈 list 배열
+            : {}, // 파일 없으면 빈 객체 {} (문서 규격)
+          urlLink: updateMmsUrlLink,
         },
       };
       
-      // billingType 1(RCS MMS) 또는 3(RCS LMS)일 때만 rcs 필드 추가
+      // BizChat API 규격 v0.29.0: rcs 필드는 항상 포함
+      const updateRcsUrlLink = updateMmsUrlList.length > 0 
+        ? { list: updateMmsUrlList.slice(0, 3) }
+        : {}; // 링크가 없으면 빈 객체 {} (문서 규격)
+        
       if (isRcs) {
         updatePayload.rcs = [{
           slideNum: 1,
           title: message?.title || '',
           msg: message?.content || '',
           imgOrigId: (needsFile && message?.imageUrl) ? message.imageUrl : undefined,
-          urlLink: { list: [] },
-          buttons: { list: [] },
+          urlLink: updateRcsUrlLink,
+          buttons: {}, // 버튼이 없으면 빈 객체 {} (문서 규격)
         }];
+      } else {
+        // LMS/MMS일 때도 rcs 필드는 빈 배열로 포함 (문서 예제 참고)
+        updatePayload.rcs = [];
       }
       
       // 발송 시간 업데이트
@@ -819,28 +832,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       
       // sndMosuDesc/sndMosuQuery 업데이트 (타겟팅 필터)
-      // BizChat API 규격 v0.29.0: sndMosuQuery는 JSON 객체로 전송해야 함
-      let updateConvertedDesc = '';
+      // BizChat API 규격: sndMosuQuery는 ATS mosu API 응답의 query 문자열(SQL 형식)을 사용해야 함
+      let updateAtsFilterStr = '';
       if (campaign.sndMosuQuery) {
         const queryString = typeof campaign.sndMosuQuery === 'string' 
           ? campaign.sndMosuQuery 
           : JSON.stringify(campaign.sndMosuQuery);
         
-        // 구형 형식인 경우 변환
-        const { query: convertedQuery, desc } = convertLegacySndMosuQuery(queryString);
-        // BizChat API는 sndMosuQuery를 JSON 객체로 기대함 (문자열이 아닌)
+        // JSON 형식의 필터 조건을 ATS mosu API에 전송하여 SQL query 획득
+        const { query: convertedQuery } = convertLegacySndMosuQuery(queryString);
+        let filterPayload: Record<string, unknown>;
         try {
-          updatePayload.sndMosuQuery = JSON.parse(convertedQuery);
+          filterPayload = JSON.parse(convertedQuery);
         } catch {
-          updatePayload.sndMosuQuery = { '$and': [] };
+          filterPayload = { '$and': [] };
         }
-        updateConvertedDesc = desc;
-        console.log('[Submit] Update sndMosuQuery (converted, as object):', JSON.stringify(updatePayload.sndMosuQuery));
+        
+        console.log('[Submit Update] Calling ATS mosu API to get SQL query...');
+        console.log('[Submit Update] Filter payload:', JSON.stringify(filterPayload, null, 2));
+        
+        // ATS mosu API 호출하여 SQL 형식의 query 획득
+        const atsResult = await callATSMosuAPI(filterPayload, useProduction);
+        
+        if (atsResult.success && atsResult.query) {
+          // ATS API 응답의 SQL query를 sndMosuQuery로 사용
+          updatePayload.sndMosuQuery = atsResult.query;
+          updateAtsFilterStr = atsResult.filterStr;
+          console.log('[Submit Update] sndMosuQuery (SQL from ATS):', atsResult.query.substring(0, 200) + '...');
+        } else {
+          // ATS API 실패 시 에러 반환
+          console.error('[Submit Update] ATS mosu API failed:', atsResult.error);
+          return res.status(400).json({
+            error: `ATS 타겟팅 조회 실패: ${atsResult.error || 'Unknown error'}`,
+            hint: 'ATS 발송 모수 API 호출에 실패했습니다. 타겟팅 조건을 확인해주세요.',
+          });
+        }
       }
       
-      if (campaign.sndMosuDesc || updateConvertedDesc) {
-        const desc = campaign.sndMosuDesc || updateConvertedDesc;
-        const isHtml = desc.startsWith('<html>') || desc.includes('<body>');
+      if (updateAtsFilterStr || campaign.sndMosuDesc) {
+        const desc = updateAtsFilterStr || campaign.sndMosuDesc || '';
+        const isHtml = desc.startsWith('<html>') || desc.includes('<body>') || desc.includes('<table>');
         updatePayload.sndMosuDesc = isHtml ? desc : `<html><body><p>${desc}</p></body></html>`;
       }
       
