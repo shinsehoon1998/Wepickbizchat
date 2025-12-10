@@ -338,6 +338,72 @@ function validateStringLengths(data: {
   return { valid: true };
 }
 
+// ATS 발송 모수 API 호출하여 SQL 형식의 query 획득
+// BizChat API 규격: /api/v1/ats/mosu 호출 후 응답의 query 필드를 sndMosuQuery에 사용
+async function callATSMosuAPI(
+  filterPayload: Record<string, unknown>,
+  useProduction: boolean = false
+): Promise<{ success: boolean; query: string; filterStr: string; count: number; error?: string }> {
+  const baseUrl = useProduction ? BIZCHAT_PROD_URL : BIZCHAT_DEV_URL;
+  const apiKey = useProduction 
+    ? process.env.BIZCHAT_PROD_API_KEY 
+    : process.env.BIZCHAT_DEV_API_KEY;
+
+  if (!apiKey) {
+    return { success: false, query: '', filterStr: '', count: 0, error: 'API key not configured' };
+  }
+
+  const tid = generateTid();
+  const url = `${baseUrl}/api/v1/ats/mosu?tid=${tid}`;
+  
+  console.log(`[ATS Mosu] POST ${url}`);
+  console.log(`[ATS Mosu] Payload:`, JSON.stringify(filterPayload, null, 2));
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': apiKey,
+      },
+      body: JSON.stringify(filterPayload),
+    });
+
+    const responseText = await response.text();
+    console.log(`[ATS Mosu] Response: ${response.status} - ${responseText.substring(0, 1000)}`);
+
+    const data = JSON.parse(responseText);
+    
+    if (data.code === 'S000001' && data.data?.query) {
+      console.log(`[ATS Mosu] Success - query: ${data.data.query.substring(0, 200)}...`);
+      return {
+        success: true,
+        query: data.data.query, // SQL 형식의 query 문자열
+        filterStr: data.data.filterStr || '',
+        count: data.data.cnt || 0,
+      };
+    }
+    
+    console.error(`[ATS Mosu] Failed - code: ${data.code}, msg: ${data.msg}`);
+    return { 
+      success: false, 
+      query: '', 
+      filterStr: '', 
+      count: 0, 
+      error: `ATS API failed: ${data.code} - ${data.msg}` 
+    };
+  } catch (error) {
+    console.error(`[ATS Mosu] Error:`, error);
+    return { 
+      success: false, 
+      query: '', 
+      filterStr: '', 
+      count: 0, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  }
+}
+
 async function callBizChatAPI(
   endpoint: string,
   method: 'GET' | 'POST' = 'POST',
@@ -579,30 +645,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       createPayload.rcs = rcsArray;
 
       // 타겟팅 정보 추가 (ATS 발송 모수 필터)
-      // BizChat API 규격 v0.29.0: sndMosuQuery는 string 타입 (문서 Line 102 참조)
-      let convertedDesc = '';
+      // BizChat API 규격: sndMosuQuery는 ATS mosu API 응답의 query 문자열(SQL 형식)을 사용해야 함
+      let atsFilterStr = '';
       if (campaign.sndMosuQuery) {
         const queryString = typeof campaign.sndMosuQuery === 'string' 
           ? campaign.sndMosuQuery 
           : JSON.stringify(campaign.sndMosuQuery);
         
-        // 구형 형식인 경우 변환
+        // JSON 형식의 필터 조건을 ATS mosu API에 전송하여 SQL query 획득
         const { query: convertedQuery, desc } = convertLegacySndMosuQuery(queryString);
-        // BizChat API 규격: sndMosuQuery는 JSON 문자열로 전송 (Data Type: string)
-        createPayload.sndMosuQuery = convertedQuery;
-        convertedDesc = desc;
-        console.log('[Submit] sndMosuQuery (as string):', createPayload.sndMosuQuery);
+        let filterPayload: Record<string, unknown>;
+        try {
+          filterPayload = JSON.parse(convertedQuery);
+        } catch {
+          filterPayload = { '$and': [] };
+        }
+        
+        console.log('[Submit] Calling ATS mosu API to get SQL query...');
+        console.log('[Submit] Filter payload:', JSON.stringify(filterPayload, null, 2));
+        
+        // ATS mosu API 호출하여 SQL 형식의 query 획득
+        const atsResult = await callATSMosuAPI(filterPayload, useProduction);
+        
+        if (atsResult.success && atsResult.query) {
+          // ATS API 응답의 SQL query를 sndMosuQuery로 사용
+          createPayload.sndMosuQuery = atsResult.query;
+          atsFilterStr = atsResult.filterStr;
+          console.log('[Submit] sndMosuQuery (SQL from ATS):', atsResult.query.substring(0, 200) + '...');
+          console.log('[Submit] ATS count:', atsResult.count);
+        } else {
+          // ATS API 실패 시 에러 반환
+          console.error('[Submit] ATS mosu API failed:', atsResult.error);
+          return res.status(400).json({
+            error: `ATS 타겟팅 조회 실패: ${atsResult.error || 'Unknown error'}`,
+            hint: 'ATS 발송 모수 API 호출에 실패했습니다. 타겟팅 조건을 확인해주세요.',
+          });
+        }
       }
       
       // BizChat API 규격: sndMosuDesc는 HTML 형식이어야 함
-      // 우선순위: 1. DB에 저장된 sndMosuDesc, 2. 변환 중 생성된 desc
-      if (campaign.sndMosuDesc || convertedDesc) {
-        const desc = campaign.sndMosuDesc || convertedDesc;
-        const isHtml = desc.startsWith('<html>') || desc.includes('<body>');
+      // 우선순위: 1. ATS API 응답의 filterStr, 2. DB에 저장된 sndMosuDesc
+      if (atsFilterStr || campaign.sndMosuDesc) {
+        const desc = atsFilterStr || campaign.sndMosuDesc || '';
+        const isHtml = desc.startsWith('<html>') || desc.includes('<body>') || desc.includes('<table>');
         createPayload.sndMosuDesc = isHtml 
           ? desc 
           : `<html><body><p>${desc}</p></body></html>`;
-        console.log('[Submit] sndMosuDesc (html):', createPayload.sndMosuDesc);
+        console.log('[Submit] sndMosuDesc:', createPayload.sndMosuDesc?.toString().substring(0, 200) + '...');
       }
 
       // 10분 단위로 조정된 발송 시간 적용
