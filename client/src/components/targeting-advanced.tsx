@@ -110,27 +110,33 @@ export interface SavedGeofence {
   targets: GeofenceTarget[];
 }
 
+// 타겟팅 모드: ATS (고급 타겟팅) vs Maptics (지오펜스)
+// BizChat API에서 두 방식은 상호 배타적 (rcvType=0 vs rcvType=1,2)
+export type TargetingMode = 'ats' | 'maptics';
+
 // 타겟팅 상태 (BizChat 규격 준수)
 export interface AdvancedTargetingState {
-  // 11번가 카테고리 (cat1/cat2/cat3 형식)
+  // 타겟팅 모드 (ATS vs Maptics)
+  targetingMode: TargetingMode;
+  // 11번가 카테고리 (cat1/cat2/cat3 형식) - ATS 전용
   shopping11stCategories: SelectedCategory[];
-  // 웹앱 카테고리 (cat1/cat2/cat3 형식)
+  // 웹앱 카테고리 (cat1/cat2/cat3 형식) - ATS 전용
   webappCategories: SelectedCategory[];
-  // 통화Usage 카테고리 (cat1/cat2/cat3 형식)
+  // 통화Usage 카테고리 (cat1/cat2/cat3 형식) - ATS 전용
   callCategories: SelectedCategory[];
-  // 위치 필터 (hcode 배열)
+  // 위치 필터 (hcode 배열) - ATS 전용
   locations: {
     code: string;
     type: 'home' | 'work';
     name: string;
   }[];
-  // 프로파일링 필터 (pro)
+  // 프로파일링 필터 (pro) - ATS 전용
   profiling: {
     code: string;
     value: string | { gt: string; lt: string };
     desc: string;
   }[];
-  // 지오펜스 타겟팅 (Maptics)
+  // 지오펜스 타겟팅 (Maptics) - Maptics 전용
   geofences: SavedGeofence[];
 }
 
@@ -1085,14 +1091,62 @@ export default function TargetingAdvanced({
   const [estimatedCount, setEstimatedCount] = useState<number>(0);
   const [isEstimating, setIsEstimating] = useState(false);
 
+  // 타겟팅 모드 (기본값: ATS)
+  const currentMode = targeting?.targetingMode || 'ats';
+
+  // 모드 변경 핸들러 (모든 필드 명시적 초기화)
+  const handleModeChange = useCallback((newMode: TargetingMode) => {
+    if (newMode === currentMode) return;
+    
+    if (newMode === 'maptics') {
+      // Maptics 모드로 전환: ATS 필터 초기화, 지오펜스 유지
+      onTargetingChange({
+        targetingMode: 'maptics',
+        shopping11stCategories: [],
+        webappCategories: [],
+        callCategories: [],
+        locations: [],
+        profiling: [],
+        geofences: targeting?.geofences ?? [],
+      });
+    } else {
+      // ATS 모드로 전환: 지오펜스 초기화, ATS 필터 유지
+      onTargetingChange({
+        targetingMode: 'ats',
+        shopping11stCategories: targeting?.shopping11stCategories ?? [],
+        webappCategories: targeting?.webappCategories ?? [],
+        callCategories: targeting?.callCategories ?? [],
+        locations: targeting?.locations ?? [],
+        profiling: targeting?.profiling ?? [],
+        geofences: [],
+      });
+    }
+  }, [currentMode, targeting, onTargetingChange]);
+
   useEffect(() => {
     const estimateAudience = async () => {
       setIsEstimating(true);
       try {
-        const res = await apiRequest("POST", "/api/targeting/estimate", {
-          ...basicTargeting,
-          ...targeting,
-        });
+        // 현재 모드에 해당하는 필드만 전송 (BizChat API 규격 준수)
+        const estimatePayload = currentMode === 'maptics'
+          ? {
+              ...basicTargeting,
+              targetingMode: 'maptics',
+              geofences: targeting?.geofences ?? [],
+              // ATS 필드는 빈 배열로 전송하지 않음
+            }
+          : {
+              ...basicTargeting,
+              targetingMode: 'ats',
+              shopping11stCategories: targeting?.shopping11stCategories ?? [],
+              webappCategories: targeting?.webappCategories ?? [],
+              callCategories: targeting?.callCategories ?? [],
+              locations: targeting?.locations ?? [],
+              profiling: targeting?.profiling ?? [],
+              // 지오펜스는 전송하지 않음
+            };
+        
+        const res = await apiRequest("POST", "/api/targeting/estimate", estimatePayload);
         const data = await res.json();
         setEstimatedCount(data.estimatedCount || 0);
       } catch (error) {
@@ -1104,16 +1158,21 @@ export default function TargetingAdvanced({
 
     const debounce = setTimeout(estimateAudience, 500);
     return () => clearTimeout(debounce);
-  }, [targeting, basicTargeting]);
+  }, [targeting, basicTargeting, currentMode]);
+
+  // ATS 필터 개수
+  const atsFilterCount =
+    (targeting?.shopping11stCategories?.length ?? 0) +
+    (targeting?.webappCategories?.length ?? 0) +
+    (targeting?.callCategories?.length ?? 0) +
+    (targeting?.locations?.length ?? 0) +
+    (targeting?.profiling?.length ?? 0);
+
+  // 지오펜스 개수
+  const geofenceCount = targeting?.geofences?.length ?? 0;
 
   // 안전하게 배열 길이 확인 (undefined 방지)
-  const hasAdvancedFilters =
-    (targeting?.shopping11stCategories?.length ?? 0) > 0 ||
-    (targeting?.webappCategories?.length ?? 0) > 0 ||
-    (targeting?.callCategories?.length ?? 0) > 0 ||
-    (targeting?.locations?.length ?? 0) > 0 ||
-    (targeting?.profiling?.length ?? 0) > 0 ||
-    (targeting?.geofences?.length ?? 0) > 0;
+  const hasAdvancedFilters = atsFilterCount > 0 || geofenceCount > 0;
 
   return (
     <div className="space-y-4">
@@ -1139,36 +1198,131 @@ export default function TargetingAdvanced({
         </div>
       </div>
 
-      {hasAdvancedFilters && (
+      {/* 타겟팅 모드 선택 (ATS vs Maptics) */}
+      <div className="grid grid-cols-2 gap-3">
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover-elevate",
+            currentMode === 'ats'
+              ? "border-primary ring-2 ring-primary/20"
+              : "border-border"
+          )}
+          onClick={() => handleModeChange('ats')}
+          data-testid="card-mode-ats"
+        >
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className={cn(
+                "p-2 rounded-lg",
+                currentMode === 'ats' ? "bg-primary/10" : "bg-muted"
+              )}>
+                <ShoppingBag className={cn(
+                  "h-5 w-5",
+                  currentMode === 'ats' ? "text-primary" : "text-muted-foreground"
+                )} />
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold text-body">ATS 고급 타겟팅</div>
+                <div className="text-tiny text-muted-foreground mt-0.5">
+                  쇼핑, 앱 사용, 통화, 위치, 프로파일링
+                </div>
+                {atsFilterCount > 0 && currentMode === 'ats' && (
+                  <Badge variant="secondary" className="mt-2 text-tiny">
+                    {atsFilterCount}개 필터 적용
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className={cn(
+            "cursor-pointer transition-all hover-elevate",
+            currentMode === 'maptics'
+              ? "border-primary ring-2 ring-primary/20"
+              : "border-border"
+          )}
+          onClick={() => handleModeChange('maptics')}
+          data-testid="card-mode-maptics"
+        >
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className={cn(
+                "p-2 rounded-lg",
+                currentMode === 'maptics' ? "bg-primary/10" : "bg-muted"
+              )}>
+                <MapPin className={cn(
+                  "h-5 w-5",
+                  currentMode === 'maptics' ? "text-primary" : "text-muted-foreground"
+                )} />
+              </div>
+              <div className="flex-1">
+                <div className="font-semibold text-body">Maptics 지오펜스</div>
+                <div className="text-tiny text-muted-foreground mt-0.5">
+                  특정 위치 방문자 대상 타겟팅
+                </div>
+                {geofenceCount > 0 && currentMode === 'maptics' && (
+                  <Badge variant="secondary" className="mt-2 text-tiny">
+                    {geofenceCount}개 지오펜스
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 모드 변경 시 초기화 알림 */}
+      {((currentMode === 'ats' && geofenceCount > 0) || 
+        (currentMode === 'maptics' && atsFilterCount > 0)) && (
+        <Card className="bg-amber-50 border-amber-200">
+          <CardContent className="py-3 px-4">
+            <p className="text-small text-amber-800">
+              다른 타겟팅 모드로 전환하면 현재 선택이 초기화됩니다.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 현재 모드에 해당하는 필터만 표시 */}
+      {((currentMode === 'ats' && atsFilterCount > 0) || 
+        (currentMode === 'maptics' && geofenceCount > 0)) && (
         <Card className="bg-accent/30">
           <CardContent className="py-3">
             <div className="flex flex-wrap gap-1.5">
-              {(targeting?.shopping11stCategories ?? []).map((cat, i) => (
-                <Badge key={`11st-${i}`} variant="secondary" className="text-tiny">
-                  11번가: {cat.cat1Name || cat.cat1}{cat.cat2 && ` > ${cat.cat2Name || cat.cat2}`}{cat.cat3 && ` > ${cat.cat3Name || cat.cat3}`}
-                </Badge>
-              ))}
-              {(targeting?.webappCategories ?? []).map((cat, i) => (
-                <Badge key={`webapp-${i}`} variant="secondary" className="text-tiny">
-                  앱: {cat.cat1Name || cat.cat1}{cat.cat2 && ` > ${cat.cat2Name || cat.cat2}`}{cat.cat3 && ` > ${cat.cat3Name || cat.cat3}`}
-                </Badge>
-              ))}
-              {(targeting?.callCategories ?? []).map((cat, i) => (
-                <Badge key={`call-${i}`} variant="secondary" className="text-tiny">
-                  통화: {cat.cat1Name || cat.cat1}{cat.cat2 && ` > ${cat.cat2Name || cat.cat2}`}{cat.cat3 && ` > ${cat.cat3Name || cat.cat3}`}
-                </Badge>
-              ))}
-              {(targeting?.locations ?? []).map((loc, i) => (
-                <Badge key={`loc-${i}`} variant="secondary" className="text-tiny">
-                  {loc.type === 'home' ? '집' : '직장'}: {loc.name}
-                </Badge>
-              ))}
-              {(targeting?.profiling ?? []).map((pro, i) => (
-                <Badge key={`pro-${i}`} variant="secondary" className="text-tiny">
-                  {pro.desc}
-                </Badge>
-              ))}
-              {(targeting?.geofences ?? []).map((geo, i) => (
+              {/* ATS 모드: ATS 필터 배지만 표시 */}
+              {currentMode === 'ats' && (
+                <>
+                  {(targeting?.shopping11stCategories ?? []).map((cat, i) => (
+                    <Badge key={`11st-${i}`} variant="secondary" className="text-tiny">
+                      11번가: {cat.cat1Name || cat.cat1}{cat.cat2 && ` > ${cat.cat2Name || cat.cat2}`}{cat.cat3 && ` > ${cat.cat3Name || cat.cat3}`}
+                    </Badge>
+                  ))}
+                  {(targeting?.webappCategories ?? []).map((cat, i) => (
+                    <Badge key={`webapp-${i}`} variant="secondary" className="text-tiny">
+                      앱: {cat.cat1Name || cat.cat1}{cat.cat2 && ` > ${cat.cat2Name || cat.cat2}`}{cat.cat3 && ` > ${cat.cat3Name || cat.cat3}`}
+                    </Badge>
+                  ))}
+                  {(targeting?.callCategories ?? []).map((cat, i) => (
+                    <Badge key={`call-${i}`} variant="secondary" className="text-tiny">
+                      통화: {cat.cat1Name || cat.cat1}{cat.cat2 && ` > ${cat.cat2Name || cat.cat2}`}{cat.cat3 && ` > ${cat.cat3Name || cat.cat3}`}
+                    </Badge>
+                  ))}
+                  {(targeting?.locations ?? []).map((loc, i) => (
+                    <Badge key={`loc-${i}`} variant="secondary" className="text-tiny">
+                      {loc.type === 'home' ? '집' : '직장'}: {loc.name}
+                    </Badge>
+                  ))}
+                  {(targeting?.profiling ?? []).map((pro, i) => (
+                    <Badge key={`pro-${i}`} variant="secondary" className="text-tiny">
+                      {pro.desc}
+                    </Badge>
+                  ))}
+                </>
+              )}
+              {/* Maptics 모드: 지오펜스 배지만 표시 */}
+              {currentMode === 'maptics' && (targeting?.geofences ?? []).map((geo, i) => (
                 <Badge key={`geo-${i}`} variant="secondary" className="text-tiny">
                   지오펜스: {geo.name} ({geo.targets[0]?.radius}m)
                 </Badge>
@@ -1179,62 +1333,70 @@ export default function TargetingAdvanced({
       )}
 
       <div className="space-y-3">
-        <HierarchicalCategorySection
-          title="11번가 쇼핑 관심사"
-          description="11번가 쇼핑 카테고리 기반 타겟팅"
-          icon={ShoppingBag}
-          metaType="11st"
-          selectedCategories={targeting?.shopping11stCategories ?? []}
-          onCategoriesChange={(cats) => 
-            onTargetingChange({ ...targeting, shopping11stCategories: cats })
-          }
-          testIdPrefix="11st"
-        />
+        {/* ATS 모드: 쇼핑, 앱, 통화, 위치, 프로파일링 */}
+        {currentMode === 'ats' && (
+          <>
+            <HierarchicalCategorySection
+              title="11번가 쇼핑 관심사"
+              description="11번가 쇼핑 카테고리 기반 타겟팅"
+              icon={ShoppingBag}
+              metaType="11st"
+              selectedCategories={targeting?.shopping11stCategories ?? []}
+              onCategoriesChange={(cats) => 
+                onTargetingChange({ ...targeting, shopping11stCategories: cats })
+              }
+              testIdPrefix="11st"
+            />
 
-        <HierarchicalCategorySection
-          title="웹/앱 사용 관심사"
-          description="자주 사용하는 앱/웹 카테고리 기반 타겟팅"
-          icon={Smartphone}
-          metaType="webapp"
-          selectedCategories={targeting?.webappCategories ?? []}
-          onCategoriesChange={(cats) => 
-            onTargetingChange({ ...targeting, webappCategories: cats })
-          }
-          testIdPrefix="webapp"
-        />
+            <HierarchicalCategorySection
+              title="웹/앱 사용 관심사"
+              description="자주 사용하는 앱/웹 카테고리 기반 타겟팅"
+              icon={Smartphone}
+              metaType="webapp"
+              selectedCategories={targeting?.webappCategories ?? []}
+              onCategoriesChange={(cats) => 
+                onTargetingChange({ ...targeting, webappCategories: cats })
+              }
+              testIdPrefix="webapp"
+            />
 
-        <HierarchicalCategorySection
-          title="통화 Usage 관심사"
-          description="통화 사용 패턴 기반 타겟팅"
-          icon={Phone}
-          metaType="call"
-          selectedCategories={targeting?.callCategories ?? []}
-          onCategoriesChange={(cats) => 
-            onTargetingChange({ ...targeting, callCategories: cats })
-          }
-          testIdPrefix="call"
-        />
+            <HierarchicalCategorySection
+              title="통화 Usage 관심사"
+              description="통화 사용 패턴 기반 타겟팅"
+              icon={Phone}
+              metaType="call"
+              selectedCategories={targeting?.callCategories ?? []}
+              onCategoriesChange={(cats) => 
+                onTargetingChange({ ...targeting, callCategories: cats })
+              }
+              testIdPrefix="call"
+            />
 
-        <LocationSearchSection
-          selectedLocations={targeting?.locations ?? []}
-          onLocationsChange={(locs) =>
-            onTargetingChange({ ...targeting, locations: locs })
-          }
-        />
+            <LocationSearchSection
+              selectedLocations={targeting?.locations ?? []}
+              onLocationsChange={(locs) =>
+                onTargetingChange({ ...targeting, locations: locs })
+              }
+            />
 
-        <ProfilingSection
-          selectedProfiling={targeting?.profiling ?? []}
-          onProfilingChange={(pro) =>
-            onTargetingChange({ ...targeting, profiling: pro })
-          }
-        />
+            <ProfilingSection
+              selectedProfiling={targeting?.profiling ?? []}
+              onProfilingChange={(pro) =>
+                onTargetingChange({ ...targeting, profiling: pro })
+              }
+            />
+          </>
+        )}
 
-        <GeofenceSection
-          savedGeofences={targeting?.geofences ?? []}
-          onGeofencesChange={(geos) =>
-            onTargetingChange({ ...targeting, geofences: geos })
-          }
-        />
+        {/* Maptics 모드: 지오펜스만 */}
+        {currentMode === 'maptics' && (
+          <GeofenceSection
+            savedGeofences={targeting?.geofences ?? []}
+            onGeofencesChange={(geos) =>
+              onTargetingChange({ ...targeting, geofences: geos })
+            }
+          />
+        )}
       </div>
     </div>
   );
