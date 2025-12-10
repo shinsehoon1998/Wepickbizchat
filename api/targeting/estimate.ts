@@ -60,7 +60,7 @@ function generateTid(): string {
 interface ATSFilterCondition {
   data: unknown;
   dataType: 'number' | 'code' | 'boolean' | 'cate';
-  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'tel' | 'STREET' | 'TEL';
+  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'tel' | 'call' | 'STREET' | 'TEL' | 'CALL';
   code: string;
   desc: string;
   not: boolean;
@@ -105,6 +105,7 @@ interface TargetingParams {
   // 고급 타겟팅 (BizChat 규격)
   shopping11stCategories?: SelectedCategory[];
   webappCategories?: SelectedCategory[];
+  callCategories?: SelectedCategory[];
   locations?: SelectedLocation[];
   profiling?: SelectedProfiling[];
 }
@@ -226,7 +227,36 @@ function buildATSMosuPayload(params: TargetingParams): { payload: { '$and': ATSF
     descParts.push(`앱/웹: ${categoryDesc}`);
   }
 
-  // 6. 위치 타겟팅 (metaType: loc, code: home_location/work_location)
+  // 6. 통화Usage 카테고리 (metaType: call, dataType: cate)
+  // BizChat ATS mosu 형식: cat1/cat2/cat3에 카테고리 이름 사용 (cateid 코드가 아님!)
+  if (params.callCategories && params.callCategories.length > 0) {
+    // 카테고리 이름으로 API 페이로드 구성 (API 규격 v0.29.0)
+    const categoryData: CategoryData[] = params.callCategories.map(cat => ({
+      cat1: cat.cat1Name || cat.cat1,  // 카테고리 이름
+      ...(cat.cat2 && { cat2: cat.cat2Name || cat.cat2 }),
+      ...(cat.cat3 && { cat3: cat.cat3Name || cat.cat3 }),
+    }));
+    
+    // 설명에는 표시명 사용
+    const categoryDesc = params.callCategories.map(cat => {
+      const cat1Display = cat.cat1Name || cat.cat1;
+      const cat2Display = cat.cat2 ? (cat.cat2Name || cat.cat2) : '';
+      const cat3Display = cat.cat3 ? (cat.cat3Name || cat.cat3) : '';
+      return `${cat1Display}${cat2Display ? ' > ' + cat2Display : ''}${cat3Display ? ' > ' + cat3Display : ''}`;
+    }).join(', ');
+    
+    conditions.push({
+      data: categoryData,
+      dataType: 'cate',
+      metaType: 'call',  // BizChat ATS mosu API 규격: 통화Usage는 'call'
+      code: '',
+      desc: `통화: ${categoryDesc}`,
+      not: false,
+    });
+    descParts.push(`통화: ${categoryDesc}`);
+  }
+
+  // 7. 위치 타겟팅 (metaType: loc, code: home_location/work_location)
   if (params.locations && params.locations.length > 0) {
     const homeLocations = params.locations.filter(l => l.type === 'home');
     const workLocations = params.locations.filter(l => l.type === 'work');
