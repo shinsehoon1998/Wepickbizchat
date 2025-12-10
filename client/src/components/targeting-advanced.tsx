@@ -91,6 +91,25 @@ interface SelectedCategory {
   cat3Name?: string;  // 표시명
 }
 
+// 지오펜스 타겟 정보
+export interface GeofenceTarget {
+  gender: number; // 0: 전체, 1: 남자, 2: 여자
+  minAge: number; // 19-90
+  maxAge: number; // 19-90
+  stayMin: number; // 5-30분
+  radius: number; // 50-2000m
+  address: string; // POI 주소
+  lat?: string; // 위도
+  lon?: string; // 경도
+}
+
+// 저장된 지오펜스 정보
+export interface SavedGeofence {
+  id: number; // BizChat에서 반환된 지오펜스 ID
+  name: string;
+  targets: GeofenceTarget[];
+}
+
 // 타겟팅 상태 (BizChat 규격 준수)
 export interface AdvancedTargetingState {
   // 11번가 카테고리 (cat1/cat2/cat3 형식)
@@ -111,6 +130,8 @@ export interface AdvancedTargetingState {
     value: string | { gt: string; lt: string };
     desc: string;
   }[];
+  // 지오펜스 타겟팅 (Maptics)
+  geofences: SavedGeofence[];
 }
 
 interface TargetingAdvancedProps {
@@ -559,6 +580,377 @@ function LocationSearchSection({
   );
 }
 
+// POI 검색 결과 타입
+interface POIResult {
+  road: string;
+  lat: string;
+  lon: string;
+}
+
+// 지오펜스 타겟팅 컴포넌트
+function GeofenceSection({
+  savedGeofences,
+  onGeofencesChange,
+}: {
+  savedGeofences: SavedGeofence[];
+  onGeofencesChange: (geofences: SavedGeofence[]) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(savedGeofences.length > 0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchType, setSearchType] = useState<'poi' | 'addr'>('poi');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<POIResult[]>([]);
+  const [selectedPOI, setSelectedPOI] = useState<POIResult | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
+
+  // 지오펜스 설정
+  const [geoName, setGeoName] = useState('');
+  const [geoGender, setGeoGender] = useState(0);
+  const [geoMinAge, setGeoMinAge] = useState(20);
+  const [geoMaxAge, setGeoMaxAge] = useState(50);
+  const [geoStayMin, setGeoStayMin] = useState(10);
+  const [geoRadius, setGeoRadius] = useState(500);
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    try {
+      const res = await apiRequest('POST', '/api/maptics/poi', {
+        skey: searchQuery.trim(),
+        type: searchType,
+      });
+      const data = await res.json();
+      setSearchResults(data.list || []);
+    } catch (error) {
+      console.error('POI search failed:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const selectPOI = (poi: POIResult) => {
+    setSelectedPOI(poi);
+    setSearchResults([]);
+    if (!geoName) {
+      setGeoName(poi.road.split(' ').slice(0, 3).join(' '));
+    }
+  };
+
+  const createGeofence = async () => {
+    if (!selectedPOI || !geoName.trim()) return;
+    setIsCreating(true);
+    try {
+      const target: GeofenceTarget = {
+        gender: geoGender,
+        minAge: geoMinAge,
+        maxAge: geoMaxAge,
+        stayMin: geoStayMin,
+        radius: geoRadius,
+        address: selectedPOI.road,
+        lat: selectedPOI.lat,
+        lon: selectedPOI.lon,
+      };
+
+      const res = await apiRequest('POST', '/api/maptics/geofences', {
+        name: geoName.trim(),
+        target: [target],
+      });
+      const data = await res.json();
+
+      if (data.id) {
+        const newGeofence: SavedGeofence = {
+          id: data.id,
+          name: geoName.trim(),
+          targets: [target],
+        };
+        onGeofencesChange([...savedGeofences, newGeofence]);
+        // 리셋
+        setSelectedPOI(null);
+        setGeoName('');
+        setGeoGender(0);
+        setGeoMinAge(20);
+        setGeoMaxAge(50);
+        setGeoStayMin(10);
+        setGeoRadius(500);
+      }
+    } catch (error) {
+      console.error('Failed to create geofence:', error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const removeGeofence = async (index: number) => {
+    const geofence = savedGeofences[index];
+    try {
+      await apiRequest('DELETE', '/api/maptics/geofences', {
+        targetId: geofence.id,
+      });
+      onGeofencesChange(savedGeofences.filter((_, i) => i !== index));
+    } catch (error) {
+      console.error('Failed to delete geofence:', error);
+    }
+  };
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Card className={cn(savedGeofences.length > 0 && "border-primary/50")}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover-elevate">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <MapPin className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-body">지오펜스 타겟팅</CardTitle>
+                  <CardDescription className="text-small">
+                    특정 위치에 방문한 고객 타겟팅
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {savedGeofences.length > 0 && (
+                  <Badge variant="secondary">{savedGeofences.length}개 지오펜스</Badge>
+                )}
+                {isOpen ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0 space-y-4">
+            {/* 저장된 지오펜스 목록 */}
+            {savedGeofences.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-small font-medium">등록된 지오펜스</Label>
+                <div className="space-y-2">
+                  {savedGeofences.map((geo, index) => (
+                    <div
+                      key={geo.id}
+                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                      data-testid={`geofence-saved-${geo.id}`}
+                    >
+                      <div>
+                        <div className="font-medium text-small">{geo.name}</div>
+                        <div className="text-tiny text-muted-foreground">
+                          {geo.targets[0]?.address} · 반경 {geo.targets[0]?.radius}m · 체류 {geo.targets[0]?.stayMin}분
+                        </div>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => removeGeofence(index)}
+                        data-testid={`button-remove-geofence-${geo.id}`}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* POI 검색 */}
+            <div className="space-y-2">
+              <Label className="text-small font-medium">위치 검색</Label>
+              <div className="flex gap-2">
+                <div className="flex gap-1">
+                  <Button
+                    size="sm"
+                    variant={searchType === 'poi' ? 'default' : 'outline'}
+                    onClick={() => setSearchType('poi')}
+                    data-testid="button-search-type-poi"
+                  >
+                    장소명
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={searchType === 'addr' ? 'default' : 'outline'}
+                    onClick={() => setSearchType('addr')}
+                    data-testid="button-search-type-addr"
+                  >
+                    주소
+                  </Button>
+                </div>
+                <Input
+                  placeholder={searchType === 'poi' ? '장소명 검색 (예: 강남역)' : '주소 검색 (예: 테헤란로)'}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  data-testid="input-geofence-search"
+                />
+                <Button onClick={handleSearch} disabled={isSearching}>
+                  {isSearching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+
+              {/* 검색 결과 */}
+              {searchResults.length > 0 && (
+                <ScrollArea className="h-[150px] border rounded-lg p-2">
+                  <div className="space-y-1">
+                    {searchResults.map((poi, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-2 rounded cursor-pointer text-small hover:bg-muted"
+                        onClick={() => selectPOI(poi)}
+                        data-testid={`poi-result-${index}`}
+                      >
+                        <span>{poi.road}</span>
+                        <Plus className="h-4 w-4 text-primary" />
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+
+            {/* 선택된 POI 설정 */}
+            {selectedPOI && (
+              <div className="space-y-4 p-4 border rounded-lg bg-accent/20">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium text-small">선택된 위치</div>
+                    <div className="text-tiny text-muted-foreground">{selectedPOI.road}</div>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setSelectedPOI(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-small">지오펜스 이름</Label>
+                  <Input
+                    placeholder="지오펜스 이름"
+                    value={geoName}
+                    onChange={(e) => setGeoName(e.target.value)}
+                    data-testid="input-geofence-name"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-small">성별</Label>
+                    <div className="flex gap-1">
+                      {[
+                        { value: 0, label: '전체' },
+                        { value: 1, label: '남성' },
+                        { value: 2, label: '여성' },
+                      ].map((opt) => (
+                        <Button
+                          key={opt.value}
+                          size="sm"
+                          variant={geoGender === opt.value ? 'default' : 'outline'}
+                          onClick={() => setGeoGender(opt.value)}
+                        >
+                          {opt.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-small">연령</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={19}
+                        max={90}
+                        value={geoMinAge}
+                        onChange={(e) => setGeoMinAge(Number(e.target.value))}
+                        className="w-16"
+                        data-testid="input-geofence-min-age"
+                      />
+                      <span className="text-muted-foreground">~</span>
+                      <Input
+                        type="number"
+                        min={19}
+                        max={90}
+                        value={geoMaxAge}
+                        onChange={(e) => setGeoMaxAge(Number(e.target.value))}
+                        className="w-16"
+                        data-testid="input-geofence-max-age"
+                      />
+                      <span className="text-small text-muted-foreground">세</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-small">체류 시간 (분)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={5}
+                        max={30}
+                        value={geoStayMin}
+                        onChange={(e) => setGeoStayMin(Number(e.target.value))}
+                        className="w-20"
+                        data-testid="input-geofence-stay-min"
+                      />
+                      <span className="text-tiny text-muted-foreground">5~30분</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-small">반경 (m)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={50}
+                        max={2000}
+                        step={50}
+                        value={geoRadius}
+                        onChange={(e) => setGeoRadius(Number(e.target.value))}
+                        className="w-24"
+                        data-testid="input-geofence-radius"
+                      />
+                      <span className="text-tiny text-muted-foreground">50~2000m</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={createGeofence}
+                  disabled={isCreating || !geoName.trim()}
+                  data-testid="button-create-geofence"
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      지오펜스 등록
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  );
+}
+
 // 프로파일링 필터 컴포넌트
 function ProfilingSection({
   selectedProfiling,
@@ -720,7 +1112,8 @@ export default function TargetingAdvanced({
     (targeting?.webappCategories?.length ?? 0) > 0 ||
     (targeting?.callCategories?.length ?? 0) > 0 ||
     (targeting?.locations?.length ?? 0) > 0 ||
-    (targeting?.profiling?.length ?? 0) > 0;
+    (targeting?.profiling?.length ?? 0) > 0 ||
+    (targeting?.geofences?.length ?? 0) > 0;
 
   return (
     <div className="space-y-4">
@@ -773,6 +1166,11 @@ export default function TargetingAdvanced({
               {(targeting?.profiling ?? []).map((pro, i) => (
                 <Badge key={`pro-${i}`} variant="secondary" className="text-tiny">
                   {pro.desc}
+                </Badge>
+              ))}
+              {(targeting?.geofences ?? []).map((geo, i) => (
+                <Badge key={`geo-${i}`} variant="secondary" className="text-tiny">
+                  지오펜스: {geo.name} ({geo.targets[0]?.radius}m)
                 </Badge>
               ))}
             </div>
@@ -828,6 +1226,13 @@ export default function TargetingAdvanced({
           selectedProfiling={targeting?.profiling ?? []}
           onProfilingChange={(pro) =>
             onTargetingChange({ ...targeting, profiling: pro })
+          }
+        />
+
+        <GeofenceSection
+          savedGeofences={targeting?.geofences ?? []}
+          onGeofencesChange={(geos) =>
+            onTargetingChange({ ...targeting, geofences: geos })
           }
         />
       </div>
