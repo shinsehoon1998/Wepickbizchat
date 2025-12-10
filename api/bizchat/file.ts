@@ -78,7 +78,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const rcsParam = rcs || 0; // 기본값: 아님
     const url = `${baseUrl}/api/v1/file/upload?tid=${tid}&type=${fileTypeParam}&rcs=${rcsParam}`;
     
-    console.log(`[BizChat File] Uploading file: ${fileName}`);
+    // 파일명을 영문 + 타임스탬프로 변환 (BizChat API는 한글/특수문자 파일명 미지원)
+    const fileExt = fileName.split('.').pop()?.toLowerCase() || 'jpg';
+    const safeFileName = `bizchat_upload_${Date.now()}.${fileExt}`;
+    
+    console.log(`[BizChat File] Uploading file: ${fileName} -> ${safeFileName}`);
 
     const formData = new FormData();
     
@@ -86,7 +90,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const binaryData = Buffer.from(base64Data, 'base64');
     const blob = new Blob([binaryData], { type: fileType || 'image/jpeg' });
     
-    formData.append('file', blob, fileName);
+    formData.append('file', blob, safeFileName);
 
     const response = await fetch(url, {
       method: 'POST',
