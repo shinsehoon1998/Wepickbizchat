@@ -1075,31 +1075,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const scheduledDate = data.scheduledAt ? new Date(data.scheduledAt) : null;
       const atsSndStartDate = calculateValidSendDateForCampaign(scheduledDate);
 
-      // Maptics 모아서 보내기(rcvType=2)용 일시 설정 (BizChat 규격 준수)
-      // collStartDate: 수집 시작 (현재 시간, 10분 단위 올림)
-      // collEndDate: 수집 종료 (collSndDate - 1시간, collStart 이후여야 함)
-      // collSndDate: 발송 시작 (10분 단위 올림, 현재+2시간 이후로 설정해 수집 시간 확보)
+      // Maptics 모아서 보내기(rcvType=2)용 일시 설정 (BizChat 규격 v0.29.0 준수)
+      // BizChat 규격: collStartDate는 캠페인 생성 요청 시간 보다 +1시간 미래여야 함
+      // collStartDate: 수집 시작 (현재 + 1시간 이후, 10분 단위 올림)
+      // collEndDate: 수집 종료 (collStartDate < collEndDate < collSndDate)
+      // collSndDate: 발송 시작 (collEndDate 이후, 09:00~20:00 범위)
       const now = new Date();
       now.setSeconds(0);
       now.setMilliseconds(0);
-      const nowMinutes = now.getMinutes();
-      const nowRemainder = nowMinutes % 10;
-      if (nowRemainder > 0) {
-        now.setMinutes(nowMinutes + (10 - nowRemainder));
-      }
-      const collStartDate = now;
       
-      // Maptics는 최소 2시간 후 발송 (수집 시간 확보)
-      const minMapticsDate = new Date(collStartDate.getTime() + 2 * 60 * 60 * 1000);
+      // collStartDate = 현재 + 1시간 이후 (10분 단위 올림) - BizChat 필수 조건
+      const minCollStartDate = new Date(now.getTime() + 60 * 60 * 1000); // 현재 + 1시간
+      const collStartMinutes = minCollStartDate.getMinutes();
+      const collStartRemainder = collStartMinutes % 10;
+      if (collStartRemainder > 0) {
+        minCollStartDate.setMinutes(collStartMinutes + (10 - collStartRemainder));
+      }
+      const collStartDate = minCollStartDate;
+      
+      // collSndDate = collStartDate + 최소 2시간 (수집 시간 확보)
+      // 사용자 지정 발송 시간이 더 늦으면 그 시간 사용
+      const minCollSndDate = new Date(collStartDate.getTime() + 2 * 60 * 60 * 1000);
       const collSndDate = hasGeofence 
-        ? (atsSndStartDate > minMapticsDate ? atsSndStartDate : minMapticsDate)
+        ? (atsSndStartDate > minCollSndDate ? atsSndStartDate : minCollSndDate)
         : atsSndStartDate;
       
-      // collEndDate는 collSndDate - 1시간, 단 collStartDate 이후여야 함
-      let collEndDate = new Date(collSndDate.getTime() - 60 * 60 * 1000);
+      // collEndDate = collSndDate - 30분 (collStartDate < collEndDate < collSndDate 조건 충족)
+      let collEndDate = new Date(collSndDate.getTime() - 30 * 60 * 1000);
       if (collEndDate <= collStartDate) {
-        collEndDate = new Date(collStartDate.getTime() + 30 * 60 * 1000); // 최소 30분 수집
+        // collEndDate가 collStartDate 이후가 되도록 보장
+        collEndDate = new Date(collStartDate.getTime() + 30 * 60 * 1000);
       }
+      
+      console.log(`[Campaign] Maptics dates - collStartDate: ${collStartDate.toISOString()}, collEndDate: ${collEndDate.toISOString()}, collSndDate: ${collSndDate.toISOString()}`);
 
       try {
         // 문자열 길이 검증
