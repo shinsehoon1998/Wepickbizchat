@@ -1,0 +1,95 @@
+업데이트 날짜: 2025.05.12			
+			
+No	Code	메시지	설명
+1	S000001	Success	성공
+2	E000001	Failed	서버 에러(분류 하지 않는 서버 에러)
+3	E000002	Invalid request	잘못된 요청
+4	E000003	Failed	파일 처리 실패
+5	E000004	Invalid request	잘못된 mdn
+6	E000005	Resource not exists	데이터를 찾을 수 없음
+7	E000006	Server error	서버 에러
+8	E000007	Server error	서버 에러
+9	E000100	Limit wrong password count	잘못된 비밀번호 카운트 최대 횟수
+10	E000101	Wrong password	잘못된 비밀번호
+11	E000102	user id deny	사용 금지 된 유저 아이디
+12	E000103	duplicated user id	이미 사용 중인 유저 아이디
+13	E000104	Expired session	만료된 세션
+14	E000105	Invalid email	잘못된 이메일
+15	E000106	Invalid authorization	권한 없음
+16	E000107	Duplicated user email	이미 사용 중인 유저 이메일
+17	E001000	ATS error	ATS 메타 - 11번가 카테고리 메타 정보 호출 실패(ATS 연동 실패)
+18	E001001	ATS error	ATS 메타 - 웹앱 카테고리 메타 정보 호출 실패(ATS 연동 실패)
+19	E001002	ATS error	ATS 메타 - 통화Usage 카테고리 메타 정보 호출 실패(ATS 연동 실패)
+20	E001003	ATS error	ATS 메타 - 위치/이동 특성 정보 호출 실패(ATS 연동 실패)
+21	E001004	ATS error	ATS 필터 메타 - 회선, 위치, 프로파일링 정보 호출 실패(ATS 연동 실패)
+22	E001005	ATS error	ATS 발송 모수 확인 실패
+23	E001006	ATS error	MDN 획득 실패
+24	E001007	ATS error	ATS 메타 - 통화분석 호출 실패(ATS 연동 실패)
+25	E001008	ATS error	ATS 리포트 연동 실패
+26	E001100	Maptics error	Maptics POI - 지오펜스에 사용할 poi 검색 실패(Maptics 연동 실패)
+27	E001101	Maptics error	Maptics 지오펜스 생성 실패(Maptics 연동 실패)
+28	E001102	Maptics error	Maptics 지오펜스 수정 실패(Maptics 연동 실패)
+29	E001103	Maptics error	Maptics 지오펜스 삭제 실패(Maptics 연동 실패)
+30	E001104	Maptics error	지오펜스 매핑 실패
+31	E001200	Failed	광고 정보 수신 동의 확인 실패, CI 정보 확인 실패
+32	E001300	RCS image error	RCS 이미지 등록 실패
+33	E001400	Time slot error	발송 메시지 갯수 초과로 인해 캠페인 등록 실패
+34	E002000	aihub integration error	AIHub 연동 실패
+35	E002001	Integration error	고언연 연동 실패
+36	E100001	Invalid request	잘못된 sndMosu 값
+37	E100002	Invalid request	잘못된 sndGoalCnt 값
+38	E100003	Invalid request	잘못된 sndNum 값
+39	E100004	Invalid request	mdn 직접 지정 방식의 메시지 발송을 지원하지 않음
+40	E100005	Invalid request	LMS/MMS 메시지 본문 길이가 제한 길이를 초과
+41	E100006	Invalid request	RCS 메시지 본문 길이가 제한 길이를 초과
+42	E100007	Invalid request	잘못된 캠페인 시작 날짜
+43	E100008	Invalid request	메시지 발송할 대상 mdn 파일이 없음
+44	E100009	Invalid request	파일의 content-type 이 잘못 되었음
+45	E100010	Invalid request	잘못된 sndMosuQuery
+46	E100011	Invalid request	잘못된 sndMosuDesc
+47	E100012	Invalid request	잘못된 geoFenceId
+48	E100013	Invalid request	잘못된 데이터 수집 시작 일시
+49	E100014	Invalid request	잘못된 데이터 수집 종료 일시
+50	E100015	Invalid request	잘못된 발송 일시
+51	E100016	Invalid request	잘못된 발송 일시
+52	E100017	Invalid request	잘못된 RCS 타입
+53	E100018	Invalid request	잘못된 슬라이드 카운트
+54	E100019	Invalid request	RCS 컨텐츠 데이터가 없음
+55	E100020	Invalid request	RCS 컨텐츠 파일 사이즈가 너무 큼
+56	E100021	Invalid request	임시 저장 상태로 변경 불가
+57	E100022	Invalid request	캠페인 수정 불가능한 캠페인 state
+58	E100023	Invalid request	잘못된 sndDayDiv
+59	E100024	Invalid request	캠페인 취소/중단 불가능한 캠페인 state
+60	E100025	Invalid request	시간 제한으로 캠페인 state 변경 불가
+61	E100026	Invalid request	잘못된 메시지 수신 mdn
+62	E100027	Invalid request	임시 저장 캠페인은 권한이 없음
+63	E100028	Invalid request	잘못된 rcv type
+64	E100029	Invalid request	잘못된 RCS 버튼명. 버튼 텍스트 길이 문제
+65	E100030	Invalid request	잘못된 랜덤 쿠폰 파일. 쿠폰 파일이 없거나 파일에 포함된 코드가 부족함
+66	E100031	Invalid request	잘못된 sndMosu 의 카운트. 발송 모수는 발송 목표 건수 보다 150% 많아야 한다.
+67	E100032	Invalid request	고객사명이 없음
+68	E100033	Invalid request	adverDeny 값이 없음
+69	E100034	Invalid request	잘못된 rcs 타이틀 길이
+70	E100035	Invalid request	잘못된 url link csv 파일
+71	E100036	Invalid request	잘못된 리워드 링크 지정
+72	E100037	Invalid request	URL분석 갯수가 잘못되었거나 잘못된 URL
+73	E100038	Invalid request	잘못된 상품소개세로 RCS 옵션값
+74	E100039	Invalid request	리워드 제한 기간이 없음
+75	E100040	Invalid request	잘못된 정산 건수
+76	E100041	Invalid request	리타겟팅 대상의 최대 카운트는 최대 10개
+77	E100042	Invalid request	잘못된 리타겟팅 값
+78	E100043	Invalid request	캠페인 생성, 수정시 사용한 파일 아이디가 잘못됨
+79	E100044	Invalid request	잘못된 요청으로 ATS 모수 획득 실패
+80	E201006	Invalid encrypt/decrypt	암호화/복호화 오류
+81	E201101	Syntax error	JSON Syntax Error
+82	E201102	Mandatory element required	필수 JSON Element 혹은 데이터가 없는 경우
+83	E201103	Invalid element data	데이터 값 오류
+84	E202001	Not agree user	미동의자
+85	E202002	Not join user	미가입자
+86	E202101	Already paid response	이미 적립된 요청
+87	E202102	Date expired	적립 기간 종료
+88	E202103	Invalid rewardPt	적립포인트 요청 범위 오류
+89	E202201	Invalid merchant ID	Merchant ID 가 존재하지 않는 경우
+90	E202202	Invalid response ID	Response ID 가 존재하지 않는 경우
+91	E202999	Fail	적립 실패(기타 오류)
+92	E209001	Too many requests	고객사의 하루 요청 처리량 초과(비정상적인 요청)

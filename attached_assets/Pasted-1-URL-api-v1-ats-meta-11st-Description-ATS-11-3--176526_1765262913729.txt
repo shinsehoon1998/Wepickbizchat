@@ -1,0 +1,1233 @@
+1	URL	/api/v1/ats/meta/11st				
+	Description	"ATS 메타 - 11번가 카테고리 메타 정보.
+카테고리 3 목록은 고객사 권한에 따라 획득 가능/불가능 하다."				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	Body	cateid	N	string	"01" 또는 "0101"	"값에 따라 다음 값을 구할 수 있다.
+- 값이 없을 때 : 카테고리 1 목록 
+- 2자리 문자열 : 카테고리 2 목록 
+- 4자리 문자열 : 카테고리 3 목록(권한 있는 고객사만 가능)"
+	Example(Query paramter)	tid=1706073253324				
+	Example(Body)	"{
+    ""cateid"": ""01""
+}"				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object		메타 데이터
+		data.metaType	Y	string	"STREET"	메타 데이터 타입
+		data.dataType	Y	string	"cate"	발송 모수 구할 때 사용될 데이터 타입
+		data.list	Y	object array		카테고리1, 2, 3 목록
+		data.list[].id	Y	string	"01"	카테고리 아이디
+		data.list[].name	Y	string	"가구/인테리어"	카테고리 명
+	Example	"{
+    ""tid"": ""1706073253324"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""metaType"": ""STREET"",
+        ""dataType"": ""cate"",
+        ""list"": [
+            {
+                ""id"": ""01"",
+                ""name"": ""가구/인테리어""
+            },
+            {
+                ""id"": ""02"",
+                ""name"": ""도서/취미/반려동물""
+            }
+        ]
+    }
+}"				
+						
+2	URL	/api/v1/ats/meta/webapp				
+	Description	"ATS 메타 - 웹앱 카테고리 메타 정보.
+카테고리 3 목록은 고객사 권한에 따라 획득 가능/불가능 하다."				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	Body	cateid	N	string	"01" 또는 "0101"	"값에 따라 다음 값을 구할 수 있다.
+- 값이 없을 때 : 카테고리 1 목록 
+- 2자리 문자열 : 카테고리 2 목록 
+- 4자리 문자열 : 카테고리 3 목록(권한 있는 고객사만 가능)"
+	Example(Query paramter)	tid=1706073253324				
+	Example(Body)	"{
+    ""cateid"": ""01""
+}"				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object		메타 데이터
+		data.metaType	Y	string	"APP"	메타 데이터 타입
+		data.dataType	Y	string	"cate"	발송 모수 구할 때 사용될 데이터 타입
+		data.list	Y	object array		카테고리1, 2, 3 목록
+		data.list[].id	Y	string	"01"	카테고리 아이디
+		data.list[].name	Y	string	"게임"	카테고리 명
+	Example	"{
+    ""tid"": ""1706073253324"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""metaType"": ""APP"",
+        ""dataType"": ""cate"",
+        ""list"": [
+            {
+                ""id"": ""01"",
+                ""name"": ""게임""
+            },
+            {
+                ""id"": ""02"",
+                ""name"": ""교육/학습""
+            }
+        ]
+    }
+}"				
+						
+3	URL	/api/v1/ats/meta/call				
+	Description	"ATS 메타 - 통화Usage 카테고리 메타 정보.
+카테고리 3 목록은 고객사 권한에 따라 획득 가능/불가능 하다."				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	Body	cateid	N	string	"01" 또는 "0101"	"값에 따라 다음 값을 구할 수 있다.
+- 값이 없을 때 : 카테고리 1 목록 
+- 2자리 문자열 : 카테고리 2 목록 
+- 4자리 문자열 : 카테고리 3 목록(권한 있는 고객사만 가능)"
+	Example(Query paramter)	tid=1706073253324				
+	Example(Body)	"{
+    ""cateid"": ""01""
+}"				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object		메타 데이터
+		data.metaType	Y	string	"TEL"	메타 데이터 타입
+		data.dataType	Y	string	"cate"	발송 모수 구할 때 사용될 데이터 타입
+		data.list	Y	object array		카테고리1, 2, 3 목록
+		data.list[].id	Y	string	"01"	카테고리 아이디
+		data.list[].name	Y	string	"게임"	카테고리 명
+	Example	"{
+    ""tid"": ""1706073253324"",
+    ""code"": ""S000001"",
+    ""msg"": ""success"",
+    ""data"": {
+        ""metaType"": ""TEL"",
+        ""dataType"": ""cate"",
+        ""list"": [
+            {
+                ""id"": ""01"",
+                ""name"": ""공공""
+            },
+            {
+                ""id"": ""02"",
+                ""name"": ""교육""
+            }
+        ]
+    }
+}"				
+						
+4	URL	/api/v1/ats/meta/loc				
+	Description	"ATS 메타 - 위치/이동 특성 정보.
+본 API로 얻은 값은 ""ATS 필터 메타 - 위치""를 사용 할 때, hcode 값이 이용 된다.
+즉, 추정 집주소, 추정 회사 주소 등의 필터링시에 사용 한다.
+
+hcoe 는 다음 형태로 구성 되어 있다.
+- 8자리 코드의 앞에서 2자리 광역시/도 레벨 
+- 8자리 코드의 앞에서 5자리 시/구/군 레벨 
+- 8자리 코드 전체 동/면/읍 레벨 
+
+즉, ""ATS 필터 메타 - 위치"" 사용시 8자리 전체 코드를 사용 하지 않고, 부분 별로 사용 하면 특정 레벨의 필터링을 할 수 있다.
+예)
+- 서울의 hcode 는 11
+- 서울 종로구의 hcode 는 11110
+- 서울 종로구 청운동의 hcode 는 11110101
+
+[행정동 사용시 참고 사항]
+- 행정동, 법정동은 mix 해서 사용 하지 않도록 한다."				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	Body	addr	Y	string	"양양"	주소 코드 검색값
+	Example(Query parameter)	tid=1706078226511				
+	Example(Body)	"{
+    ""addr"" : ""양양""
+}"				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object		위치 코드 정보
+		data.list	Y	object array		위치 코드 목록
+		data.list[].hcode	Y	string	"51830250"	위치 코드
+		data.list[].ado	Y	string	"강원"	도
+		data.list[].sigu	Y	string	"양양군"	시구
+		data.list[].dong	Y	string	"양양읍"	동
+		data.listR	Y	object array		위치 코드 목록. 행정동
+		data.listR[].rcode	Y	string	"51830250"	위치 코드
+		data.listR[].ado	Y	string	"강원"	도
+		data.listR[].sigu	Y	string	"양양군"	시구
+		data.listR[].dong	Y	string	"양양읍"	동
+	Example	"{
+    ""tid"": ""1753077125949"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""list"": [
+            {
+                ""hcode"": ""51830250"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""양양읍""
+            },
+            {
+                ""hcode"": ""51830310"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""서면""
+            },
+            {
+                ""hcode"": ""51830320"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""손양면""
+            },
+            {
+                ""hcode"": ""51830330"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""현북면""
+            },
+            {
+                ""hcode"": ""51830340"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""현남면""
+            },
+            {
+                ""hcode"": ""51830350"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""강현면""
+            }
+        ],
+        ""listR"": [
+            {
+                ""rcode"": ""51830310"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""서면""
+            },
+            {
+                ""rcode"": ""51830250"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""양양읍""
+            },
+            {
+                ""rcode"": ""51830320"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""손양면""
+            },
+            {
+                ""rcode"": ""51830340"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""현남면""
+            },
+            {
+                ""rcode"": ""51830330"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""현북면""
+            },
+            {
+                ""rcode"": ""51830350"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""강현면""
+            }
+        ]
+    }
+}"				
+						
+5	URL	/api/v1/ats/meta/filter				
+	Description	ATS 필터 메타 - 회선, 위치, 프로파일링				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	Body	type	Y	string	"svc"	"필터 메타 구분값.
+- svc : 회선 
+- loc : 위치 
+- pro : 프로파일링(예측 모델)"
+	Example(Query parameter)	tid=1706078226511&type=svc				
+	Example(Body)	"{
+    ""type"" : ""svc""
+}"				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"success"	API 성공, 실패 메시지
+		data	Y	object		메타 데이터
+		data.metaType	Y	string	"svc"	request 시 사용한 type 값
+		data.list	Y	object array		type 에 따른 필터 메타 목록
+		data.list[].name	Y	string	"정보광고 수신 동의"	필터 메타명
+		data.list[].desc	Y	string	""	필터 메타명이 동일 할때(code는 다름), 필터 메타의 부가 설명
+		data.list[].code	Y	string	"ad_agr_yn"	필터 메타 코드
+		data.list[].dataType	Y	string	"code"	"필터 메타값 구분.
+- code : attribute 에서 제시하는 값 중 하나 사용 
+- boolean : attribute 에서 제시하는 값 중 하나 사용 
+- number : 숫자값 사용"
+		data.list[].min	Y	number	0	필터 메타 타입이 number 일때 사용 가능한 최소값
+		data.list[].max	Y	number	0	필터 메타 타입이 number 일때 사용 가능한 최대값
+		data.list[].unit	Y	string	"세"	필터 메타값의 단위
+		data.list[].attributes	Y	object array		"필터 메타 타입이 code, boolean 일때 사용 가능한 값 목록.
+number 일때는 empty array 이다.
+
+""loc"" 필터 메타 일때는 무조건 empty array 이지만, ""ATS 메타 - 위치/이동 특성 정보""에서 구한 hcode 가 사용 가능 하다."
+		data.list[].attributes[].name	Y	string	"동의"	필터 메타값 명
+		data.list[].attributes[].val	Y	string	"Y"	필터 메타값
+		data.list[].attributes[].desc	Y	string	""	필터 메타값 설명
+	Example(svc)	"{
+    ""tid"": ""1706073253324"",
+    ""code"": ""S000001"",
+    ""msg"": ""success"",
+    ""data"": {
+        ""metaType"": ""svc"",
+        ""list"": [
+            {
+                ""name"": ""정보광고 수신 동의"",
+                ""desc"": """",
+                ""code"": ""ad_agr_yn"",
+                ""dataType"": ""code"",
+                ""min"": 0,
+                ""max"": 0,
+                ""unit"": """",
+                ""attributes"": [
+                    {
+                        ""name"": ""동의"",
+                        ""desc"": """",
+                        ""val"": ""Y""
+                    },
+                    {
+                        ""name"": ""비동의"",
+                        ""desc"": """",
+                        ""val"": ""N""
+                    }
+                ]
+            },
+            {
+                ""name"": ""연령"",
+                ""desc"": """",
+                ""code"": ""cust_age_cd"",
+                ""dataType"": ""number"",
+                ""min"": 0,
+                ""max"": 100,
+                ""unit"": ""세"",
+                ""attributes"": []
+            }
+        ]
+    }
+}"				
+	Example(loc)	"{
+    ""tid"": ""1706073253324"",
+    ""code"": ""S000001"",
+    ""msg"": ""success"",
+    ""data"": {
+        ""metaType"": ""loc"",
+        ""list"": [
+            {
+                ""name"": ""추정 집주소"",
+                ""desc"": """",
+                ""code"": ""home_location"",
+                ""dataType"": ""code"",
+                ""min"": 0,
+                ""max"": 0,
+                ""unit"": """",
+                ""attributes"": []
+            },
+            {
+                ""name"": ""추정 직장주소"",
+                ""desc"": """",
+                ""code"": ""work_location"",
+                ""dataType"": ""code"",
+                ""min"": 0,
+                ""max"": 0,
+                ""unit"": """",
+                ""attributes"": []
+            }
+        ]
+    }
+}"				
+	Example(pro)	"{
+    ""tid"": ""1706073253324"",
+    ""code"": ""S000001"",
+    ""msg"": ""success"",
+    ""data"": {
+        ""metaType"": ""pro"",
+        ""list"": [
+            {
+                ""name"": ""이사/출국 확률"",
+                ""desc"": ""이사 확률"",
+                ""code"": ""cpm04"",
+                ""dataType"": ""number"",
+                ""min"": 0,
+                ""max"": 1,
+                ""unit"": """",
+                ""attributes"": []
+            },
+            {
+                ""name"": ""레저 관련 방문"",
+                ""desc"": ""골프"",
+                ""code"": ""cpm06"",
+                ""dataType"": ""boolean"",
+                ""min"": 0,
+                ""max"": 0,
+                ""unit"": """",
+                ""attributes"": [
+                    {
+                        ""name"": ""네"",
+                        ""desc"": ""true"",
+                        ""val"": ""Y""
+                    },
+                    {
+                        ""name"": ""아니오"",
+                        ""desc"": ""false"",
+                        ""val"": ""N""
+                    }
+                ]
+            }
+        ]
+    }
+}"				
+						
+6	URL	/api/v1/ats/mosu				
+	Description	ATS 발송 모수 확인				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	Body	"- REST API - ATS 발송모수 필터 샘플 참고 
+- $and / $or 조건은 동시에 사용 할 수 없다. 즉 { $and: [...], $or: [...] } 형태는 사용 불가능 하다.
+- $and/$or 조건의 단계는 최대 2단계 까지만 지원 한다. 즉, $and.$or 는 사용 가능 하지만, $and.$or.$and 형태로 2단계 이상으로 사용 할 수 없다.
+
+[기존 비즈챗 OTP 와 차이점]
+필터링 시 다음 항목은 ATS 에서 기본으로 적용 되기 때문에, 필터링 조건에서 제외 하고 Request 한다.
+
+- 정보광고 수신 동의 
+- SMS 수신거부 여부 
+- 스마일고객 여부 
+- SKT 구성원 여부
+
+[desc 값 주의 사항]
+- 행정동 일때는 뒤에 ""[행정동]"" 을 넣어야 한다. ""REST API - ATS 발송모수 필터샘플"" 13번, 14번 항목 참고 
+- not 이 true 일때는 desc 제일 뒤에 ""제외"" 를 넣어야 한다. 행정동과 같이 사용 한다면, ""제외""가 제일 뒤에 위치 한다.
+
+[행정동 사용시 참고 사항]
+- 행정동, 법정동은 mix 해서 사용 하지 않도록 한다."				
+	Example(Query parameter)	tid=1706078226511				
+	Example1(body)	"{
+    ""$and"": [
+        {
+            ""data"": [
+                {
+                    ""cat1"": ""게임"",
+                    ""cat2"": ""VR/AR게임"",
+                    ""cat3"": ""포켓몬 고(Pokemon Go)""
+                }
+            ],
+            ""dataType"": ""cate"",
+            ""metaType"": ""app"",
+            ""code"": """",
+            ""desc"": ""게임: 게임 > VR/AR게임 > 포켓몬 고(Pokemon Go)"",
+            ""not"": true
+        },
+        {
+            ""data"": {
+                ""gt"": 30,
+                ""lt"": 50
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""svc"",
+            ""code"": ""cust_age_cd"",
+            ""desc"": ""연령: 30세 ~ 50세"",
+            ""not"": false
+        }
+    ]
+}"				
+	Example2(body)	"{
+    ""$or"": [
+        {
+            ""data"": [
+                {
+                    ""cat1"": ""게임"",
+                    ""cat2"": ""VR/AR게임"",
+                    ""cat3"": ""포켓몬 고(Pokemon Go)""
+                }
+            ],
+            ""dataType"": ""cate"",
+            ""metaType"": ""app"",
+            ""dataType"": ""cate"",
+            ""code"": """",
+            ""desc"": ""게임: 게임 > VR/AR게임 > 포켓몬 고(Pokemon Go)"",
+            ""not"": true
+        }
+    ]
+}"				
+	Example3(body) - Example2 와 동일한 결과	"{
+    ""data"": [
+        {
+            ""cat1"": ""게임"",
+            ""cat2"": ""VR/AR게임"",
+            ""cat3"": ""포켓몬 고(Pokemon Go)""
+        }
+    ],
+    ""dataType"": ""cate"",
+    ""metaType"": ""app"",
+    ""dataType"": ""cate"",
+    ""code"": """",
+    ""desc"": ""게임: 게임 > VR/AR게임 > 포켓몬 고(Pokemon Go)"",
+    ""not"": true
+}"				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"success"	API 성공, 실패 메시지
+		data	Y	object		발송 모수 정보
+		data.cnt	Y	number	260484	발송 모수
+		data.filterStr	Y	string	"<table....."	발송 모수 필터링 구조 참고
+		data.query	Y	string	"( ( ((app like '01010..."	캠패인 등록시에 전달할 발송 조건
+	Example	"{
+    ""tid"": ""1707973674833"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""cnt"": 11309949,
+        ""filterStr"": ""<table><tr><td id='oper0' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>OR</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>OR</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>앱/웹 Usage-게임: 게임 &gt; VR/AR게임 > 포켓몬 고(Pokemon Go)</td></tr></tr></table>"",
+        ""query"": ""( ( ((app not like '0101002%' and app not like '%,0101002%')) ) ) and indv_info_use_agree_yn = 'Y'""
+    }
+}"				
+						
+7	URL	/api/v1/ats/meta/11st/full				
+	Description	"ATS 메타 - 11번가 카테고리 메타 정보 전체
+카테고리 3 정보(id3, name3)는 제휴사 권한에 따라 존재 하지 않을 수 있다."				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1718259610529"	transaction ID
+	Example(Query paramter)	tid=1718259610529				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1718259610529"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object		메타 데이터
+		data.metaType	Y	string	"STREET"	메타 데이터 타입
+		data.dataType	Y	string	"cate"	발송 모수 구할 때 사용될 데이터 타입
+		data.list	Y	object array		카테고리1, 2, 3 목록
+		data.list[].id1	Y	string	"01"	카테고리1 아이디
+		data.list[].id2	Y	string	"0101"	카테고리2 아이디
+		data.list[].id3	N	string	"010101"	카테고리3 아이디. 제휴사의 권한에 따라 항목 자체가 없을 수 있음
+		data.list[].name1	Y	string	"가구/인테리어"	카테고리1 이름
+		data.list[].name2	Y	string	"DIY자재/용품"	카테고리2 이름
+		data.list[].name3	N	string	"자재"	카테고리3 이름. 제휴사의 권한에 따라 항목 자체가 없을 수 있음
+	Example(카테고리3 권한이 있는 제휴사)	"{
+    ""tid"": ""1718259610529"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""metaType"": ""STREET"",
+        ""dataType"": ""cate"",
+        ""list"": [
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""id3"": ""010101"",
+                ""name1"": ""가구/인테리어"",
+                ""name2"": ""DIY자재/용품"",
+                ""name3"": ""DIY자재/용품""
+            },
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""id3"": ""010105"",
+                ""name1"": ""가구/인테리어"",
+                ""name2"": ""DIY자재/용품"",
+                ""name3"": ""자재""
+            },
+            ...다수 데이터 생략
+        ]
+    }
+}"				
+	Example(카테고리3 권한이 없는 제휴사)	"{
+    ""tid"": ""1718259610529"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""metaType"": ""STREET"",
+        ""dataType"": ""cate"",
+        ""list"": [
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""name1"": ""가구/인테리어"",
+                ""name2"": ""DIY자재/용품""
+            },
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""name1"": ""가구/인테리어"",
+                ""name2"": ""DIY자재/용품""
+            },
+            ...다수 데이터 생략
+        ]
+    }
+}"				
+						
+8	URL	/api/v1/ats/meta/webapp/full				
+	Description	"ATS 메타 - 웹앱 카테고리 메타 정보 전체
+카테고리 3 정보(id3, name3)는 제휴사 권한에 따라 존재 하지 않을 수 있다."				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1718261177561"	transaction ID
+	Example(Query paramter)	tid=1718261177561				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1718261177561"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object		메타 데이터
+		data.metaType	Y	string	"APP"	메타 데이터 타입
+		data.dataType	Y	string	"cate"	발송 모수 구할 때 사용될 데이터 타입
+		data.list	Y	object array		카테고리1, 2, 3 목록
+		data.list[].id1	Y	string	"01"	카테고리1 아이디
+		data.list[].id2	Y	string	"0101"	카테고리2 아이디
+		data.list[].id3	N	string	"010100"	카테고리3 아이디. 제휴사의 권한에 따라 항목 자체가 없을 수 있음
+		data.list[].name1	Y	string	"게임"	카테고리1 이름
+		data.list[].name2	Y	string	"VR/AR게임"	카테고리2 이름
+		data.list[].name3	N	string	"포켓몬 고(Pokemon Go)"	카테고리3 이름. 제휴사의 권한에 따라 항목 자체가 없을 수 있음
+	Example(카테고리3 권한이 있는 제휴사)	"{
+    ""tid"": ""1718261177561"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""metaType"": ""APP"",
+        ""dataType"": ""cate"",
+        ""list"": [
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""id3"": ""010100"",
+                ""name1"": ""게임"",
+                ""name2"": ""VR/AR게임"",
+                ""name3"": ""포켓몬 고(Pokemon Go)""
+            },
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""id3"": ""010100"",
+                ""name1"": ""게임"",
+                ""name2"": ""VR/AR게임"",
+                ""name3"": ""해리포터 마법사 연합""
+            },
+            ...다수 데이터 생략
+        ]
+    }
+}"				
+	Example(카테고리3 권한이 없는 제휴사)	"{
+    ""tid"": ""1718261177561"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""metaType"": ""APP"",
+        ""dataType"": ""cate"",
+        ""list"": [
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""name1"": ""게임"",
+                ""name2"": ""VR/AR게임""
+            },
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""name1"": ""게임"",
+                ""name2"": ""VR/AR게임""
+            },
+            ...다수 데이터 생략
+        ]
+    }
+}"				
+						
+9	URL	/api/v1/ats/meta/call/full				
+	Description	"ATS 메타 - 통화Usage 카테고리 메타 정보 전체
+카테고리 3 정보(id3, name3)는 제휴사 권한에 따라 존재 하지 않을 수 있다."				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1718261177561"	transaction ID
+	Example(Query paramter)	tid=1718261177561				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1718261177561"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object		메타 데이터
+		data.metaType	Y	string	"TEL"	메타 데이터 타입
+		data.dataType	Y	string	"cate"	발송 모수 구할 때 사용될 데이터 타입
+		data.list	Y	object array		카테고리1, 2, 3 목록
+		data.list[].id1	Y	string	"01"	카테고리1 아이디
+		data.list[].id2	Y	string	"0101"	카테고리2 아이디
+		data.list[].id3	N	string	"010101"	카테고리3 아이디. 제휴사의 권한에 따라 항목 자체가 없을 수 있음
+		data.list[].name1	Y	string	"공공"	카테고리1 이름
+		data.list[].name2	Y	string	"공공기관"	카테고리2 이름
+		data.list[].name3	N	string	"공공편의"	카테고리3 이름. 제휴사의 권한에 따라 항목 자체가 없을 수 있음
+	Example(카테고리3 권한이 있는 제휴사)	"{
+    ""tid"": ""1718262485296"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""metaType"": ""TEL"",
+        ""dataType"": ""cate"",
+        ""list"": [
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""id3"": ""010101"",
+                ""name1"": ""공공"",
+                ""name2"": ""공공기관"",
+                ""name3"": ""공공편의""
+            },
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""id3"": ""010111"",
+                ""name1"": ""공공"",
+                ""name2"": ""공공기관"",
+                ""name3"": ""일반설비시설""
+            },
+            ...다수 데이터 생략
+        ]
+    }
+}"				
+	Example(카테고리3 권한이 없는 제휴사)	"{
+    ""tid"": ""1718262485296"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""metaType"": ""TEL"",
+        ""dataType"": ""cate"",
+        ""list"": [
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""name1"": ""공공"",
+                ""name2"": ""공공기관""
+            },
+            {
+                ""id1"": ""01"",
+                ""id2"": ""0101"",
+                ""name1"": ""공공"",
+                ""name2"": ""공공기관""
+            },
+            ...다수 데이터 생략
+        ]
+    }
+}"				
+						
+10	URL	/api/v1/ats/meta/loc/full				
+	Description	"ATS 메타 - 위치/이동 특성 정보 전체
+본 API로 얻은 값은 ""ATS 필터 메타 - 위치""를 사용 할 때, hcode 값이 이용 된다.
+즉, 추정 집주소, 추정 회사 주소 등의 필터링시에 사용 한다.
+
+hcoe 는 다음 형태로 구성 되어 있다.
+- 8자리 코드의 앞에서 2자리 광역시/도 레벨 
+- 8자리 코드의 앞에서 5자리 시/구/군 레벨 
+- 8자리 코드 전체 동/면/읍 레벨 
+
+즉, ""ATS 필터 메타 - 위치"" 사용시 8자리 전체 코드를 사용 하지 않고, 부분 별로 사용 하면 특정 레벨의 필터링을 할 수 있다.
+예)
+- 서울의 hcode 는 11
+- 서울 종로구의 hcode 는 11110
+- 서울 종로구 청운동의 hcode 는 11110101
+
+[행정동 사용시 참고 사항]
+- 행정동, 법정동은 mix 해서 사용 하지 않도록 한다."				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1718262828172"	transaction ID
+	Example(Query parameter)	tid=1706078226511				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1718262828172"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object		위치 코드 정보
+		data.list	Y	object array		위치 코드 목록
+		data.list[].hcode	Y	string	"29200168"	위치 코드
+		data.list[].ado	Y	string	"광주"	도
+		data.list[].sigu	Y	string	"광산구"	시구
+		data.list[].dong	Y	string	"송치동"	동
+		data.listR	Y	object array		위치 코드 목록. 행정동
+		data.listR[].rcode	Y	string	"51830250"	위치 코드
+		data.listR[].ado	Y	string	"강원"	도
+		data.listR[].sigu	Y	string	"양양군"	시구
+		data.listR[].dong	Y	string	"양양읍"	동
+	Example	"{
+    ""tid"": ""1718262828172"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""list"": [
+            {
+                ""hcode"": ""29200168"",
+                ""ado"": ""광주"",
+                ""sigu"": ""광산구"",
+                ""dong"": ""송치동""
+            },
+            {
+                ""hcode"": ""29200169"",
+                ""ado"": ""광주"",
+                ""sigu"": ""광산구"",
+                ""dong"": ""산수동""
+            },
+            ...다수 데이터 생략
+        ],
+        ""listR"": [
+            {
+                ""rcode"": ""41390650"",
+                ""ado"": ""경기"",
+                ""sigu"": ""시흥시"",
+                ""dong"": ""거북섬동""
+            },
+            {
+                ""rcode"": ""47840355"",
+                ""ado"": ""경북"",
+                ""sigu"": ""성주군"",
+                ""dong"": ""금수강산면""
+            },
+            ...다수 데이터 생략
+    }
+}"				
+						
+11	URL	/api/v1/ats/meta/target				
+	Description	ATS 메타 - 통화 분석 메타 정보				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1737447611645"	transaction ID
+	Example(Query paramter)	tid=1737447611645				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object		메타 데이터
+		data.metaType	Y	string	"CUSTOMER"	메타 데이터 타입
+		data.dataType	Y	string	"code"	발송 모수 구할 때 사용될 데이터 타입
+		data.list	Y	object array		통화 분석 카테고리 목록
+		data.list[].name	Y	string	"가구/인테리어"	카테고리 명
+	Example	"{
+    ""tid"": ""1737447611645"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""metaType"": ""CALLCUSTOM"",
+        ""dataType"": ""code"",
+        ""list"": [
+            {
+                ""name"": ""240724포애드원_광주""
+            },
+            {
+                ""name"": ""CJ웰케어_피부면역유산""
+            },
+            {
+                ""name"": ""DM-수입차전시장/서비스센터""
+            },
+            ...
+         ]
+    }
+}"				
+						
+12	URL	/api/v1/ats/rpt/gender/age				
+	Description	"성별/연령대별 분석 리포트.
+ATS 로 발송된 캠페인에 대해서 사용 가능 하며, 발송 익일 부터 조회 가능 하며 캠페인 시작 시간 +96 시간 까지 업데이트 된다."				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1740621753572"	transaction ID
+	Body	id	Y	string	"acb1505415d4388ea3f9bae6e6a8df97"	캠페인 아이디
+	Example(Query paramter)	tid=1740621753572				
+	Example(Body)	"{
+    ""id"" : ""acb1505415d4388ea3f9bae6e6a8df97""
+}"				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1740621753572"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object	{}	
+		data.list	Y	object array	[]	리포트 데이터
+		data.list[].age	Y	string	"~10대"	연령대
+		data.list[].sexCd	Y	string	"1"	성별. 1: 남성, 2: 여성
+		data.list[].rcsReactCnt	Y	number	0	RCS 반응 카운트
+		data.list[].rcsReactRatio	Y	string	"0.0"	RCS 반응률
+		data.list[].rcsSuccessCnt	Y	number	0	RCS 발송 성공 카운트
+		data.list[].vmgReactCnt	Y	number	0	VMG(일반 메시지) 반응 카운트
+		data.list[].vmgReactRatio	Y	string	"0.0"	VMG(일반 메시지) 반응률
+		data.list[].vmgSuccessCnt	Y	number	0	VMG(일반 메시지) 발송 성공 카운트
+		data.list[].totReactCnt	Y	number	0	전체 반응 카운트
+		data.list[].totReactRatio	Y	string	"0.0"	전체 반응률
+		data.list[].totRewardCnt	Y	number	0	전체 리워드 카운트
+		data.list[].totRewardRatio	Y	string	"0.0"	전체 리워드 반응률
+		data.list[].totSuccessCnt	Y	number	0	전체 발송 성공 카운트
+	Example	"{
+    ""tid"": ""1740621753572"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""list"": [
+            {
+                ""age"": ""~10대"",
+                ""sexCd"": ""1"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            },
+            {
+                ""age"": ""20대"",
+                ""sexCd"": ""1"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            },
+            {
+                ""age"": ""30대"",
+                ""sexCd"": ""1"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            },
+            {
+                ""age"": ""40대"",
+                ""sexCd"": ""1"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            },
+            {
+                ""age"": ""50대"",
+                ""sexCd"": ""1"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            },
+            {
+                ""age"": ""60대~"",
+                ""sexCd"": ""1"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            },
+            {
+                ""age"": ""~10대"",
+                ""sexCd"": ""2"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            },
+            {
+                ""age"": ""20대"",
+                ""sexCd"": ""2"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            },
+            {
+                ""age"": ""30대"",
+                ""sexCd"": ""2"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            },
+            {
+                ""age"": ""40대"",
+                ""sexCd"": ""2"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            },
+            {
+                ""age"": ""50대"",
+                ""sexCd"": ""2"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            },
+            {
+                ""age"": ""60대~"",
+                ""sexCd"": ""2"",
+                ""rcsReactCnt"": 0,
+                ""rcsReactRatio"": ""0.0"",
+                ""rcsSuccessCnt"": 0,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 0,
+                ""totReactCnt"": 0,
+                ""totReactRatio"": ""0.0"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 0
+            }
+        ]
+    }
+}"				
+						
+13	URL	/api/v1/ats/rpt/area				
+	Description	"지역별 분석 리포트.
+ATS 로 발송된 캠페인에 대해서 사용 가능 하며, 발송 익일 부터 조회 가능 하며 캠페인 시작 시간 +96 시간 까지 업데이트 된다."				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1740622942946"	transaction ID
+	Body	id	Y	string	"0d976e4b3fa2391ea7e5340b854c4cf7"	캠페인 아이디
+	Example(Query paramter)	tid=1740622942946				
+	Example(Body)	"{
+    ""id"" : ""0d976e4b3fa2391ea7e5340b854c4cf7""
+}"				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1740621753572"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object	{}	
+		data.list	Y	object array	[]	리포트 데이터. 데이터가 없으면 empty array 가 리턴 된다.
+		data.list[].area	N	string	"서울"	지역명(추정 집주소, 시도 단위, 예시. 경기, 부산, 경북,…)
+		data.list[].rcsReactCnt	N	number	0	RCS 반응 카운트
+		data.list[].rcsReactRatio	N	string	"0.0"	RCS 반응률
+		data.list[].rcsSuccessCnt	N	number	0	RCS 발송 성공 카운트
+		data.list[].vmgReactCnt	N	number	0	VMG(일반 메시지) 반응 카운트
+		data.list[].vmgReactRatio	N	string	"0.0"	VMG(일반 메시지) 반응률
+		data.list[].vmgSuccessCnt	N	number	0	VMG(일반 메시지) 발송 성공 카운트
+		data.list[].totReactCnt	N	number	0	전체 반응 카운트
+		data.list[].totReactRatio	N	string	"0.0"	전체 반응률
+		data.list[].totRewardCnt	N	number	0	전체 리워드 카운트
+		data.list[].totRewardRatio	N	string	"0.0"	전체 리워드 반응률
+		data.list[].totSuccessCnt	N	number	0	전체 발송 성공 카운트
+	Example	"{
+    ""tid"": ""1740622942946"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""list"": [
+            {
+                ""area"": ""서울"",
+                ""rcsReactCnt"": 429,
+                ""rcsReactRatio"": ""0.9"",
+                ""rcsSuccessCnt"": 50261,
+                ""vmgReactCnt"": 0,
+                ""vmgReactRatio"": ""0.0"",
+                ""vmgSuccessCnt"": 33889,
+                ""totReactCnt"": 429,
+                ""totReactRatio"": ""0.5"",
+                ""totRewardCnt"": 0,
+                ""totRewardRatio"": ""0.0"",
+                ""totSuccessCnt"": 84150
+            }
+        ]
+    }
+}"				
+						
+14	URL	/api/v1/ats/rpt/period				
+	Description	"발송 일자별 분석 리포트.
+Maptics 로 발송된 캠페인에 대해서 사용 가능 하며, 발송 익일 부터 조회 가능 하며 캠페인 종료 시간 +96 시간 까지 업데이트 된다."				
+	Method	POST				
+	Header	Authorization: {token}				
+						
+	Request					
+	In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Query Parameter	tid	Y	string	"1740623226391"	transaction ID
+	Body	id	Y	string	"0d976e4b3fa2391ea7e5340b854c4cf7"	캠페인 아이디
+	Example(Query paramter)	tid=1740623226391				
+	Example(Body)	"{
+    ""id"" : ""0d976e4b3fa2391ea7e5340b854c4cf7""
+}"				
+						
+	Response					
+	구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+	Body	tid	Y	string	"1740621753572"	request 시 사용한 tid 값
+		code	Y	string	"S000001"	API 성공, 실패 코드
+		msg	Y	string	"Success"	API 성공, 실패 메시지
+		data	Y	object	{}	
+		data.list	Y	object array	[]	리포트 데이터. 데이터가 없으면 empty array 가 리턴 된다.
+		data.list[].dt	N	string	"9월26일"	날짜
+		data.list[].rcsReactCnt	N	number	0	RCS 반응 카운트
+		data.list[].rcsSuccessCnt	N	number	0	RCS 발송 성공 카운트
+		data.list[].vmgReactCnt	N	number	0	VMG(일반 메시지) 반응 카운트
+		data.list[].vmgSuccessCnt	N	number	0	VMG(일반 메시지) 발송 성공 카운트
+		data.list[].totReactCnt	N	number	0	전체 반응 카운트
+		data.list[].totReactRatio	N	string	"0.0"	전체 반응률
+		data.list[].totSuccessCnt	N	number	0	전체 발송 성공 카운트
+	Example	"{
+    ""tid"": ""1740623226391"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""list"": [
+            {
+                ""dt"": ""9월26일"",
+                ""rcsReactCnt"": 247,
+                ""rcsSuccessCnt"": 30360,
+                ""vmgReactCnt"": 0,
+                ""vmgSuccessCnt"": 23402,
+                ""totReactCnt"": 247,
+                ""totReactRatio"": ""0.46"",
+                ""totSuccessCnt"": 53762
+            }
+        ]
+    }
+}"				

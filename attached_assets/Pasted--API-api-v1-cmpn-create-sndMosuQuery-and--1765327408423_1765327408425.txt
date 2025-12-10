@@ -1,0 +1,76 @@
+"현재 상황
+캠페인 생성 API (/api/v1/cmpn/create) 호출 시 아래와 같은 sndMosuQuery를 전송하고 있습니다:
+
+{
+  ""$and"": [
+    {
+      ""data"": {""gt"": 20, ""lt"": 60},
+      ""dataType"": ""number"",
+      ""metaType"": ""svc"",
+      ""code"": ""cust_age_cd""
+    },
+    {
+      ""data"": [""41"", ""31""],
+      ""dataType"": ""code"",
+      ""metaType"": ""loc"",
+      ""code"": ""home_location""
+    }
+  ]
+}
+
+sndMosuQuery 형식 예제
+캠페인 생성 시 정상 작동하는 sndMosuQuery 전체 예제를 공유해주실 수 있을까요?
+
+[유엔젤 답변]
+규격서 [REST API - ATS]의 6번 ATS 발송 모수 확인의 응답 부분의 query 부분을 sndMosuQuery 에 입력해야 합니다.
+
+위치 필터 코드명 확인
+위치(loc) 필터 사용 시 code 값이 ""home_location""이 맞나요? 아니면 다른 코드명을 사용해야 하나요?
+[유엔젤 답변]
+규격서 [REST API - ATS]의 5번 API에서 type을 loc로 하여 요청하면 원하는 코드값을 얻을 수 있습니다.
+
+연령 필터 형식 확인
+연령 범위 필터에서 {""gt"": 20, ""lt"": 60} 형식이 맞나요? 혹시 {""gte"": 20, ""lte"": 60} 같은 다른 형식을 사용해야 하나요?
+[유엔젤 답변]
+규격서 [REST API - ATS]의 6번 ATS 발송 모수 확인 API 샘플 확인해 보면 됩니다.
+
+필수 필드 누락 여부
+각 필터 객체에 desc, not 필드가 필수인가요?
+[유엔젤 답변]
+규격서 [REST API - ATS 발송모수 필터 샘플]처럼 필수로 입력하면 됩니다 
+
+개발 환경 ATS 데이터
+개발 URL(gw-dev.bizchat1.co.kr:8443)에서 ATS 타겟팅이 정상 작동하나요? 테스트용 타겟팅 쿼리 예제가 있다면 공유 부탁드립니다.
+[유엔젤 답변]
+ATS 캠페인 생성 샘플 답변에 첨부하였습니다.
+
+"	"ATS 캠페인 생성 샘플입니다. 현재 규격은 0.31.0이고 규격서 링크 참고하시길 바랍니다.
+
+{
+    ""tgtCompanyName"": ""유엔젤"",
+    ""name"": ""VMG-LMS MDN 캠페인 9860"",
+    ""sndNum"": ""001001"",
+    ""rcvType"": 0,
+    ""sndGoalCnt"": 2,
+    ""billingType"": 0,
+    ""isTmp"": 0,
+    ""settleCnt"": 2,
+    ""mms"": {
+        ""title"": ""VMG-LMS MDN 테스트 제목 9860"",
+        ""msg"": ""VMG-LMS MDN 테스트 본문 9860\n\n- 링크1: [URL분석1]\n- 링크2: [URL분석2]\n- 링크3: [URL분석3]"",
+        ""fileInfo"": {},
+        ""urlLink"": {
+            ""list"": [""https://www.google.com"", ""https://www.naver.com"", ""https://www.daum.net""]
+        }
+    },
+    ""atsSndStartDate"": 1765353617,
+    ""sndMosu"": 701,
+    ""sndMosuFlag"": 0,
+    ""sndMosuDesc"": ""<table><tr><td id='oper0' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>11번가-11번가: 가구/인테리어</td></tr></tr></table>"",
+    ""sndMosuQuery"": ""( ( ((street like '01%' or street like '%,01%')) ) ) and indv_info_use_agree_yn = 'Y'"",
+    ""rewardEndDate"": 1767855175
+}
+
+
+
+"
