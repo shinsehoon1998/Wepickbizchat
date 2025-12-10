@@ -1,0 +1,65 @@
+2025-12-10 09:51:39.465 [info] [BizChat] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-10 09:51:39.465 [info] [Campaign] Environment: DEVELOPMENT
+2025-12-10 09:51:40.534 [info] [Campaign] Calling ATS mosu API to get SQL query...
+2025-12-10 09:51:40.534 [info] [ATS Mosu] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/ats/mosu?tid=1765360300533
+2025-12-10 09:51:40.534 [info] [ATS Mosu] Payload: {
+  "$and": [
+    {
+      "data": {
+        "gt": 20,
+        "lt": 60
+      },
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 20세 ~ 60세",
+      "not": false
+    },
+    {
+      "data": [
+        "Y"
+      ],
+      "dataType": "code",
+      "metaType": "pro",
+      "code": "cpm06",
+      "desc": "레저 관련 방문 (골프)",
+      "not": false
+    }
+  ]
+}
+2025-12-10 09:51:41.921 [info] [ATS Mosu] Response: 200 - {"tid":"1765360300533","code":"S000001","msg":"Success","data":{"cnt":0,"filterStr":"<table><tr><td id='oper0' rowspan='2' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:c
+2025-12-10 09:51:41.921 [info] [ATS Mosu] Success - query: ( ( (cust_age_cd >= 20 and cust_age_cd <= 60) ) AND (  ((score['cpm06'] != 'null' and score['cpm06']  = 'Y'))  ) ) and indv_info_use_agree_yn = 'Y'...
+2025-12-10 09:51:41.921 [info] [Campaign] ATS mosu API success - SQL query obtained, count: 0
+2025-12-10 09:51:42.473 [info] [BizChat] Environment: DEVELOPMENT
+2025-12-10 09:51:42.473 [info] [BizChat] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-10 09:51:42.473 [info] [BizChat] API key exists: true, length: 64
+2025-12-10 09:51:42.473 [info] [BizChat] VERCEL_ENV: production, NODE_ENV: production
+2025-12-10 09:51:42.473 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/create?tid=1765360302473
+2025-12-10 09:51:42.473 [info] [BizChat] Request body: {
+  "tgtCompanyName": "위픽",
+  "name": "프로파일테스트2",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 1000,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 1000,
+  "sndMosu": 1500,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "atsSndStartDate": 1765364400,
+  "cb": {
+    "state": "https://wepickbizchat-1qp7xcxgd-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlLink": {}
+  },
+  "rcs": [],
+  "sndMosuDesc": "<table><tr><td id='oper0' rowspan='2' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>회선특성-연령: 20세 ~ 60세</td></tr></tr><tr><td id='oper2' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>예측모델-레저 관련 방문 (골프)</td></tr></tr></table>",
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 60) ) AND (  ((score['cpm06'] != 'null' and score['cpm06']  = 'Y'))  ) ) and indv_info_use_agree_yn = 'Y'"
+}
+2025-12-10 09:51:47.379 [info] [BizChat] Response: 200 - {"tid":"1765360302473","code":"S000001","msg":"Success","data":{"id":"321ba0ab5a5c31ab8f18db5585b0bae0"}}
+2025-12-10 09:51:47.885 [info] [Campaign] Created in BizChat: 321ba0ab5a5c31ab8f18db5585b0bae0

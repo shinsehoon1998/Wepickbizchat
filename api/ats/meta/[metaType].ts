@@ -65,6 +65,56 @@ async function fetch11stCategories(cateid?: string): Promise<any> {
   };
 }
 
+// 통화Usage 카테고리 메타 조회
+async function fetchCallCategories(cateid?: string): Promise<any> {
+  const tid = Date.now().toString();
+  const apiKey = getBizChatApiKey();
+  
+  if (!apiKey) {
+    throw new Error('BizChat API key not configured');
+  }
+
+  const url = `${getBizChatUrl()}/api/v1/ats/meta/call?tid=${tid}`;
+  const body: any = {};
+  if (cateid) {
+    body.cateid = cateid;
+  }
+
+  console.log('[ATS Meta call] Fetching categories:', { cateid, url });
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`BizChat API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('[ATS Meta call] Response:', JSON.stringify(data).substring(0, 500));
+
+  if (data.code !== 'S000001') {
+    throw new Error(`BizChat API error: ${data.code} - ${data.msg}`);
+  }
+
+  // BizChat 응답: { list: [{ id: "01", cateid: "01", name: "카테고리명" }] }
+  // cateid가 실제 API 호출에 사용되는 코드
+  return {
+    metaType: data.data?.metaType || 'CALL',
+    dataType: data.data?.dataType || 'cate',
+    list: (data.data?.list || []).map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      cateid: item.cateid ?? item.id,  // cateid 우선, 없으면 id 사용 (하위 호환)
+    })),
+  };
+}
+
 // 웹앱 카테고리 메타 조회
 async function fetchWebappCategories(cateid?: string): Promise<any> {
   const tid = Date.now().toString();
@@ -218,6 +268,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 웹앱 카테고리 조회
         const cateIdStr = typeof cateid === 'string' ? cateid : undefined;
         const result = await fetchWebappCategories(cateIdStr);
+        return res.status(200).json(result);
+      }
+
+      case 'call': {
+        // 통화Usage 카테고리 조회
+        const cateIdStr = typeof cateid === 'string' ? cateid : undefined;
+        const result = await fetchCallCategories(cateIdStr);
         return res.status(200).json(result);
       }
 
