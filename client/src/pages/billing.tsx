@@ -9,8 +9,7 @@ import {
   ArrowDownRight,
   RefreshCw,
   Plus,
-  Loader2,
-  ExternalLink
+  Loader2
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { formatCurrency, formatDateTime } from "@/lib/authUtils";
@@ -52,6 +51,8 @@ export default function Billing() {
     const success = params.get('success');
     const amount = params.get('amount');
     const canceled = params.get('canceled');
+    const error = params.get('error');
+    const message = params.get('message');
 
     if (success === 'true' && amount) {
       toast({
@@ -66,6 +67,13 @@ export default function Billing() {
       toast({
         title: "결제 취소",
         description: "결제가 취소되었어요",
+        variant: "destructive",
+      });
+      window.history.replaceState({}, '', '/billing');
+    } else if (error === 'true') {
+      toast({
+        title: "결제 실패",
+        description: message || "결제 처리 중 오류가 발생했어요",
         variant: "destructive",
       });
       window.history.replaceState({}, '', '/billing');
@@ -105,14 +113,30 @@ export default function Billing() {
     },
   });
 
-  const stripeCheckoutMutation = useMutation({
+  const kispgCheckoutMutation = useMutation({
     mutationFn: async (amount: number) => {
-      const res = await apiRequest("POST", "/api/stripe/checkout", { amount });
+      const res = await apiRequest("POST", "/api/kispg/auth", { amount });
       return await res.json();
     },
     onSuccess: (data) => {
-      if (data.url) {
-        window.location.href = data.url;
+      if (data.success && data.kispgAuthUrl && data.params) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = data.kispgAuthUrl;
+        form.style.display = 'none';
+
+        Object.entries(data.params).forEach(([key, value]) => {
+          if (key !== 'userId') {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = value as string;
+            form.appendChild(input);
+          }
+        });
+
+        document.body.appendChild(form);
+        form.submit();
       }
     },
     onError: (error: Error) => {
@@ -131,8 +155,8 @@ export default function Billing() {
     });
   };
 
-  const handleStripeCheckout = () => {
-    stripeCheckoutMutation.mutate(chargeAmount);
+  const handleKispgCheckout = () => {
+    kispgCheckoutMutation.mutate(chargeAmount);
   };
 
   const balance = parseFloat(user?.balance as string || "0");
@@ -266,21 +290,21 @@ export default function Billing() {
               </div>
             </div>
             <DialogFooter className="flex-col gap-2 sm:flex-row">
-              <Button variant="outline" onClick={() => setIsChargeDialogOpen(false)} disabled={chargeMutation.isPending || stripeCheckoutMutation.isPending}>
+              <Button variant="outline" onClick={() => setIsChargeDialogOpen(false)} disabled={chargeMutation.isPending || kispgCheckoutMutation.isPending}>
                 취소
               </Button>
               <Button 
-                disabled={chargeAmount < 10000 || chargeMutation.isPending || stripeCheckoutMutation.isPending}
-                onClick={handleStripeCheckout}
+                disabled={chargeAmount < 10000 || chargeMutation.isPending || kispgCheckoutMutation.isPending}
+                onClick={handleKispgCheckout}
                 className="gap-2"
-                data-testid="button-stripe-checkout"
+                data-testid="button-kispg-checkout"
               >
-                {stripeCheckoutMutation.isPending ? (
+                {kispgCheckoutMutation.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <ExternalLink className="h-4 w-4" />
+                  <CreditCard className="h-4 w-4" />
                 )}
-                {stripeCheckoutMutation.isPending ? "이동 중..." : `${formatCurrency(chargeAmount)} 카드 결제`}
+                {kispgCheckoutMutation.isPending ? "이동 중..." : `${formatCurrency(chargeAmount)} 카드 결제`}
               </Button>
             </DialogFooter>
           </DialogContent>
