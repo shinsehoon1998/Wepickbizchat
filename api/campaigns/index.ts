@@ -13,6 +13,76 @@ neonConfig.fetchConnectionCache = true;
 const BIZCHAT_DEV_URL = process.env.BIZCHAT_DEV_API_URL || 'https://gw-dev.bizchat1.co.kr:8443';
 const BIZCHAT_PROD_URL = process.env.BIZCHAT_PROD_API_URL || 'https://gw.bizchat1.co.kr';
 
+function generateTid(): string {
+  return Date.now().toString();
+}
+
+// ATS 발송 모수 API 호출하여 SQL 형식의 query 획득
+// BizChat API 규격: /api/v1/ats/mosu 호출 후 응답의 query 필드를 sndMosuQuery에 사용
+async function callATSMosuAPI(
+  filterPayload: Record<string, unknown>,
+  useProduction: boolean = false
+): Promise<{ success: boolean; query: string; filterStr: string; count: number; error?: string }> {
+  const baseUrl = useProduction ? BIZCHAT_PROD_URL : BIZCHAT_DEV_URL;
+  const apiKey = useProduction 
+    ? process.env.BIZCHAT_PROD_API_KEY 
+    : process.env.BIZCHAT_DEV_API_KEY;
+
+  if (!apiKey) {
+    return { success: false, query: '', filterStr: '', count: 0, error: 'API key not configured' };
+  }
+
+  const tid = generateTid();
+  const url = `${baseUrl}/api/v1/ats/mosu?tid=${tid}`;
+  
+  console.log(`[ATS Mosu] POST ${url}`);
+  console.log(`[ATS Mosu] Payload:`, JSON.stringify(filterPayload, null, 2));
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': apiKey,
+      },
+      body: JSON.stringify(filterPayload),
+    });
+
+    const responseText = await response.text();
+    console.log(`[ATS Mosu] Response: ${response.status} - ${responseText.substring(0, 500)}`);
+
+    const data = JSON.parse(responseText);
+    
+    if (data.code === 'S000001' && data.data?.query) {
+      console.log(`[ATS Mosu] Success - query: ${data.data.query.substring(0, 200)}...`);
+      return {
+        success: true,
+        query: data.data.query, // SQL 형식의 query 문자열
+        filterStr: data.data.filterStr || '',
+        count: data.data.cnt || 0,
+      };
+    }
+    
+    console.error(`[ATS Mosu] Failed - code: ${data.code}, msg: ${data.msg}`);
+    return { 
+      success: false, 
+      query: '', 
+      filterStr: '', 
+      count: 0, 
+      error: `ATS API failed: ${data.code} - ${data.msg}` 
+    };
+  } catch (error) {
+    console.error(`[ATS Mosu] Error:`, error);
+    return { 
+      success: false, 
+      query: '', 
+      filterStr: '', 
+      count: 0, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  }
+}
+
 // Callback URL (Vercel 배포 도메인)
 const CALLBACK_BASE_URL = process.env.VERCEL_URL 
   ? `https://${process.env.VERCEL_URL}` 
@@ -115,11 +185,6 @@ async function verifyAuth(req: VercelRequest) {
     if (error || !user) return null;
     return { userId: user.id, email: user.email || '' };
   } catch { return null; }
-}
-
-// Transaction ID 생성 (밀리초 타임스탬프)
-function generateTid(): string {
-  return Date.now().toString();
 }
 
 // 환경 감지 함수: 개발 완료 전까지 항상 개발 API 사용
@@ -651,6 +716,35 @@ async function createCampaignInBizChat(
   return callBizChatAPI('/api/v1/cmpn/create', 'POST', payload, useProduction);
 }
 
+// 위치 타겟팅 스키마
+const selectedLocationSchema = z.object({
+  code: z.string(),
+  type: z.enum(['home', 'work']),
+  name: z.string(),
+});
+
+// 카테고리 타겟팅 스키마
+const selectedCategorySchema = z.object({
+  cat1: z.string(),
+  cat1Name: z.string().optional(),
+  cat2: z.string().optional(),
+  cat2Name: z.string().optional(),
+  cat3: z.string().optional(),
+  cat3Name: z.string().optional(),
+});
+
+// 프로파일링 스키마 - BizChat ATS 규격에 맞게 범위 값({gt, lt})도 지원
+const profilingRangeSchema = z.object({
+  gt: z.number().optional(),
+  lt: z.number().optional(),
+});
+
+const selectedProfilingSchema = z.object({
+  code: z.string(),
+  value: z.union([z.string(), z.number(), z.boolean(), profilingRangeSchema]),
+  desc: z.string(),
+});
+
 const createCampaignSchema = z.object({
   name: z.string().min(1).max(200),
   templateId: z.string().min(1),
@@ -663,8 +757,11 @@ const createCampaignSchema = z.object({
   districts: z.array(z.string()).optional(),
   carrierTypes: z.array(z.string()).optional(),
   deviceTypes: z.array(z.string()).optional(),
-  shopping11stCategories: z.array(z.string()).optional(),
-  webappCategories: z.array(z.string()).optional(),
+  // 새로운 형식: 객체 배열 (BizChat 규격)
+  shopping11stCategories: z.array(z.union([z.string(), selectedCategorySchema])).optional(),
+  webappCategories: z.array(z.union([z.string(), selectedCategorySchema])).optional(),
+  locations: z.array(selectedLocationSchema).optional(), // 위치 타겟팅
+  profiling: z.array(selectedProfilingSchema).optional(), // 프로파일링 타겟팅
   callUsageTypes: z.array(z.string()).optional(),
   locationTypes: z.array(z.string()).optional(),
   mobilityPatterns: z.array(z.string()).optional(),
@@ -732,8 +829,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // 새로운 형식: 객체 배열 (BizChat 규격)
         shopping11stCategories: data.shopping11stCategories as unknown as SelectedCategory[],
         webappCategories: data.webappCategories as unknown as SelectedCategory[],
-        locations: (data as any).locations as SelectedLocation[] | undefined,
-        profiling: (data as any).profiling as SelectedProfiling[] | undefined,
+        locations: data.locations as SelectedLocation[] | undefined,
+        profiling: data.profiling as SelectedProfiling[] | undefined,
         // 레거시 형식
         callUsageTypes: data.callUsageTypes,
         locationTypes: data.locationTypes,
@@ -741,9 +838,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         geofenceIds: data.geofenceIds,
       });
 
+      // ATS mosu API를 호출하여 SQL 쿼리 획득 (DB 저장 전에 먼저 호출)
+      // BizChat API 규격: sndMosuQuery는 SQL 형식이어야 함 (JSON이 아님)
+      let sndMosuQuerySQL = '';
+      let sndMosuDescHTML = atsResult.htmlDescription;
+      let atsMosuCount: number | undefined = undefined;
+      
+      console.log('[Campaign] Calling ATS mosu API to get SQL query...');
+      const atsMosuResult = await callATSMosuAPI(atsResult.query, useProduction);
+      
+      if (atsMosuResult.success) {
+        sndMosuQuerySQL = atsMosuResult.query;
+        atsMosuCount = atsMosuResult.count;
+        // ATS API에서 반환한 filterStr(HTML)이 있으면 사용
+        if (atsMosuResult.filterStr) {
+          sndMosuDescHTML = atsMosuResult.filterStr;
+        }
+        console.log(`[Campaign] ATS mosu API success - SQL query obtained, count: ${atsMosuCount}`);
+      } else {
+        console.warn('[Campaign] ATS mosu API failed:', atsMosuResult.error);
+        // ATS API 실패 시 JSON 쿼리를 fallback으로 사용 (BizChat에서 오류 발생할 수 있음)
+        sndMosuQuerySQL = JSON.stringify(atsResult.query);
+      }
+
       const campaignId = randomUUID();
 
-      // 1. 로컬 DB에 캠페인 저장 (초기 상태: draft)
+      // 1. 로컬 DB에 캠페인 저장 (초기 상태: draft) - ATS mosu API 결과 사용
       const campaignResult = await db.insert(campaigns).values({
         id: campaignId,
         userId,
@@ -757,9 +877,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         rcvType: 0,
         billingType: data.messageType === 'MMS' ? 2 : (data.messageType === 'RCS' ? 3 : 0),
         sndGoalCnt: data.targetCount,
-        sndMosu: Math.min(Math.ceil(data.targetCount * 1.5), 400000),
-        sndMosuQuery: JSON.stringify(atsResult.query),
-        sndMosuDesc: atsResult.description,
+        sndMosu: atsMosuCount ?? Math.min(Math.ceil(data.targetCount * 1.5), 400000),
+        sndMosuQuery: sndMosuQuerySQL, // SQL 형식의 쿼리 저장
+        sndMosuDesc: sndMosuDescHTML, // HTML 형식의 설명 저장
         settleCnt: data.targetCount,
         targetCount: data.targetCount,
         budget: data.budget.toString(),
@@ -775,18 +895,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         imageUrl: template.imageUrl,
       });
 
-      // 새로운 형식의 타겟팅 데이터를 atsQuery에 JSON으로 저장
-      const fullTargetingData = {
-        gender: data.gender,
-        ageMin: data.ageMin,
-        ageMax: data.ageMax,
-        regions: data.regions,
-        shopping11stCategories: data.shopping11stCategories,
-        webappCategories: data.webappCategories,
-        locations: (data as any).locations,
-        profiling: (data as any).profiling,
-      };
-
+      // 타겟팅 데이터와 SQL 쿼리 저장
+      // targeting.atsQuery에는 원본 JSON 쿼리 저장 (UI에서 다시 편집할 때 사용)
+      // campaigns.sndMosuQuery에는 SQL 형식 저장 (BizChat API 전송용)
       await db.insert(targeting).values({
         id: randomUUID(),
         campaignId,
@@ -803,7 +914,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         locationTypes: data.locationTypes || [],
         mobilityPatterns: data.mobilityPatterns || [],
         geofenceIds: data.geofenceIds || [],
-        atsQuery: JSON.stringify(atsResult.query),
+        atsQuery: JSON.stringify({
+          jsonQuery: atsResult.query, // UI 편집용 원본 JSON
+          sqlQuery: sndMosuQuerySQL, // BizChat API 전송용 SQL
+          estimatedCount: atsMosuCount,
+        }),
       });
 
       // 2. BizChat API에 캠페인 등록 (임시등록 상태 0)
@@ -824,6 +939,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(400).json({ error: lengthValidation.error });
         }
 
+        // ATS mosu API 결과를 사용하여 BizChat에 등록
         const bizchatResult = await createCampaignInBizChat(
           {
             name: data.name,
@@ -833,9 +949,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             targetCount: data.targetCount,
             rcvType: 0,
             atsSndStartDate: atsSndStartDate,
-            sndMosuQuery: JSON.stringify(atsResult.query),
-            // BizChat API 규격: sndMosuDesc는 HTML 형식이어야 함
-            sndMosuDesc: atsResult.htmlDescription,
+            sndMosuQuery: sndMosuQuerySQL, // SQL 형식의 쿼리 사용 (이미 위에서 획득)
+            sndMosuDesc: sndMosuDescHTML, // HTML 형식의 설명 사용 (이미 위에서 획득)
           },
           {
             title: template.title || undefined,
