@@ -46,15 +46,50 @@ function generateTid(): string {
   return Date.now().toString();
 }
 
-// BizChat API 규격 v0.29.0에 맞는 ATS 필터 조건 생성
+// BizChat API 규격 v0.31.0에 맞는 ATS 필터 조건 생성
 interface ATSFilterCondition {
   data: unknown;
   dataType: 'number' | 'code' | 'boolean' | 'cate';
-  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'STREET' | 'TEL';
+  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'tel' | 'STREET';
   code: string;
   desc: string;
   not: boolean;
 }
+
+// BizChat ATS 규격에 맞는 카테고리 데이터 인터페이스
+interface CategoryData {
+  cat1: string;
+  cat2?: string;
+  cat3?: string;
+}
+
+// 앱/웹 카테고리 코드 → 카테고리 구조 매핑
+const APP_CATEGORY_MAP: Record<string, CategoryData> = {
+  '11ST_002': { cat1: '가구/인테리어', cat2: '침대/소파' },
+  'APP_002': { cat1: '게임', cat2: '보드게임' },
+  'GAME_001': { cat1: '게임' },
+  'EDU_001': { cat1: '교육/학습' },
+  'ENT_001': { cat1: '엔터테인먼트' },
+  'SHOP_001': { cat1: '쇼핑' },
+  'FINANCE_001': { cat1: '금융' },
+  'TRAVEL_001': { cat1: '여행/교통' },
+  'FOOD_001': { cat1: '음식/배달' },
+  'HEALTH_001': { cat1: '건강/의료' },
+};
+
+// 예측 모델(pro) 코드 매핑 - 규격서 기준
+const PROFILING_CODE_MAP: Record<string, { code: string; dataType: 'boolean' | 'number' | 'code'; desc: string }> = {
+  'CALL_002': { code: 'cpm12', dataType: 'number', desc: 'MMS스코어' },
+  'LOC_001': { code: 'cpm04', dataType: 'number', desc: '이사 확률' },
+  'GOLF': { code: 'cpm06', dataType: 'boolean', desc: '레저 관련 방문(골프)' },
+  'CAMPING': { code: 'cpm07', dataType: 'boolean', desc: '레저 관련 방문(캠핑)' },
+  'HIKING': { code: 'cpm08', dataType: 'boolean', desc: '레저 관련 방문(등산)' },
+  'SKI': { code: 'cpm09', dataType: 'boolean', desc: '레저 관련 방문(스키장)' },
+  'THEME_PARK': { code: 'cpm10', dataType: 'boolean', desc: '레저 관련 방문(워터파크/놀이공원)' },
+  'LIFE_STAGE': { code: 'life_stage_seg', dataType: 'code', desc: 'Life Stage Seg.' },
+  'SELF_EMPLOYED': { code: 'self_employed_yn', dataType: 'boolean', desc: '자영업자 추정' },
+  'OFFICE_WORKER': { code: 'PF00003-s01', dataType: 'boolean', desc: '직장인 추정' },
+};
 
 // 타겟팅 조건을 BizChat ATS mosu 형식으로 변환
 function buildATSMosuPayload(params: {
@@ -62,11 +97,13 @@ function buildATSMosuPayload(params: {
   ageMin?: number;
   ageMax?: number;
   regions?: string[];
+  interests?: string[];
+  behaviors?: string[];
 }): { payload: { '$and': ATSFilterCondition[] }; desc: string } {
   const conditions: ATSFilterCondition[] = [];
   const descParts: string[] = [];
 
-  // 연령 필터 (metaType: svc, code: cust_age_cd)
+  // 연령 필터 (metaType: svc, code: cust_age_cd) - BizChat 규격: gt/lt 사용
   if (params.ageMin !== undefined || params.ageMax !== undefined) {
     const min = params.ageMin ?? 0;
     const max = params.ageMax ?? 100;
@@ -120,8 +157,51 @@ function buildATSMosuPayload(params: {
     }
   }
 
+  // 관심사(interests) 변환 - BizChat 규격: app 메타타입, cate 데이터타입, 카테고리 구조
+  if (params.interests && Array.isArray(params.interests) && params.interests.length > 0) {
+    const categoryData: CategoryData[] = [];
+    const interestNames: string[] = [];
+    
+    for (const interest of params.interests) {
+      const category = APP_CATEGORY_MAP[interest];
+      if (category) {
+        categoryData.push(category);
+        interestNames.push(category.cat1 + (category.cat2 ? ` > ${category.cat2}` : ''));
+      }
+    }
+    
+    if (categoryData.length > 0) {
+      conditions.push({
+        data: categoryData,
+        dataType: 'cate',
+        metaType: 'app',
+        code: '',  // BizChat 규격: app/tel 카테고리는 code가 빈 문자열
+        desc: `앱/웹: ${interestNames.join(', ')}`,
+        not: false,
+      });
+      descParts.push(`앱/웹: ${interestNames.join(', ')}`);
+    }
+  }
+
+  // 행동(behaviors) 변환 - BizChat 규격: pro 메타타입, 각 필터별 고유 code
+  if (params.behaviors && Array.isArray(params.behaviors) && params.behaviors.length > 0) {
+    for (const behavior of params.behaviors) {
+      const proConfig = PROFILING_CODE_MAP[behavior];
+      if (proConfig) {
+        conditions.push({
+          data: proConfig.dataType === 'boolean' ? 'Y' : { gt: '0', lt: '1' },
+          dataType: proConfig.dataType,
+          metaType: 'pro',
+          code: proConfig.code,
+          desc: `${proConfig.desc}: ${proConfig.dataType === 'boolean' ? 'Y' : '0 ~ 1'}`,
+          not: false,
+        });
+        descParts.push(proConfig.desc);
+      }
+    }
+  }
+
   // BizChat API 규격: 루트 객체는 항상 $and 또는 $or 컨테이너여야 함
-  // 조건이 없어도 {$and: []}로 반환
   return { 
     payload: { '$and': conditions },
     desc: descParts.join(', ')

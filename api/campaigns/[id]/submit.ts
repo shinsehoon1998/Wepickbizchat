@@ -21,15 +21,50 @@ const REGION_HCODE_MAP: Record<string, string> = {
   '경남': '48', '제주': '50',
 };
 
-// BizChat API 규격 v0.29.0에 맞는 ATS 필터 조건 인터페이스
+// BizChat API 규격 v0.31.0에 맞는 ATS 필터 조건 인터페이스
 interface ATSFilterCondition {
   data: unknown;
   dataType: 'number' | 'code' | 'boolean' | 'cate';
-  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'STREET' | 'TEL';
+  metaType: 'svc' | 'loc' | 'pro' | 'app' | 'tel' | 'STREET';
   code: string;
   desc: string;
   not: boolean;
 }
+
+// BizChat ATS 규격에 맞는 카테고리 데이터 인터페이스
+interface CategoryData {
+  cat1: string;
+  cat2?: string;
+  cat3?: string;
+}
+
+// 앱/웹 카테고리 코드 → 카테고리 구조 매핑
+const APP_CATEGORY_MAP: Record<string, CategoryData> = {
+  '11ST_002': { cat1: '가구/인테리어', cat2: '침대/소파' },
+  'APP_002': { cat1: '게임', cat2: '보드게임' },
+  'GAME_001': { cat1: '게임' },
+  'EDU_001': { cat1: '교육/학습' },
+  'ENT_001': { cat1: '엔터테인먼트' },
+  'SHOP_001': { cat1: '쇼핑' },
+  'FINANCE_001': { cat1: '금융' },
+  'TRAVEL_001': { cat1: '여행/교통' },
+  'FOOD_001': { cat1: '음식/배달' },
+  'HEALTH_001': { cat1: '건강/의료' },
+};
+
+// 예측 모델(pro) 코드 매핑 - 규격서 기준
+const PROFILING_CODE_MAP: Record<string, { code: string; dataType: 'boolean' | 'number' | 'code'; desc: string }> = {
+  'CALL_002': { code: 'cpm12', dataType: 'number', desc: 'MMS스코어' },
+  'LOC_001': { code: 'cpm04', dataType: 'number', desc: '이사 확률' },
+  'GOLF': { code: 'cpm06', dataType: 'boolean', desc: '레저 관련 방문(골프)' },
+  'CAMPING': { code: 'cpm07', dataType: 'boolean', desc: '레저 관련 방문(캠핑)' },
+  'HIKING': { code: 'cpm08', dataType: 'boolean', desc: '레저 관련 방문(등산)' },
+  'SKI': { code: 'cpm09', dataType: 'boolean', desc: '레저 관련 방문(스키장)' },
+  'THEME_PARK': { code: 'cpm10', dataType: 'boolean', desc: '레저 관련 방문(워터파크/놀이공원)' },
+  'LIFE_STAGE': { code: 'life_stage_seg', dataType: 'code', desc: 'Life Stage Seg.' },
+  'SELF_EMPLOYED': { code: 'self_employed_yn', dataType: 'boolean', desc: '자영업자 추정' },
+  'OFFICE_WORKER': { code: 'PF00003-s01', dataType: 'boolean', desc: '직장인 추정' },
+};
 
 // 구형 sndMosuQuery 형식을 BizChat API 규격에 맞게 변환
 function convertLegacySndMosuQuery(queryStr: string): { query: string; desc: string } {
@@ -37,24 +72,45 @@ function convertLegacySndMosuQuery(queryStr: string): { query: string; desc: str
     const parsed = JSON.parse(queryStr);
     
     // 이미 올바른 형식인지 확인
-    // Case 1: $and/$or 컨테이너가 있는 경우 - 그대로 반환
+    // Case 1: $and/$or 컨테이너가 있는 경우 - 내부 조건 검증 후 반환
     if (parsed['$and'] || parsed['$or']) {
-      console.log('[Submit] sndMosuQuery already has $and/$or container');
-      return { query: queryStr, desc: '' };
+      console.log('[Submit] sndMosuQuery has $and/$or container, validating conditions...');
+      const container = parsed['$and'] || parsed['$or'];
+      const operator = parsed['$and'] ? '$and' : '$or';
+      
+      // 각 조건 검증 및 변환
+      const validatedConditions: ATSFilterCondition[] = [];
+      const descParts: string[] = [];
+      
+      for (const cond of container) {
+        const validated = validateAndConvertCondition(cond);
+        if (validated) {
+          validatedConditions.push(validated);
+          if (validated.desc) descParts.push(validated.desc);
+        }
+      }
+      
+      const newQuery = { [operator]: validatedConditions };
+      console.log('[Submit] Validated sndMosuQuery:', JSON.stringify(newQuery));
+      return { query: JSON.stringify(newQuery), desc: descParts.join(', ') };
     }
     
-    // Case 2: 단일 조건 객체 (metaType/code/dataType 필드가 있는 경우) - $and로 감싸서 반환
-    if (parsed.metaType && parsed.code && parsed.dataType) {
-      console.log('[Submit] sndMosuQuery is single condition, wrapping in $and');
-      const wrapped = { '$and': [parsed] };
-      return { query: JSON.stringify(wrapped), desc: parsed.desc || '' };
+    // Case 2: 단일 조건 객체 (metaType/code/dataType 필드가 있는 경우)
+    if (parsed.metaType && parsed.dataType) {
+      console.log('[Submit] sndMosuQuery is single condition, validating and wrapping in $and');
+      const validated = validateAndConvertCondition(parsed);
+      if (validated) {
+        const wrapped = { '$and': [validated] };
+        return { query: JSON.stringify(wrapped), desc: validated.desc || '' };
+      }
+      return { query: JSON.stringify({ '$and': [] }), desc: '' };
     }
 
     // 구형 형식: { age: { min, max }, gender, region: [...], interest: [...], behavior: [...] }
     const conditions: ATSFilterCondition[] = [];
     const descParts: string[] = [];
 
-    // 연령 변환
+    // 연령 변환 (BizChat 규격: gt/lt 사용)
     if (parsed.age && (parsed.age.min !== undefined || parsed.age.max !== undefined)) {
       const min = parsed.age.min ?? 0;
       const max = parsed.age.max ?? 100;
@@ -109,73 +165,165 @@ function convertLegacySndMosuQuery(queryStr: string): { query: string; desc: str
       }
     }
 
-    // 관심사(interests) 변환
+    // 관심사(interests) 변환 - BizChat 규격: app 메타타입, cate 데이터타입, 카테고리 구조
     const interests = parsed.interest || parsed.interests;
     if (interests && Array.isArray(interests) && interests.length > 0) {
-      conditions.push({
-        data: interests,
-        dataType: 'code',
-        metaType: 'app',
-        code: 'app_usage',
-        desc: `관심사: ${interests.join(', ')}`,
-        not: false,
-      });
-      descParts.push(`관심사: ${interests.join(', ')}`);
+      const categoryData: CategoryData[] = [];
+      const interestNames: string[] = [];
+      
+      for (const interest of interests) {
+        const category = APP_CATEGORY_MAP[interest];
+        if (category) {
+          categoryData.push(category);
+          interestNames.push(category.cat1 + (category.cat2 ? ` > ${category.cat2}` : ''));
+        }
+      }
+      
+      if (categoryData.length > 0) {
+        conditions.push({
+          data: categoryData,
+          dataType: 'cate',
+          metaType: 'app',
+          code: '',  // BizChat 규격: app/tel 카테고리는 code가 빈 문자열
+          desc: `앱/웹: ${interestNames.join(', ')}`,
+          not: false,
+        });
+        descParts.push(`앱/웹: ${interestNames.join(', ')}`);
+      } else {
+        // 매핑되지 않은 관심사는 로그만 남기고 스킵
+        console.log('[Submit] Skipping unmapped interests:', interests);
+      }
     }
 
-    // 행동(behaviors) 변환
+    // 행동(behaviors) 변환 - BizChat 규격: pro 메타타입, 각 필터별 고유 code
     const behaviors = parsed.behavior || parsed.behaviors;
     if (behaviors && Array.isArray(behaviors) && behaviors.length > 0) {
-      conditions.push({
-        data: behaviors,
-        dataType: 'code',
-        metaType: 'pro',
-        code: 'profiling',
-        desc: `행동: ${behaviors.join(', ')}`,
-        not: false,
-      });
-      descParts.push(`행동: ${behaviors.join(', ')}`);
+      for (const behavior of behaviors) {
+        const proConfig = PROFILING_CODE_MAP[behavior];
+        if (proConfig) {
+          conditions.push({
+            data: proConfig.dataType === 'boolean' ? 'Y' : { gt: 0, lt: 1 },
+            dataType: proConfig.dataType,
+            metaType: 'pro',
+            code: proConfig.code,
+            desc: `${proConfig.desc}: ${proConfig.dataType === 'boolean' ? 'Y' : '0 ~ 1'}`,
+            not: false,
+          });
+          descParts.push(proConfig.desc);
+        } else {
+          // 매핑되지 않은 행동은 로그만 남기고 스킵
+          console.log('[Submit] Skipping unmapped behavior:', behavior);
+        }
+      }
     }
 
-    // 통신사(carrier) 변환
+    // 통신사(carrier) - BizChat 규격에 없음, 스킵
     const carrier = parsed.carrier || parsed.carrierTypes;
     if (carrier && Array.isArray(carrier) && carrier.length > 0) {
-      conditions.push({
-        data: carrier,
-        dataType: 'code',
-        metaType: 'svc',
-        code: 'carrier_type',
-        desc: `통신사: ${carrier.join(', ')}`,
-        not: false,
-      });
-      descParts.push(`통신사: ${carrier.join(', ')}`);
+      console.log('[Submit] Skipping carrier filter (not in BizChat spec):', carrier);
     }
 
-    // 기기(device) 변환
+    // 기기(device) - BizChat 규격에 없음, 스킵
     const device = parsed.device || parsed.deviceTypes;
     if (device && Array.isArray(device) && device.length > 0) {
-      conditions.push({
-        data: device,
-        dataType: 'code',
-        metaType: 'svc',
-        code: 'device_type',
-        desc: `기기: ${device.join(', ')}`,
-        not: false,
-      });
-      descParts.push(`기기: ${device.join(', ')}`);
+      console.log('[Submit] Skipping device filter (not in BizChat spec):', device);
     }
 
     // BizChat API 규격: 루트 객체는 항상 $and 컨테이너여야 함
-    // 조건이 없어도 {$and: []}로 반환
     const newQuery = { '$and': conditions };
     const result = JSON.stringify(newQuery);
     console.log('[Submit] Converted legacy sndMosuQuery:', result);
     return { query: result, desc: descParts.join(', ') };
   } catch (e) {
     console.error('[Submit] Failed to convert sndMosuQuery:', e);
-    // 파싱 실패 시에도 빈 $and 배열로 반환
     return { query: JSON.stringify({ '$and': [] }), desc: '' };
   }
+}
+
+// 개별 조건 검증 및 변환
+function validateAndConvertCondition(cond: Record<string, unknown>): ATSFilterCondition | null {
+  if (!cond.metaType || !cond.dataType) {
+    console.log('[Submit] Invalid condition (missing metaType/dataType):', cond);
+    return null;
+  }
+
+  const metaType = cond.metaType as string;
+  const dataType = cond.dataType as string;
+  const code = cond.code as string || '';
+  const desc = cond.desc as string || '';
+  const not = cond.not as boolean || false;
+  let data = cond.data;
+
+  // svc 메타타입 검증
+  if (metaType === 'svc') {
+    const validSvcCodes = ['cust_age_cd', 'sex_cd', 'ad_agr_yn', 'sms_rejt_yn', 'smile_yn', 'prod_scrb', 'mbr_card_gr_cd'];
+    if (!validSvcCodes.includes(code)) {
+      console.log(`[Submit] Invalid svc code "${code}", skipping`);
+      return null;
+    }
+  }
+
+  // app/tel 메타타입 검증 - 카테고리 형식이어야 함
+  if (metaType === 'app' || metaType === 'tel') {
+    if (dataType !== 'cate') {
+      console.log(`[Submit] ${metaType} must use dataType "cate", converting...`);
+      // 배열 데이터를 카테고리 형식으로 변환 시도
+      if (Array.isArray(data)) {
+        const categoryData: CategoryData[] = [];
+        for (const item of data) {
+          if (typeof item === 'string') {
+            const category = APP_CATEGORY_MAP[item];
+            if (category) {
+              categoryData.push(category);
+            }
+          } else if (typeof item === 'object' && item !== null && 'cat1' in item) {
+            categoryData.push(item as CategoryData);
+          }
+        }
+        if (categoryData.length > 0) {
+          data = categoryData;
+        } else {
+          console.log(`[Submit] Could not convert ${metaType} data to category format, skipping`);
+          return null;
+        }
+      }
+    }
+    return {
+      data,
+      dataType: 'cate',
+      metaType: metaType as 'app' | 'tel',
+      code: '',  // app/tel은 code가 빈 문자열
+      desc,
+      not,
+    };
+  }
+
+  // pro 메타타입 검증 - 올바른 code 사용
+  if (metaType === 'pro') {
+    const validProCodes = Object.values(PROFILING_CODE_MAP).map(p => p.code);
+    if (!validProCodes.includes(code) && code !== 'profiling') {
+      // 알 수 없는 pro 코드 허용 (BizChat에서 새로운 코드가 추가될 수 있음)
+      console.log(`[Submit] Unknown pro code "${code}", allowing`);
+    }
+  }
+
+  // loc 메타타입 검증
+  if (metaType === 'loc') {
+    const validLocCodes = ['home_location', 'work_location'];
+    if (!validLocCodes.includes(code)) {
+      console.log(`[Submit] Invalid loc code "${code}", skipping`);
+      return null;
+    }
+  }
+
+  return {
+    data,
+    dataType: dataType as 'number' | 'code' | 'boolean' | 'cate',
+    metaType: metaType as 'svc' | 'loc' | 'pro' | 'app' | 'tel',
+    code,
+    desc,
+    not,
+  };
 }
 
 const campaigns = pgTable('campaigns', {

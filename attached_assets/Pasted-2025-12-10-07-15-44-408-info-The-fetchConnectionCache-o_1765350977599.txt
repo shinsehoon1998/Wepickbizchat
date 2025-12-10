@@ -1,0 +1,104 @@
+2025-12-10 07:15:44.408 [info] The `fetchConnectionCache` option is deprecated (now always `true`)
+2025-12-10 07:15:44.859 [info] [BizChat Submit] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-10 07:15:44.860 [info] [BizChat Submit] Environment: DEVELOPMENT (VERCEL_ENV=production)
+2025-12-10 07:15:44.867 [error] (node:4) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2025-12-10 07:15:45.918 [info] [Submit] Converted legacy sndMosuQuery: {"$and":[{"data":{"gt":20,"lt":60},"dataType":"number","metaType":"svc","code":"cust_age_cd","desc":"연령: 20세 ~ 60세","not":false},{"data":["11ST_002","APP_002"],"dataType":"code","metaType":"app","code":"app_usage","desc":"관심사: 11ST_002, APP_002","not":false},{"data":["CALL_002","LOC_001"],"dataType":"code","metaType":"pro","code":"profiling","desc":"행동: CALL_002, LOC_001","not":false},{"data":["DEVICE_ANDROID"],"dataType":"code","metaType":"svc","code":"device_type","desc":"기기: DEVICE_ANDROID","not":false}]}
+2025-12-10 07:15:45.918 [info] [Submit] Calling ATS mosu API to get SQL query...
+2025-12-10 07:15:45.918 [info] [Submit] Filter payload: {
+  "$and": [
+    {
+      "data": {
+        "gt": 20,
+        "lt": 60
+      },
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 20세 ~ 60세",
+      "not": false
+    },
+    {
+      "data": [
+        "11ST_002",
+        "APP_002"
+      ],
+      "dataType": "code",
+      "metaType": "app",
+      "code": "app_usage",
+      "desc": "관심사: 11ST_002, APP_002",
+      "not": false
+    },
+    {
+      "data": [
+        "CALL_002",
+        "LOC_001"
+      ],
+      "dataType": "code",
+      "metaType": "pro",
+      "code": "profiling",
+      "desc": "행동: CALL_002, LOC_001",
+      "not": false
+    },
+    {
+      "data": [
+        "DEVICE_ANDROID"
+      ],
+      "dataType": "code",
+      "metaType": "svc",
+      "code": "device_type",
+      "desc": "기기: DEVICE_ANDROID",
+      "not": false
+    }
+  ]
+}
+2025-12-10 07:15:45.918 [info] [ATS Mosu] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/ats/mosu?tid=1765350945918
+2025-12-10 07:15:45.918 [info] [ATS Mosu] Payload: {
+  "$and": [
+    {
+      "data": {
+        "gt": 20,
+        "lt": 60
+      },
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 20세 ~ 60세",
+      "not": false
+    },
+    {
+      "data": [
+        "11ST_002",
+        "APP_002"
+      ],
+      "dataType": "code",
+      "metaType": "app",
+      "code": "app_usage",
+      "desc": "관심사: 11ST_002, APP_002",
+      "not": false
+    },
+    {
+      "data": [
+        "CALL_002",
+        "LOC_001"
+      ],
+      "dataType": "code",
+      "metaType": "pro",
+      "code": "profiling",
+      "desc": "행동: CALL_002, LOC_001",
+      "not": false
+    },
+    {
+      "data": [
+        "DEVICE_ANDROID"
+      ],
+      "dataType": "code",
+      "metaType": "svc",
+      "code": "device_type",
+      "desc": "기기: DEVICE_ANDROID",
+      "not": false
+    }
+  ]
+}
+2025-12-10 07:15:46.171 [info] [ATS Mosu] Response: 400 - {"tid":"1765350945918","code":"E001005","msg":"ATS error"}
+2025-12-10 07:15:46.171 [error] [ATS Mosu] Failed - code: E001005, msg: ATS error
+2025-12-10 07:15:46.171 [error] [Submit] ATS mosu API failed: ATS API failed: E001005 - ATS error
