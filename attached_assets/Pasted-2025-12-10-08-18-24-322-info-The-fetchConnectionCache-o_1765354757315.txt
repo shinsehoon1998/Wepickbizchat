@@ -1,0 +1,107 @@
+2025-12-10 08:18:24.322 [info] The `fetchConnectionCache` option is deprecated (now always `true`)
+2025-12-10 08:18:24.513 [info] [BizChat Submit] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-10 08:18:24.513 [info] [BizChat Submit] Environment: DEVELOPMENT (VERCEL_ENV=production)
+2025-12-10 08:18:24.521 [error] (node:4) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2025-12-10 08:18:25.571 [info] [Submit] sndMosuQuery has $and/$or container, validating conditions...
+2025-12-10 08:18:25.571 [info] [Submit] Validated sndMosuQuery: {"$and":[{"data":{"gt":20,"lt":60},"dataType":"number","metaType":"svc","code":"cust_age_cd","desc":"연령: 20세 ~ 60세","not":false}]}
+2025-12-10 08:18:25.571 [info] [Submit] Calling ATS mosu API to get SQL query...
+2025-12-10 08:18:25.571 [info] [Submit] Filter payload: {
+  "$and": [
+    {
+      "data": {
+        "gt": 20,
+        "lt": 60
+      },
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 20세 ~ 60세",
+      "not": false
+    }
+  ]
+}
+2025-12-10 08:18:25.571 [info] [ATS Mosu] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/ats/mosu?tid=1765354705571
+2025-12-10 08:18:25.571 [info] [ATS Mosu] Payload: {
+  "$and": [
+    {
+      "data": {
+        "gt": 20,
+        "lt": 60
+      },
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 20세 ~ 60세",
+      "not": false
+    }
+  ]
+}
+2025-12-10 08:18:26.768 [info] [ATS Mosu] Response: 200 - {"tid":"1765354705571","code":"S000001","msg":"Success","data":{"cnt":6457973,"filterStr":"<table><tr><td id='oper0' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>회선특성-연령: 20세 ~ 60세</td></tr></tr></table>","query":"( ( (cust_age_cd >= 20 and cust_age_cd <= 60) ) ) and indv_info_use_agree_yn = 'Y'"}}
+2025-12-10 08:18:26.768 [info] [ATS Mosu] Success - query: ( ( (cust_age_cd >= 20 and cust_age_cd <= 60) ) ) and indv_info_use_agree_yn = 'Y'...
+2025-12-10 08:18:26.768 [info] [Submit] sndMosuQuery (SQL from ATS): ( ( (cust_age_cd >= 20 and cust_age_cd <= 60) ) ) and indv_info_use_agree_yn = 'Y'...
+2025-12-10 08:18:26.768 [info] [Submit] ATS count: 6457973
+2025-12-10 08:18:26.768 [info] [Submit] sndMosuDesc: <table><tr><td id='oper0' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-...
+2025-12-10 08:18:26.768 [info] [Submit] Creating campaign in BizChat...
+2025-12-10 08:18:26.768 [info] [Submit] Full createPayload: {
+  "tgtCompanyName": "위픽",
+  "name": "고급타겟팅테스트",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 100,
+  "sndMosu": 150,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "cb": {
+    "state": "https://wepickbizchat-aybkvph4c-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlFile": "",
+    "urlLink": {}
+  },
+  "rcs": [],
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 60) ) ) and indv_info_use_agree_yn = 'Y'",
+  "sndMosuDesc": "<table><tr><td id='oper0' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>회선특성-연령: 20세 ~ 60세</td></tr></tr></table>"
+}
+2025-12-10 08:18:26.769 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-10 08:18:26.769 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-10 08:18:26.769 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-10 08:18:26.769 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-10 08:18:26.769 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/create?tid=1765354706768
+2025-12-10 08:18:26.769 [info] [BizChat] Request body: {
+  "tgtCompanyName": "위픽",
+  "name": "고급타겟팅테스트",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 100,
+  "sndMosu": 150,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "cb": {
+    "state": "https://wepickbizchat-aybkvph4c-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlFile": "",
+    "urlLink": {}
+  },
+  "rcs": [],
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 60) ) ) and indv_info_use_agree_yn = 'Y'",
+  "sndMosuDesc": "<table><tr><td id='oper0' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>회선특성-연령: 20세 ~ 60세</td></tr></tr></table>"
+}
+2025-12-10 08:18:26.867 [info] [BizChat] Response: 400 - {"tid":"1765354706768","code":"E100007","msg":"No ats snd start dttm for ats. rcv type [0]"}
+2025-12-10 08:18:26.867 [error] [Submit] BizChat API error: {
+  tid: '1765354706768',
+  code: 'E100007',
+  msg: 'No ats snd start dttm for ats. rcv type [0]'
+}
