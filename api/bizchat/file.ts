@@ -77,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // rcs: 1=RCS용, 그외=아님
     const fileTypeParam = type || 2; // 기본값: 이미지
     const rcsParam = rcs || 0; // 기본값: 아님
-    const url = `${baseUrl}/api/v1/file/upload?tid=${tid}&type=${fileTypeParam}&rcs=${rcsParam}`;
+    const url = `${baseUrl}/api/v1/file?tid=${tid}&type=${fileTypeParam}&rcs=${rcsParam}`;
     
     // 파일명을 영문 + 타임스탬프로 변환 (BizChat API는 한글/특수문자 파일명 미지원)
     const fileExt = fileName.split('.').pop()?.toLowerCase() || 'jpg';
