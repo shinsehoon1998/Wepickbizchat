@@ -1,0 +1,736 @@
+1.	연동 개요
+1.1	개요
+본 문서는 KISPG의 지불결제 서비스를 이용하는 가맹점이 가맹점의 WEB 페이지에서 KISPG와 결제 연동을 통해 KISPG의 결제 서비스를 가맹점의 사용자에게 제공하는 방법을 제공합니다.
+
+1.2	특징
+	KISPG는 사용자의 PC등에 별도의 모듈 설치(Non-ActiveX)가 없이 사용 가능합니다.
+	SHA256을 통한 위변조 방지와 HTTPS(SSL) 통신을 이용하여 보안이 한층 더 강화된 전자지불 시스템을 제공합니다.
+	사용자의 PC 환경에 따라 자동으로 웹표준 결제창을 표시하며, ActiveX 등의 추가적인 설치 없이 Chrome, IE, Firefox, Safari 브라우저에서 사용 할 수 있습니다. (단, 카드사 등 금융기관에서 요구하는 경우에 사용자는 해당 모듈을 설치하여 결제를 이용해야 합니다.)
+	시스템 언어에 관계없이 HTTPS 통신만을 사용하여 쉽게 연동하여 사용할 수 있습니다
+
+1.3	서비스 구조와 결제 처리
+
+	가맹점에서 SHA256을 이용하여 위변조 방지를 포함한 결제데이터를 생성합니다.
+	결제페이지에서 form 데이터를 KISPG API 로 HTTPS(SSL) Post 액션을 발생시켜 결제요청 데이터로 보냅니다.
+	KISPG는 결제요청을 받아 사용자의 디바이스에 따른 결제창을 표시하고 사용자가 결제(인증/승인)를 진행할 수 있도록 합니다.
+	승인이 완료되면 리턴된 승인결과를 가맹점에 표시합니다
+ 
+1.4	서비스 Flow
+
+
+1.	인증 결제 정보 입력
+A.	고객은 가맹점의 웹 페이지에서 주문을 합니다.
+2.	인증 Phase
+A.	가맹점은 사용자로부터 전달 받은 주문 및 결제 정보를 KISPG 양식에 맞춰 가공하여 인증 URL로 인증 요청을 합니다.
+B.	사용자는 서비스 공급자가 제공하는 인증 프로세스를 진행합니다.
+C.	인증이 완료되면 인증 결과를 KISPG가 수신하고 가맹점의 returnUrl로 전달합니다.
+D.	가맹점은 인증 결과의 encData 및 결과코드를 이용하여 인증 결과의 유효성을 체크하고 승인 프로세스를 진행합니다.
+3.	승인 Phase
+A.	가맹점은 인증 결과 값을 가공하여 KISPG로 승인URL로 승인 요청을 합니다.
+B.	KISPG는 서비스 공급자로부터 승인 프로세스를 진행합니다.
+C.	KISPG는 서비스 공급자로부터 회신받은 승인결과를 가맹점에 회신합니다.
+ 
+D.	가맹점은 승인 결과의 encData를 이용하여 유효성체크를 한 후 결제 완료 프로세스를 진행합니다.
+
+4.	주의 사항
+A.	당 연동 가이드에서 제공되는 파라미터 이외의 값은 보장되지 않으며, 공지 없이 삭제될 수 있습니다.
+B.	Iframe 또는 레이어-팝업을 이용하여 결제창을 호출하는 방식은 작동이 원활하지 않을 수 있으며, 권장하지 않습니다.
+C.	Keyin 결제의 경우 고객의 카드정보가 가맹점의 서버에 저장/경유되지 않도록 주의해야 하며 이로 인한 문제 발생 시 KISPG는 책임지지 않습니다.
+D.	결과 수신 시 응답받은 해시암호값(encData)과 가맹점 서버의 데이터를 가지고 위변조 여부를 반드시 확인해야 합니다. 이로 인한 문제 발생 시 KISPG는 책임지지 않습니다.
+E.	모바일 연동시에는 submit 방식을 권장드리며 기타 방식을 사용할 경우 작동이 원할하지 않을 수 있습니다.
+ 
+2.	설치
+2.1	요구사항
+	하드웨어 요구사항 : 특별한 하드웨어 요구사항은 없습니다.
+	Web server : SHA256 암호화값의 생성 / httpClient(http Background) 통신이 가능한 웹서버
+	DBMS : KISPG에서는 결제 결과 DATA를 제공해 드리며 DB처리는 가맹점에서 관리하셔야 합니다. 이러한 경우에는 별도의 DBMS가 필요합니다.
+
+2.2	방화벽 설정
+결제승인, 결제취소 및 결제 결과 수신에 대한 통신이 가능하도록 방화벽 설정이 필요합니다.
+	결제
+-	연결대상 : https://api.kispg.co.kr (운영계), https://testapi.kispg.co.kr (개발계)
+-	프로토콜 : HTTPS
+-	연결방향 : OUTBOUND
+
+	결제 결과 수신
+- 출발지IP : 1.233.179.201(운영계), 61.40.40.74(개발계)
+-	프로토콜: HTTPS
+-	연결방향 : INBOUND
+
+2.3	샘플소스
+	샘플소스는 가맹점의 환경에 맞도록 수정하여 사용할 수 있습니다.
+	앱 연동은 별도의 샘플 소스가 없으며 4,5장 앱 환경의 적용을 참조하시기 바랍니다.
+	KISPG API 는 표준 웹 통신만을 사용합니다.
+-	결제 요청 시에는 페이지이동(Form Submit), API 통신시에는 Https Json 기반 통신을 이용
+-	HTTPS API Request(httpClient 통신)= httpClient 등의 http Background 통신이 가능한 유틸을 통해서 웹페이지를 요청후 그 결과를 수신
+
+	샘플 소스 명세
+
+주요 연동 파일	paySample.jsp	결제 테스트 파일
+	payResultSample.jsp	결제 테스트 결과 파일
+	cancelSample.jsp	결제 취소 테스트 파일
+	cancelResultSample.jsp	결제 취소 테스트 결과 파일
+ 
+2.4	승인테스트
+	웹 브라우저에서 http://127.0.0.1/orderSample.html 페이지를 호출합니다. (localhost에서 진행할 경우 브라우저에 따라 팝업창의 문제가 있을 수 있습니다.)
+	승인 테스트를 위해 필수 값 및 기본 옵션 값을 본 가이드를 참조 후 결제 요청 버튼을 누릅니다.
+	지불 방법을 선택 후 필요한 정보를 기입하고 “확인”을 눌러 진행합니다. (해당 사이트 팝업을 사용으로 하지 않을 시 초기화면으로 로딩 될 수 있습니다. )
+	지불 과정중 필요에 따라 추가적인 모듈을 다운로드 하는 경우도 있습니다. 정상적으로 지불결과 메시지가 나타나는지 확인하십시오.
+	테스트용 가맹점 ID로 결제한 데이터는 실 결제이며, 당일 23:30에 자동취소 됩니다.
+	취소/조회 테스트를 위해 거래번호(TID)를 기록해 두십시오.
+
+2.5	결제화면
+ 
+3.	결제연동
+3.1	인증 요청
+3.1.1	인증 요청 시 확인 사항
+	payReqType 파라미터 – 결제 요청 타입
+-	payReqType : 1 (가맹점에서 승인 요청) – 인증 결과값을 returnUrl로 전달합니다. 인증 결과값을 받은 후 가맹점에서 별도로 승인 요청을 하셔야 합니다.
+
+	내부 처리용 데이터 별도 저장
+-	form 데이터 처리가 필요한 경우 페이지 표시 전에 별도로 DB 또는 세션 등에 저장해 두시기 바랍니다.
+
+	가맹점 Key – 위변조 여부 검증용 해쉬암호값 생성 및 암호화에 사용되는 키값입니다.
+	결제 이용시 패스워드 기능을 하는 코드로 MID 번호별로 부여됩니다.
+
+
+	가맹점 Key 발급방법 : “가맹점정보>>일반정보>>KEY관리” 에서 확인가능
+- 가맹점 Key는 외부 혹은 Client Side 소스코드에 노출되지 않도록 주의합니다.
+
+	Input 에 결제 요청 데이터 생성
+-	Input tag에 name 설정(결제요청 스크립트 실행 시 사용됨)
+-	파라미터명 대소문자 구분 (일부 가맹점에서 필요에 의해 사용자가 변경하는 경우를 제외하고 모두 type=”hidden”을 사용)
+	요청 URL
+ 
+-	운영 환경 : https://api.kispg.co.kr/v2/auth
+-	개발 환경 : https://testapi.kispg.co.kr/v2/auth
+
+-	요청 HTTP 정보
+Protocol	Method	Encoding	Content-Type
+HTTP/1.1	POST	UTF-8	application/x-www-form-urlencoded;
+
+	인증 요청 파라미터는 아래와 같습니다.
+
+[TABLE] 인증 요청 파라미터
+파라미터명	한글명칭	예시
+[Data Type],기본값	설명	필수
+여부	최대크기
+(Byte)
+
+payMethod	
+결제 방법	
+[String]"card"	결제 방법 신용카드 : CARD 계좌이체 : BANK 가상계좌 : VACNT
+미지정 시 전체 지불수단 노출		
+10
+trxCd	에스크로	[String] “0”	0:일반, 1:에스크로	O	1
+mid	가맹점ID	[String] "kis000001m"	제공된 mid(10 Byte 고정)	O	10
+goodsNm	상품명	[String] "컴퓨터"	상품 이름(100 Byte 고정)	O	100
+currencyType	통화구분	[String] "KRW"		O	3
+ordNo	주문번호	[String]
+“1335233672723”	주문단위, unique한 값 입력	O	40
+goodsAmt	결제금액	[String] 1004	숫자만 입력	O	15
+discountAmt	할인금액	[String] 100	숫자만 입력		15
+mbsFeeAmt	가맹점수수료금액	[String] 100	숫자만 입력		15
+ordNm	구매자명	[String] "홍길동"	한글/특수기호 입력가능	O	30
+ordTel	구매자Mobile번호	[String] ”01020001234	숫자만 허용	O	20
+ordEmail	구매자Email	[String]
+"buyer@example.com"
+이메일 형식에 맞도록		60
+userIp	유저 아이피	[String] ”127.0.0.1” or
+“0:0:0:0:0:0:0:1”	유저 접속 아이피
+(IPv4, IPv6 지원)		20
+mbsUsrId	가맹점 유저 아이디	[String] "example”	가맹점에서 가입한 유저
+아이디		20
+ordGuardEmail	보호자Email	[String]
+“parent@example.com"
+14세 미만 필수		60
+rcvrAddr	수취인 주소	[String] "서울 강남구"
+수취인 주소		100
+rcvrPost	수취인 우편번호	[String] "12345"
+수취인 우편번호		6
+mbsIp	가맹점 아이피	[String] ”127.0.0.1” or
+“0:0:0:0:0:0:0:1”	가맹점 아이피(IPv4, IPv6 지원)		20
+mbsReserved	가맹점예약필드	[String] ""
+가맹점 예약 필드		500
+ 
+
+rcvrMsg	
+수취인 메시지	[String] "빠른배송부탁드려요”m
+ailto:parent@example.c om
+
+수취인 메시지		
+255
+
+goodsSplAmt	
+공급가	
+[String] 1004	숫자만 입력
+대상: ‘전송금액기준’ 설정
+업체에 한함		
+15
+
+goodsVat	
+부가세	
+[String] 1004	숫자만 입력
+대상: ‘전송금액기준’ 설정
+업체에 한함		
+15
+
+goodsSvsAmt	
+상품 봉사료	
+[String] 1004	숫자만 입력
+대상: ‘전송금액기준’ 설정
+업체에 한함		
+15
+channel	접속타입	[String] “0001”	0001 : WEB, 0002 : mobile,
+0004 : SMS, 0005 : URL		4
+model	모델	[String] “WEB”	WEB, MOB	O	3
+period	제공기간	[String] “”	default:별도제공기간없음		21
+
+ediDate	
+전문요청일시	[String] “20210327121212”	전문요청일시 (yyyymmddhhmmss)
+*현재 시각 -10분까지 유효	
+O	
+14
+encData	해시String	[String] “”	7.1 결제 승인 시 암호화 구성
+참조	O	256
+
+returnUrl	
+리턴Url (인증결과수 신Url)	[String] "https://api.kispg.co.kr
+/returnUrlSample.do	결제창을 통해 인증완료된 결과를 수신받고 승인요청을 해서 결과를 표시할 페이지
+URL	
+O	
+255
+billHpFlg	휴대폰 빌링	[String] “0”	0:미사용(default), 1:사용		1
+charset	인코딩방식	[String] “UTF-8”	UTF-8(default), EUC-KR		5
+
+appSchemeFlg	
+앱 스킴사용여부	
+[String] “0”	0:미사용, 1:사용
+webview를 사용하더라도 스킴을
+사용하지 않으면 0으로 세팅		
+1
+
+resultScheme	
+인증 성공시 앱 스킴	
+[String] “kistestapp://”	appSchemeFlg 가 1일 때 사용
+인증앱의 지원여부에 따라서
+전달가능		
+256
+
+cancelScheme	
+인증 취소시 앱 스킴	
+[String] “kistestapp://”	appSchemeFlg 가 1일 때 사용
+인증앱의 지원여부에 따라서 전달가능		
+256
+payReqType	결제 요청 타입	[String] “1”	1 : 가맹점에서 결제 요청		1
+crctType	현금영수증 타입	[String] “0”	0:미발행 1:소득공제 2:지출증빙
+Default : 1:소득공제		1
+crctNo	현금영수증번호	[String] “01011112222”	휴대폰번호|사업자번호		15
+
+cupDepositAmt	
+컵 보증금	
+[String] 300	숫자만 입력
+컵보증금 항목 사용 시
+- 부분취소 불가		
+15
+ 
+			-	goodsAmt 는 컵 보증금을 포함하여 설정 (goodsAmt = 상품금액 + 컵 보증금)
+-	컬럼 사용시 금액필수		
+*	Apple Pay 지원 기기
+-	iPhone 6s 이상, Face ID 또는 Touch ID가 탑재된 iPad, Touch ID가 탑재된 Mac
+*	Apple Pay 지원 OS
+-	최신 버전의 iOS, iPadOS, watchOS, macOS
+*	discountAmt는 선할인 사용으로 세팅된 상점아이디 이용시 필수값 입니다. 할인금액이 없는 경우라도 0으로 세팅해서 전송해주셔야 정상적으로 처리 가능합니다.
+*	mbsFeeAmt는 가맹점수수료 사용으로 세팅된 상점아이디 이용시 필수값 입니다. 가맹점수수료금액이 없는 경우라도 0으로 세팅해서 전송해주셔야 정상적으로 처리 가능합니다.
+
+3.1.2	인증 결과 수신
+	(payReqType이 1일 경우) 결제창을 통해 인증이 완료되면 결과를 가맹점으로 전달합니다. 인증 결과 파라미터는 아래와 같습니다.
+
+[TABLE] 인증 결과 파라미터(신용카드,계좌이체,가상계좌,휴대폰)
+파라미터명	한글명칭	Data Type	설명	최대 크기(Byte)
+resultCd	결과코드	String	8.2 카드 결과코드 참조	4
+resultMsg	결과메세지	String	결과 메세지	100
+payMethod	지불수단	String	결제 방법	10
+tid	거래번호	String	거래 번호(인증 성공 시 리턴)	30
+ordNo	주문번호	String	가맹점 주문번호	40
+amt	거래금액	String	결제 결과 금액	15
+mbsReserved	가맹점예약필드	String	가맹점 예약 필드	500
+ediDate	전문응답일시	String	인증응답일시(yyyymmddhhmmss)	14
+encData	해시String	String	7.1 인증 / 결제 시 암호화 구성 참조	256
+	인증 요청 후 결과(parameter)를 수신 한 후 이 정보들을 이용하여 승인 요청합니다.
+	수신 시 파라미터명의 대/소문자를 구분하여 처리하시기 바랍니다.
+	인증에 실패하였을 경우에는 결과코드와 결과메시지만 응답합니다.
+
+
+
+
+3.2	승인 요청
+ 
+3.2.1	승인 요청 시 확인 사항
+	Request Body에 Json 형식으로 결제 요청 정보를 설정하고 응답으로 결제 결과를 받습니다.
+	가맹점 Key를 이용하여 해시암호화값을 생성 합니다.
+	승인 요청은 가맹점 서버Side에서 처리되어야 합니다.
+
+	요청 URL
+-	운영계 : https://api.kispg.co.kr/v2/payment
+-	개발계 : https://testapi.kispg.co.kr/v2/payment
+-	가맹점 연동 가이드 및 연동샘플 참고
+
+-	HTTP 정보
+Protocol	Method	Encoding	Content-Type
+HTTP/1.1	POST	UTF-8	application/json
+
+	승인 요청 파라미터는 아래와 같습니다
+[TABLE] 승인 요청 파라미터
+파라미터명	한글명칭	예시
+[Data Type],기본값	설명	필수
+여부	최대크기
+(Byte)
+mid	가맹점ID	[String] "kis000001m"	제공된 mid(10 Byte 고정)	O	10
+
+tid	
+거래번호	[String] kis000001m010120122208
+24180732	
+PG 거래번호	
+O	
+30
+goodsAmt	결제금액	[String] 1004	숫자만 입력	O	15
+
+ediDate	
+전문요청일시	[String] “20210327121212”	전문요청일시 (yyyymmddhhmmss)
+*현재 시각 -10분까지 유효	
+O	
+14
+encData	해시String	[String] “”	7.1 인증 / 결제 시 암호화
+구성 참조	O	256
+charset	인코딩방식	[String] “UTF-8”	UTF-8(default), EUC-KR		5
+ 
+3.2.2	승인 결과 수신
+	승인 결과 파라미터는 아래와 같습니다.
+[TABLE] 승인 결과 파라미터(신용카드,계좌이체,가상계좌,휴대폰)
+파라미터명	한글명칭	Data Type	설명	최대 크기(Byte)
+resultCd	결과코드	String	8.2 카드 결과코드 참조	4
+resultMsg	결과메세지	String	결과 메세지	100
+payMethod	지불수단	String	결제 방법	10
+tid	거래번호	String	거래 번호	30
+appDtm	결제일시	String	결제일시	14
+appNo	승인번호	String	승인번호	20
+ordNo	주문번호	String	주문번호	40
+goodsName	결제 상품명	String	결제 상품명	100
+amt	거래금액	String	결제 결과 금액	15
+ordNm	결제자 이름	String	결제자 이름	30
+fnNm	카드사명	String	카드사명, 은행명	20
+cancelYN	취소여부	String	결제 취소 여부	1
+appCardCd	발급사코드	String	발급사 코드	2
+acqCardCd	매입사코드	String	매입사 코드	2
+quota	카드 할부기간.	String	카드 할부기간	2
+nointFlg	분담무이자구분	String	0: 일반, 1: 상점분담 무이자	1
+usePointAmt	사용 포인트 양	String	사용 포인트 양	12
+cardType	카드타입	String	0 : 신용, 1 : 체크	1
+authType	인증타입	String	01 : Keyin, 02 : ISP, 03 : VISA	2
+cashCrctFlg	현금영수증	String	0 : 사용안함, 1 : 사용	1
+vacntNo	가상계좌 번호	String	가상계좌번호	20
+lmtDay	입금기한	String	입금기한	8
+socHpNo	휴대폰번호	String	휴대폰번호	20
+cardNo	카드번호	String	마스킹 카드번호	20
+mbsReserved	가맹점예약필드	String	가맹점 예약 필드	500
+crctType	현금영수증타입	String	0:미발행 1:소득공제 2:지출증빙	1
+crctNo	현금영수증번호	String	휴대폰번호 | 사업자번호	15
+easyPayCd	간판결제시 코드	String	상세내용 아래 참조	2
+easyPayNm	간편결제사명	String	간편결제사명	가변
+discountType	할인구분	String	00: 미사용, 01: 선할인	2
+discountAmt	할인금액	String	할인금액	15
+mbsFeeType	가맹점수수료구분	String	00: 미사용, 01: 가맹점수수료	2
+mbsFeeAmt	가맹점수수료금액	String	가맹점수수료금액	15
+	승인 요청 후 결제결과(parameter)를 받아 후에 내부처리(DB 저장 등) 하시기 바랍니다
+	수신시 파라미터명을 명확히하여 처리하시기 바랍니다(대/소문자 구분)
+	승인에 실패하였을 경우 실패시 전달되는 데이터만 전송됩니다.
+	간편결제사 코드는 하기와 같습니다.
+ 
+02 : 카카오페이, 01 : 삼성페이, 03 : 페이코, 04 : skpay
+05 : 네이버페이, 06 : SSGPAY, 07 : LPAY, 09 : ApplePay
+
+3.3	결제 취소
+3.3.1	결제 취소 요청 데이터
+	내부 처리용 데이터 별도 저장
+-	form 데이터 처리가 필요한 경우 페이지 표시전에 별도로 DB 또는 세션 등에 저장해 두시기 바랍니다.
+	가맹점 Key 값 설정
+	웹 표준 결제 이용시 패스워드 기능을 하는 코드로 MID 번호별로 부여
+
+
+	요청 URL
+-	운영 : https://api.kispg.co.kr/v2/cancel
+-	테스트 : https://testapi.kispg.co.kr/v2/cancel
+-	가맹점 연동 가이드 및 연동샘플 참고
+
+-	HTTP 정보
+Protocol	Method	Encoding	Content-Type
+HTTP/1.1	POST	UTF-8	application/json
+
+	결제 취소 요청 파라미터는 아래와 같습니다.
+
+[TABLE] 취소 요청 파라미터
+파라미터명	한글명칭	예시
+[Data Type], 기본값	설명	필수
+여부	최대크기
+(Byte)
+payMethod	결제 방법	[String]"card"	결제 방법(card,bank,vacnt)	O	10
+tid	거래번호	[String]	거래 번호	O	30
+mid	가맹점ID	[String] "kis000001m"	제공된 mid(10 Byte 고정)	O	10
+ordNo	주문번호	[String] “1335233672723”	주문번호		40
+canAmt	취소금액	[String] 1004	숫자만 입력, 원화만 가능	O	15
+ 
+canId	취소자ID	[String] "testId"	한글/특수기호 입력가능		20
+canNm	취소자명	[String] “홍길동”	취소자 이름		30
+canMsg	취소사유	[String] “고객요청”	취소사유	O	100
+canIp	취소 아이피	[String] ”127.0.0.1” or
+“0:0:0:0:0:0:0:1”	취소 아이피(IPv4, IPv6 지원)		20
+partCanFlg	부분취소여부	[String] ”0	0 : 전체취소, 1 : 부분취소	O	1
+refundBankCd	환불은행	[String] “004”	환불일 때 필수		3
+refundAccnt	환불계좌	[String] “123456789”	환불일 때 필수		20
+refundNm	환불 계좌주	[String] “임꺽정”	환불일 때 필수		30
+encData	해시String	[String] “”	7.2 결제 취소 시 암호화 구성 참조	O	255
+ediDate	전문요청일시	[String] “20210324121212”	전문요청일시(yyyymmddhhmmss)
+*현재 시각 -10분까지 유효	O	14
+goodsSplAmt	공급가	[String] 1004	숫자만 입력
+대상:‘전송금액기준’ 설정업체에 한함		15
+goodsVat	부가세	[String] 1004	숫자만 입력
+대상: ‘전송금액기준’ 설정업체에 한함		15
+goodsSvsAmt	상품 봉사료	[String] 1004	숫자만 입력
+대상:‘전송금액기준’ 설정업체에 한함		15
+charset	인코딩방식	[String] “UTF-8”	UTF-8(default), EUC-KR		10
+mbsReserved	가맹점예약필드	[String] “”	가맹점에서 자유롭게 사용할 수 있는
+필드로 결과에 동일한 값을 리턴		500
+
+3.3.2	결제취소 결과 수신 (결제취소완료)
+	취소가 완료되면 결과를 Response Body에 JSON 형식으로 가맹점으로 전달합니다. 응답 결과는 아래와 같습니다.
+
+[TABLE] 결제취소 응답 파라미터
+파라미터명	한글명칭	Data Type	설명	최대크기
+(Byte)
+resultCd	결과코드	String	8.3 취소 결과 코드 참조	4
+resultMsg	결과메세지	String	결과 메세지	100
+payMethod	지불수단	String	결제 방법	10
+tid	거래번호	String	거래 번호	30
+appDtm	결제일시	String	결제일시	14
+appNo	승인번호	String	승인번호	20
+ordNo	주문번호	String	주문번호	40
+amt	거래금액	String	결제결과 금액	15
+cancelYN	취소여부	String	결제 취소 여부	1
+mbsReserved	가맹점예약필드	String	취소 완료 시 리턴	500
+
+	결제 취소 후 취소결과(responseBody)를 받아 내부처리(DB 저장 등) 하시기 바랍니다.
+ 
+	수신시 전송 파라미터명을 명확히하여 처리하시기 바랍니다. (파라미터명 대/소문자 구분)
+	결제취소에 실패하였을 경우 실패시 전달되는 데이터만 전송됩니다.
+	가맹점의 back-end 서버에서 httpClient 통신으로 처리 하시기 바랍니다.
+3.4	결제 내역 조회
+3.4.1	결제 내역 조회 요청 데이터
+	요청 URL
+-	운영 : https://api.kispg.co.kr/v2/order
+-	테스트 : https://testapi.kispg.co.kr/v2/order
+
+-	HTTP 정보
+Protocol	Method	Encoding	Content-Type
+HTTP/1.1	POST	UTF-8	application/json
+
+	결제 내역 조회 요청 파라미터는 아래와 같습니다.
+
+[TABLE] 결제 내역 조회 요청 파라미터
+파라미터명	한글명칭	예시
+[Data Type], 기본값	설명	필수
+여부	최대크기
+(Byte)
+mid	가맹점ID	[String] "kis000001m"	제공된 mid(10 Byte 고정)	O	10
+tid	거래번호	[String]	거래번호/주문번호 중 1개 필수		30
+ordNo	주문번호	[String] “1335233672723”	거래번호/주문번호 중 1개 필수		40
+goodsAmt	결제금액	[String] “1004”	숫자만 입력, 원화만 가능	O	15
+encData	해시String	[String] “”	7.1 참조	O	255
+ediDate	전문요청일시	[String] “20210324121212”	전문요청일시(yyyymmddhhmmss)
+*현재 시각 -10분까지 유효	O	14
+* 거래번호와 주문번호를 둘 다 넘길 경우 거래번호를 기준으로 검색합니다.
+
+3.4.2	결제 내역 조회 결과 수신
+	결과 파라미터는 아래와 같습니다.
+[TABLE] 결제 내역 조회 결과 파라미터
+파라미터명	한글명칭	Data Type	설명	최대 크기(Byte)
+resultCd	결과코드	String	8.2 카드 결과코드 참조	4
+resultMsg	결과메세지	String	결과 메세지	100
+payMethod	지불수단	String	결제 방법	10
+tid	거래번호	String	거래 번호	30
+appDtm	결제일시	String	결제일시	14
+appNo	승인번호	String	승인번호	20
+ 
+ordNo	주문번호	String	주문번호	40
+goodsName	결제 상품명	String	결제 상품명	100
+amt	거래금액	String	결제 결과 금액	15
+ordNm	결제자 이름	String	결제자 이름	30
+fnNm	카드사명	String	카드사명, 은행명	20
+cancelYN	취소여부	String	결제 취소 여부	1
+appCardCd	발급사코드	String	발급사 코드	2
+acqCardCd	매입사코드	String	매입사 코드	2
+quota	카드 할부기간.	String	카드 할부기간	2
+usePointAmt	사용 포인트 양	String	사용 포인트 양	12
+cardType	카드타입	String	0 : 신용, 1 : 체크	1
+authType	인증타입	String	01 : Keyin, 02 : ISP, 03 : VISA	2
+socHpNo	휴대폰번호	String	휴대폰번호	20
+cardNo	카드번호	String	마스킹 카드번호	20
+mbsReserved	가맹점예약필드	String	가맹점 예약 필드	500
+cancelData	취소 내역	String	부분취소 내역(Json 형식으로 리턴)	
+선할인 사용 시
+discountType	할인구분	String	00: 미사용, 01: 선할인 (선할인 사용시에만	2
+discountAmt	할인금액	String	할인금액	15
+가맹점수수료 사용 시
+mbsFeeType	가맹점수수료구분	String	00: 미사용, 01: 가맹점수수료	2
+mbsFeeAmt	가맹점수수료금액	String	가맹점수수료금액	15
+계좌이체, 가상계좌 거래 조회 성공 시
+cashCrctFlg	현금영수증	String	0 : 사용안함, 1 : 사용	1
+crctType	현금영수증타입	String	0 : 미발행, 1 : 소득공제, 2 : 지출증빙	1
+crctNo	현금영수증번호	String	휴대폰번호 | 사업자번호	15
+가상계좌 거래 조회 성공 시
+vacntNo	가상계좌 번호	String	가상계좌번호	20
+lmtDay	입금기한	String	입금기한	8
+trxStatus	결제 상태	String	결제 상태 - ‘승인’ || ‘취소’ || ‘입금대기’	12
+*	부분취소 시에도 결제 상태는 ‘승인’으로 응답합니다.
+*	부분취소 시에는 cancelData를 확인바랍니다. cancelData 샘플
+ 
+4.	앱 환경의 적용(안드로이드)
+4.1	기본적인 설치 방법
+	안드로이드 앱 내 WebView (이하 WebView) 에서 KISPG를 구현하는 경우에 해당됩니다.
+
+4.2	환경설정
+	AndroidManifest.xml 파일에 네트워크 사용 권한 및 앱 접근 권한 설정
+
+	네트워크 사용 권한 설정
+
+
+	앱 접근 권한 설정 (4.4 안드로이드 패키지명 참조)
+
+
+4.3	연동방식
+	KISPG 통합 결제창을 이용하여 안드로이드 webView 형태의 하이브리드 앱 연동 지원
+	webView설정 및 javascript 기능 설정
+
+ 
+	쿠키설정
+
+
+	WebView 가맹점 주문 URL 로드
+
+
+	URI 및 Intent 처리
+계좌이체, 가상계좌 결과코드 추가
+
+ 
+
+ 
+ 
+4.4	참고사항 (Android App 패키지명)
+■	신용카드
+카드사	Android App 패키지명
+삼성카드	kr.co.samsungcard.mpocket
+삼성 monimo	net.ib.android.smcard
+신한카드	com.shcard.smartpay
+신한카드(ARS/일반결제/Smart결제)	com.shinhancard.smartshinhan
+신한 슈퍼SOL	com.shinhan.smartcaremgr
+국민카드	com.kbcard.cxh.appcard
+LiiV(국민카드)	com.kbstar.liivbank
+NewLiib(뉴리브)	com.kbstar.reboot
+KB 스타뱅킹	com.kbstar.kbbank
+BC카드	kvp.jjy.MispAndroid320
+하나카드	com.hanaskcard.paycla
+하나카드(멤버스결제)	kr.co.hanamembers.hmscustomer
+롯데카드	com.lcacApp
+NH카드	nh.smart.nhallonepay
+우리카드	com.wooricard.smartapp
+현대카드	com.hyundaicard.appcard
+씨티카드	kr.co.citibank.citimobile
+
+■	계좌이체
+계좌이체 원천사	Android App 패키지명
+금결원	com.kftc.bankpay.android
+
+■	간편결제
+간편결제사	Android App 패키지명
+카카오페이	com.kakao.talk
+페이코	com.nhnent.payapp
+SSG	com.ssg.serviceapp.android.egiftcertificate
+성페이	com.samsung.android.spay
+성페이 미니	com.samsung.android.spaylite
+ 
+■	본인인증(PASS)
+본인인증 원천사	Android App 패키지명
+SKT	com.sktelecom.tauth
+KT	com.kt.ktauth
+LGT	com.kt.ktauthp
+■	공인인증(신용카드 결제시)
+카드사(인증)	Android App 패키지명
+하나카드	com.hanaskcard.rocomo.potal
+공동인증서	com.lumensoft.touchenappfree
+
+■	백신(신용카드 결제시)
+백신	Android App 패키지명
+
+백신	com.TouchEn.mVaccine.webs
+	com.ahnlab.v3mobileplus
+	kr.co.shiftworks.vguardweb
+ 
+5.	앱 환경의 적용(iOS)
+5.1	기본적인 설치방법
+	iOS 어플리케이션 내 WebView (이하 WebView) 에서 KISPG를 구현하는 방법을 안내합니다.
+	WebView에서 KISPG를 띄우는 방식은 안드로이드와 방법과 동일합니다. 이에 이번 장에서는 mobileISP 앱 호출시 주의사항, 카드사 백신 앱 스키마 호출 및 “미설치 시, 앱스토어 이동 이슈” 등의 내용을 주로 다룹니다.
+
+5.2	환경설정
+		Apple 보안 정책에 의해 info.plist 파일의 LSApplicationQueriesSchemes 옵션에 URL Scheme을 미리 등록해야 연동이 가능합니다.
+
+	URL Scheme 설정 (5.4 IOS URL Scheme 참조)
+
+ 
+5.3	연동방식
+	안심클릭 결제 진행에 필요한 Application(앱카드 등의) 호출이 필요할 경우 아래 샘플코드를 참고 바랍니다. (해당 샘플은 참고용으로 각 가맹점앱에 맞게 구현하시면 됩니다.)
+
+	KISPG의 WebView는 IOS 4.X이상의 버전에서 작동하지만 카드사 등의 보안정책 등으로 OS버전에 따른 결제 제약이 있을 수 있습니다.
+
+	결제페이지 호출
+
+
+	자바스크립트 팝업 처리
+
+ 
+
+	요청 URL 처리
+
+ 
+5.4	참고사항 (IOS URL Scheme)
+■	신용카드
+카드사	IOS URL Scheme
+신한앱카드결제	shinhan-sr-ansimclick://
+신한카드 엘페이	shinhan-sr-ansimclick-lpay://
+신한카드 네이버페이	shinhan-sr-ansimclick-naverpay://
+신한카드 페이코	shinhan-sr-ansimclick-payco://
+신한카드일반결제	smshinhanansimclick://
+현대앱카드결제	hdcardappcardansimclick://
+현대카드 앱카드	hyundaicardappcard://
+현대카드일반결제	smhyundaiansimclick://
+현대카드 엠포인트몰	mpointmallappcard://
+삼성앱카드결제	mpocket.online.ansimclick://
+삼성카드 monimo	monimopay://
+monimopayauth://
+삼성카드일반결제	scardcertiapp://
+하나앱카드결제	cloudpay://
+농협앱카드결제	nhappcardansimclick://
+농협카드일반결제	nonghyupcardansimclick://
+KB앱카드결제(KBPay)	kb-acp://
+KB 스타뱅킹	kbbank://
+KB Next	newliiv://
+롯데앱카드결제	lotteappcard://
+롯데카드스마트결제	lottesmartpay://
+롯데카드LPAY	lpayapp://
+시티앱카드결제	citispay://
+ISP인증결제	ispmobile://
+농협카드올원페이결제	nhallonepayansimclick://
+시티앱카드 모바일결제	citimobileapp://
+하나카드일반결제	hanaskcardmobileportal://
+우리앱카드결제	wooripay://
+우리앱카드결제(리뉴얼)	com.wooricard.wcard://
+ 
+하나멤버스월렛	hanawalletmembers://
+우리WON뱅킹 앱	NewSmartPib://
+
+
+■	간편결제
+간편결제사	IOS URL Scheme
+카카오페이	kakaotalk://
+페이코	payco://
+SSG-PAY 결제	shinsegaeeasypayment://
+
+■	본인인증(PASS)
+본인인증 원천사	IOS URL Scheme
+SKT 본인인증(PASS) APP	tauthlink://
+KT 본인인증(PASS) APP	ktauthexternalcall://
+LG U+ 본인인증(PASS) APP	upluscorporation://
+ 
+6.	모바일 환경 적용 시 유의사항
+
+6.1	네이버/카카오톡 앱 환경 최적화 issue
+	네이버/카카오 앱에서는 해당 앱 특성에 따라, 당사 결제창을 띄울 때, 새 창(_blank)을 띄울 경우, 정상적으로 결제가 진행되지 않을 수 있습니다. 따라서 가맹점 플랫폼에서, 당사 결제 창을 띄울 때, 새창이 아닌, _self 형태로 띄워주시길 권장합니다.
+
+6.2	안드로이드/IOS 앱 USER AGENT 수정
+	신용카드 결제 시 각 카드사 ACS페이지에서는 사용자의 USER AGENT를 검증하고 있습니다 (검증방식은 카드사별 상이). 가맹점 앱에서 USER AGENT를 임의로 변경하는 경우, 카드사 인증실패가 발생할 수 있으니 이점 유의 바랍니다.
+
+6.3	아이폰 3rd party(제3 공급자) 앱브라우저 결제 issue
+	iOS 기본 브라우저인 Safari 외 앱브라우저(다음, 네이버, 크롬, 페이스북 등) 에서 ISP 결제 진행 시, ISP 앱에서 인증 완료 후 결제를 진행한 브라우저 앱이 아닌 Safari 브라우저로 돌아 가는 이슈가 있습니다. 브라우저 앱에서 결제를 진행하는 경우, 앱브라우저의 user-agent를 확인하여 P_RESERVED에 app_scheme={앱스키마}:// 형태를 설정하시면 해당 이슈가 해결 됩니다
+	확인된 App Scheme
+다음	daumapps://
+네이버	naversearchapp://
+크롬	googlechromes://
+페이스북	fb://
+카카오톡	kakaotalk://
+ 
+7.	암호화
+7.1	인증 / 결제 시 해시 암호화 구성
+파라미터	암호화 방식
+encData	Hex(Sha256)	mid + ediDate + goodsAmt + 가맹점 Key(merchantKey)
+
+
+7.2	결제 취소 시 해시 암호화 구성
+파라미터	암호화 방식
+encData	Hex(Sha256)	mid + ediDate + canAmt + 가맹점 Key(merchantKey)
+
+
+ 
+8.	결과 코드
+8.1	주의사항
+	제공 되는 결과 코드에 기재되어 있지 않은 결과 코드는 파트너 업체의 코드를 그대로 전달하고 있습니다. 해당 사항에 포함되는 건은 개인 정보 확인이 필요 할 수 있으며, 사용자(결제자)가 파트너 업체(카드사, 통신사, 은행)를 통해 직접 확인이 필요할 수 있습니다. 필요 시 itsupport@kispg.co.kr로 tid, ordNo, mid, ediDate를 전달 바랍니다.
+	각 지불 수단별 성공 코드를 제외하고 사전에 공지 없이 결과 코드가 추가/삭제 될 수 있습니다.
+8.2	결과 코드
+KISPG 결과코드 조회 사이트 바로가기
+
+9 금융사 코드
+카드사 코드
+코드	카드사		코드	카드사
+01	비씨		27	해외다이너스
+02	국민		28	해외AMAX
+03	하나		29	해외JCB
+04	삼성		30	해외
+06	신한		32	우체국
+07	현대		33	MG새마을체크
+08	롯데		34	중국은행체크
+11	시티		38	은련
+12	NH농협		39	PAYCO포인트
+13	수협		41	신협
+15	우리		42	저축은행
+21	광주		43	KDB산업
+22	전북		44	카카오뱅크
+23	제주		45	케이뱅크
+25	해외비자		46	카카오머니
+26	해외마스터		47	SSG머니
+ 
+은행(증권사) 코드
+ 
+076	신용보증기금		291	신영증권
+077	기술보증기금		292	케이프투자증권
+081	하나은행		293	한국증권금융
+088	신한은행		294	한국포스증권
+089	케이뱅크		295	우리종합금융
+090	카카오뱅크		299	우리금융캐피탈
+092	토스혁신준비법인			
+
+가상계좌 은행코드
+코드	은행명		코드	은행명
+003	기업		032	부산
+004	국민		034	광주
+005	외환		037	전북
+007	수협		039	경남
+011	농협		045	새마을금고
+020	우리		071	우체국
+023	SC제일		081	하나
+027	한국씨티		088	신한
+031	대구		089	케이뱅크
+
+통신사코드
+코드	통신사		코드	통신사
+SKT	SKT		LGT	LGU+
+KTF	KT			
+
+간편결제 인증사 코드

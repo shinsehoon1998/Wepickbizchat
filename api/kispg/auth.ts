@@ -86,12 +86,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? 'https://api.kispg.co.kr/v2/auth'
       : 'https://testapi.kispg.co.kr/v2/auth';
 
+    const userAgent = req.headers['user-agent'] || '';
+    const isMobile = /Mobile|Android|iPhone|iPad/i.test(userAgent);
+
     const authParams = {
       payMethod: 'CARD',
-      model: '1',
+      model: isMobile ? 'MOB' : 'WEB',
       trxCd: '0',
       mid,
       goodsNm: 'BizChat 잔액 충전',
+      currencyType: 'KRW',
       ordNo,
       goodsAmt,
       ordNm: auth.email?.split('@')[0] || '고객',
