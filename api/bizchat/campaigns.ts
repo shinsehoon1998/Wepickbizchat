@@ -347,15 +347,15 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
     title: message?.title || '',
     msg: message?.content || '',
     fileInfo: mmsFileInfo,
+    urlFile: message?.urlFile || '', // 필수 필드: 사용하지 않을 때 빈 문자열 (문서 규격)
     urlLink: mmsUrlLink,
   };
 
-  // MMS 개별 URL 파일 (CSV)
-  if (message?.urlFile) {
+  // MMS 개별 URL 파일 리워드 (urlFile 사용 시)
+  if (message?.urlFile && message?.urlFileReward !== undefined) {
     payload.mms = {
       ...payload.mms as object,
-      urlFile: message.urlFile,
-      urlFileReward: message?.urlFileReward,
+      urlFileReward: message.urlFileReward,
     };
   }
 
@@ -389,16 +389,20 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
         ? { list: buttonList }
         : {}; // 버튼이 없으면 빈 객체 {} (문서 규격)
         
+      // 상품소개세로(rcsType=5) 옵션 구성 (없으면 빈 객체 {})
+      const opts = slide.opts && slide.opts.list && slide.opts.list.length > 0
+        ? slide.opts
+        : {}; // 상품소개세로가 아니면 빈 객체 {} (문서 규격)
+        
       return {
         slideNum: slide.slideNum || idx + 1,
         title: slide.title || message?.title || '',
         msg: slide.msg || slide.content || message?.content || '',
         imgOrigId: slide.imgOrigId || slide.imageUrl,
-        urlFile: slide.urlFile,
-        urlFileReward: slide.urlFileReward,
+        urlFile: slide.urlFile || '', // 필수 필드: 사용하지 않을 때 빈 문자열 (문서 규격)
         urlLink,
         buttons,
-        opts: slide.opts, // 상품소개세로 옵션
+        opts, // 상품소개세로 옵션 (없으면 빈 객체)
       };
     });
   } else {

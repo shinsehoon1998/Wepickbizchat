@@ -604,6 +604,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         fileInfo: (needsFile && message?.imageUrl) 
           ? { list: [{ origId: message.imageUrl }] } 
           : {}, // 파일이 없으면 빈 객체 {} (문서 규격)
+        urlFile: (message as any)?.urlFile || '', // 필수 필드: 실제 값 있으면 사용, 없으면 빈 문자열 (문서 규격)
         urlLink: mmsUrlLink,
       };
       
@@ -619,8 +620,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         title: message?.title || '',
         msg: message?.content || '',
         imgOrigId: (needsFile && message?.imageUrl) ? message.imageUrl : undefined,
+        urlFile: (message as any)?.rcsUrlFile || '', // 필수 필드: 실제 값 있으면 사용, 없으면 빈 문자열 (문서 규격)
         urlLink: rcsUrlLink,
-        buttons: {}, // 버튼이 없으면 빈 객체 {} (문서 규격)
+        buttons: (message as any)?.rcsButtons?.length > 0 
+          ? { list: (message as any).rcsButtons.map((btn: any) => ({ ...btn, type: String(btn.type) })) }
+          : {}, // 버튼이 없으면 빈 객체 {} (문서 규격)
+        opts: (message as any)?.rcsOpts?.list?.length > 0 
+          ? (message as any).rcsOpts 
+          : {}, // 상품소개세로가 아니면 빈 객체 {} (문서 규격)
       }] : []; // LMS/MMS일 때는 빈 배열 [] (문서 예제 참고)
 
       const createPayload: Record<string, unknown> = {
@@ -793,6 +800,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           fileInfo: (needsFile && message?.imageUrl) 
             ? { list: [{ origId: message.imageUrl }] } 
             : {}, // 파일 없으면 빈 객체 {} (문서 규격)
+          urlFile: (message as any)?.urlFile || '', // 필수 필드: 실제 값 있으면 사용, 없으면 빈 문자열 (문서 규격)
           urlLink: updateMmsUrlLink,
         },
       };
@@ -808,8 +816,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           title: message?.title || '',
           msg: message?.content || '',
           imgOrigId: (needsFile && message?.imageUrl) ? message.imageUrl : undefined,
+          urlFile: (message as any)?.rcsUrlFile || '', // 필수 필드: 실제 값 있으면 사용, 없으면 빈 문자열 (문서 규격)
           urlLink: updateRcsUrlLink,
-          buttons: {}, // 버튼이 없으면 빈 객체 {} (문서 규격)
+          buttons: (message as any)?.rcsButtons?.length > 0 
+            ? { list: (message as any).rcsButtons.map((btn: any) => ({ ...btn, type: String(btn.type) })) }
+            : {}, // 버튼이 없으면 빈 객체 {} (문서 규격)
+          opts: (message as any)?.rcsOpts?.list?.length > 0 
+            ? (message as any).rcsOpts 
+            : {}, // 상품소개세로가 아니면 빈 객체 {} (문서 규격)
         }];
       } else {
         // LMS/MMS일 때도 rcs 필드는 빈 배열로 포함 (문서 예제 참고)

@@ -222,6 +222,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         title: template.title || '',
         msg: template.content || '',
         fileInfo: template.imageFileId ? { list: [{ origId: template.imageFileId }] } : {},
+        urlFile: '', // 필수 필드: 사용하지 않을 때 빈 문자열 (문서 규격)
         urlLink: {},
       },
       rcs: [],
