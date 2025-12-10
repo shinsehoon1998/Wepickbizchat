@@ -227,7 +227,7 @@ function buildATSMosuPayload(params: TargetingParams): { payload: { '$and': ATSF
     descParts.push(`앱/웹: ${categoryDesc}`);
   }
 
-  // 6. 통화Usage 카테고리 (metaType: call, dataType: cate)
+  // 6. 통화Usage 카테고리 (metaType: TEL, dataType: cate)
   // BizChat ATS mosu 형식: cat1/cat2/cat3에 카테고리 이름 사용 (cateid 코드가 아님!)
   if (params.callCategories && params.callCategories.length > 0) {
     // 카테고리 이름으로 API 페이로드 구성 (API 규격 v0.29.0)
@@ -248,7 +248,7 @@ function buildATSMosuPayload(params: TargetingParams): { payload: { '$and': ATSF
     conditions.push({
       data: categoryData,
       dataType: 'cate',
-      metaType: 'call',  // BizChat ATS mosu API 규격: 통화Usage는 'call'
+      metaType: 'TEL',  // BizChat ATS mosu API 규격: 통화Usage는 'TEL' (대문자)
       code: '',
       desc: `통화: ${categoryDesc}`,
       not: false,
