@@ -1,79 +1,274 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-function getSimulatedAtsMeta(metaType: string) {
-  switch (metaType) {
-    case "11st":
-      return [
-        { categoryCode: "11ST_001", categoryName: "패션/의류", level: 1, parentCode: null },
-        { categoryCode: "11ST_002", categoryName: "뷰티/화장품", level: 1, parentCode: null },
-        { categoryCode: "11ST_003", categoryName: "디지털/가전", level: 1, parentCode: null },
-        { categoryCode: "11ST_004", categoryName: "식품/건강", level: 1, parentCode: null },
-        { categoryCode: "11ST_005", categoryName: "생활/주방", level: 1, parentCode: null },
-        { categoryCode: "11ST_006", categoryName: "스포츠/레저", level: 1, parentCode: null },
-        { categoryCode: "11ST_007", categoryName: "유아/출산", level: 1, parentCode: null },
-        { categoryCode: "11ST_008", categoryName: "도서/문구", level: 1, parentCode: null },
-      ];
-    case "webapp":
-      return [
-        { categoryCode: "APP_001", categoryName: "금융/은행", level: 1, parentCode: null },
-        { categoryCode: "APP_002", categoryName: "쇼핑", level: 1, parentCode: null },
-        { categoryCode: "APP_003", categoryName: "게임", level: 1, parentCode: null },
-        { categoryCode: "APP_004", categoryName: "음악/동영상", level: 1, parentCode: null },
-        { categoryCode: "APP_005", categoryName: "소셜/커뮤니티", level: 1, parentCode: null },
-        { categoryCode: "APP_006", categoryName: "여행/교통", level: 1, parentCode: null },
-        { categoryCode: "APP_007", categoryName: "배달/음식", level: 1, parentCode: null },
-        { categoryCode: "APP_008", categoryName: "건강/운동", level: 1, parentCode: null },
-      ];
-    case "call":
-      return [
-        { categoryCode: "CALL_001", categoryName: "고빈도 통화자 (월 100회+)", level: 1, parentCode: null },
-        { categoryCode: "CALL_002", categoryName: "중빈도 통화자 (월 30-100회)", level: 1, parentCode: null },
-        { categoryCode: "CALL_003", categoryName: "저빈도 통화자 (월 30회 미만)", level: 1, parentCode: null },
-        { categoryCode: "CALL_004", categoryName: "장시간 통화자 (평균 5분+)", level: 1, parentCode: null },
-        { categoryCode: "CALL_005", categoryName: "단시간 통화자 (평균 2분 미만)", level: 1, parentCode: null },
-        { categoryCode: "CALL_006", categoryName: "비즈니스 통화 패턴", level: 1, parentCode: null },
-      ];
-    case "loc":
-      return [
-        { categoryCode: "LOC_001", categoryName: "출퇴근 패턴 (9-6)", level: 1, parentCode: null },
-        { categoryCode: "LOC_002", categoryName: "야간 활동 (18-24시)", level: 1, parentCode: null },
-        { categoryCode: "LOC_003", categoryName: "주말 활동 중심", level: 1, parentCode: null },
-        { categoryCode: "LOC_004", categoryName: "상업지구 빈번 방문", level: 1, parentCode: null },
-        { categoryCode: "LOC_005", categoryName: "주거지역 중심", level: 1, parentCode: null },
-        { categoryCode: "LOC_006", categoryName: "대중교통 이용자", level: 1, parentCode: null },
-        { categoryCode: "LOC_007", categoryName: "자가용 이용자", level: 1, parentCode: null },
-      ];
-    case "filter":
-      return [
-        { categoryCode: "DEVICE_ANDROID", categoryName: "Android 기기", level: 1, parentCode: null, metadata: { type: "device" } },
-        { categoryCode: "DEVICE_IOS", categoryName: "iOS 기기", level: 1, parentCode: null, metadata: { type: "device" } },
-        { categoryCode: "CARRIER_5G", categoryName: "5G 이용자", level: 1, parentCode: null, metadata: { type: "carrier" } },
-        { categoryCode: "CARRIER_LTE", categoryName: "LTE 이용자", level: 1, parentCode: null, metadata: { type: "carrier" } },
-        { categoryCode: "PLAN_UNLIMITED", categoryName: "무제한 요금제", level: 1, parentCode: null, metadata: { type: "plan" } },
-        { categoryCode: "PLAN_DATA", categoryName: "데이터 요금제", level: 1, parentCode: null, metadata: { type: "plan" } },
-      ];
-    default:
-      return [];
+const BIZCHAT_DEV_URL = 'https://gw-dev.bizchat1.co.kr:8443';
+const BIZCHAT_PROD_URL = 'https://gw.bizchat1.co.kr:8443';
+
+function getBizChatUrl() {
+  return process.env.BIZCHAT_USE_PROD === 'true' ? BIZCHAT_PROD_URL : BIZCHAT_DEV_URL;
+}
+
+function getBizChatApiKey() {
+  return process.env.BIZCHAT_USE_PROD === 'true' 
+    ? process.env.BIZCHAT_PROD_API_KEY 
+    : process.env.BIZCHAT_DEV_API_KEY;
+}
+
+// 11번가 카테고리 메타 조회 (계층적)
+async function fetch11stCategories(cateid?: string): Promise<any> {
+  const tid = Date.now().toString();
+  const apiKey = getBizChatApiKey();
+  
+  if (!apiKey) {
+    throw new Error('BizChat API key not configured');
   }
+
+  const url = `${getBizChatUrl()}/api/v1/ats/meta/11st?tid=${tid}`;
+  const body: any = {};
+  if (cateid) {
+    body.cateid = cateid;
+  }
+
+  console.log('[ATS Meta 11st] Fetching categories:', { cateid, url });
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`BizChat API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('[ATS Meta 11st] Response:', JSON.stringify(data).substring(0, 500));
+
+  if (data.code !== 'S000001') {
+    throw new Error(`BizChat API error: ${data.code} - ${data.msg}`);
+  }
+
+  // BizChat 형식을 UI 형식으로 변환
+  // BizChat: { list: [{ id: "01", name: "가구/인테리어" }] }
+  // UI: [{ id: "01", name: "가구/인테리어", cateid: "01" }]
+  return {
+    metaType: data.data?.metaType || 'STREET',
+    dataType: data.data?.dataType || 'cate',
+    list: (data.data?.list || []).map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      cateid: item.id,
+    })),
+  };
+}
+
+// 웹앱 카테고리 메타 조회
+async function fetchWebappCategories(cateid?: string): Promise<any> {
+  const tid = Date.now().toString();
+  const apiKey = getBizChatApiKey();
+  
+  if (!apiKey) {
+    throw new Error('BizChat API key not configured');
+  }
+
+  const url = `${getBizChatUrl()}/api/v1/ats/meta/webapp?tid=${tid}`;
+  const body: any = {};
+  if (cateid) {
+    body.cateid = cateid;
+  }
+
+  console.log('[ATS Meta webapp] Fetching categories:', { cateid, url });
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`BizChat API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('[ATS Meta webapp] Response:', JSON.stringify(data).substring(0, 500));
+
+  if (data.code !== 'S000001') {
+    throw new Error(`BizChat API error: ${data.code} - ${data.msg}`);
+  }
+
+  return {
+    metaType: data.data?.metaType || 'APP',
+    dataType: data.data?.dataType || 'cate',
+    list: (data.data?.list || []).map((item: any) => ({
+      id: item.id,
+      name: item.name,
+      cateid: item.id,
+    })),
+  };
+}
+
+// 위치 코드 검색 (법정동/행정동)
+async function fetchLocationCodes(addr: string): Promise<any> {
+  const tid = Date.now().toString();
+  const apiKey = getBizChatApiKey();
+  
+  if (!apiKey) {
+    throw new Error('BizChat API key not configured');
+  }
+
+  const url = `${getBizChatUrl()}/api/v1/ats/meta/loc?tid=${tid}`;
+  const body = { addr };
+
+  console.log('[ATS Meta loc] Searching location:', { addr, url });
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`BizChat API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('[ATS Meta loc] Response:', JSON.stringify(data).substring(0, 500));
+
+  if (data.code !== 'S000001') {
+    throw new Error(`BizChat API error: ${data.code} - ${data.msg}`);
+  }
+
+  // 법정동(list)과 행정동(listR) 모두 반환
+  return {
+    list: data.data?.list || [],
+    listR: data.data?.listR || [],
+  };
+}
+
+// 필터 메타 조회 (svc/loc/pro)
+async function fetchFilterMeta(filterType: string): Promise<any> {
+  const tid = Date.now().toString();
+  const apiKey = getBizChatApiKey();
+  
+  if (!apiKey) {
+    throw new Error('BizChat API key not configured');
+  }
+
+  const url = `${getBizChatUrl()}/api/v1/ats/meta/filter?tid=${tid}&type=${filterType}`;
+  const body = { type: filterType };
+
+  console.log('[ATS Meta filter] Fetching filter meta:', { filterType, url });
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`BizChat API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log('[ATS Meta filter] Response:', JSON.stringify(data).substring(0, 500));
+
+  if (data.code !== 'S000001') {
+    throw new Error(`BizChat API error: ${data.code} - ${data.msg}`);
+  }
+
+  // 필터 메타 형식:
+  // { metaType: "svc", list: [{ name, desc, code, dataType, min, max, unit, attributes }] }
+  return {
+    metaType: data.data?.metaType || filterType,
+    list: data.data?.list || [],
+  };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const { metaType } = req.query;
+  const { metaType, cateid, addr, filterType } = req.query;
   
   if (typeof metaType !== 'string') {
     return res.status(400).json({ error: 'Invalid meta type' });
   }
 
-  const validTypes = ["11st", "webapp", "call", "loc", "filter"];
-  
-  if (!validTypes.includes(metaType)) {
-    return res.status(400).json({ error: 'Invalid meta type' });
-  }
+  try {
+    switch (metaType) {
+      case '11st': {
+        // 11번가 카테고리 조회
+        const cateIdStr = typeof cateid === 'string' ? cateid : undefined;
+        const result = await fetch11stCategories(cateIdStr);
+        return res.status(200).json(result);
+      }
 
-  const simulatedMeta = getSimulatedAtsMeta(metaType);
-  return res.status(200).json(simulatedMeta);
+      case 'webapp': {
+        // 웹앱 카테고리 조회
+        const cateIdStr = typeof cateid === 'string' ? cateid : undefined;
+        const result = await fetchWebappCategories(cateIdStr);
+        return res.status(200).json(result);
+      }
+
+      case 'loc': {
+        // 위치 검색
+        if (req.method === 'POST') {
+          const addrStr = req.body?.addr || '';
+          if (!addrStr) {
+            return res.status(400).json({ error: 'addr is required' });
+          }
+          const result = await fetchLocationCodes(addrStr);
+          return res.status(200).json(result);
+        } else {
+          // GET: 광역시도 목록 반환 (하드코딩 - BizChat은 검색만 지원)
+          return res.status(200).json({
+            list: [
+              { hcode: '11', name: '서울' },
+              { hcode: '26', name: '부산' },
+              { hcode: '27', name: '대구' },
+              { hcode: '28', name: '인천' },
+              { hcode: '29', name: '광주' },
+              { hcode: '30', name: '대전' },
+              { hcode: '31', name: '울산' },
+              { hcode: '36', name: '세종' },
+              { hcode: '41', name: '경기' },
+              { hcode: '42', name: '강원' },
+              { hcode: '43', name: '충북' },
+              { hcode: '44', name: '충남' },
+              { hcode: '45', name: '전북' },
+              { hcode: '46', name: '전남' },
+              { hcode: '47', name: '경북' },
+              { hcode: '48', name: '경남' },
+              { hcode: '50', name: '제주' },
+            ],
+          });
+        }
+      }
+
+      case 'filter': {
+        // 필터 메타 (svc/loc/pro)
+        const fType = typeof filterType === 'string' ? filterType : 'svc';
+        const validTypes = ['svc', 'loc', 'pro'];
+        if (!validTypes.includes(fType)) {
+          return res.status(400).json({ error: 'Invalid filter type. Use svc, loc, or pro' });
+        }
+        const result = await fetchFilterMeta(fType);
+        return res.status(200).json(result);
+      }
+
+      default:
+        return res.status(400).json({ error: `Unknown meta type: ${metaType}` });
+    }
+  } catch (error: any) {
+    console.error(`[ATS Meta ${metaType}] Error:`, error);
+    return res.status(500).json({ error: error.message || 'Failed to fetch meta data' });
+  }
 }

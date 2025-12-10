@@ -127,14 +127,10 @@ export default function CampaignsNew() {
   const [uploading, setUploading] = useState(false);
   const [showAdvancedTargeting, setShowAdvancedTargeting] = useState(false);
   const [advancedTargeting, setAdvancedTargeting] = useState({
-    carrierTypes: [] as string[],
-    deviceTypes: [] as string[],
-    shopping11stCategories: [] as string[],
-    webappCategories: [] as string[],
-    callUsageTypes: [] as string[],
-    locationTypes: [] as string[],
-    mobilityPatterns: [] as string[],
-    geofenceIds: [] as string[],
+    shopping11stCategories: [] as { cat1: string; cat2?: string; cat3?: string }[],
+    webappCategories: [] as { cat1: string; cat2?: string; cat3?: string }[],
+    locations: [] as { code: string; type: 'home' | 'work'; name: string }[],
+    profiling: [] as { code: string; value: string | { gt: string; lt: string }; desc: string }[],
   });
   const [useScheduledSend, setUseScheduledSend] = useState(false);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState<Date | null>(null);

@@ -1,0 +1,129 @@
+URL	/api/v1/ats/meta/loc				
+Description	"ATS 메타 - 위치/이동 특성 정보.
+본 API로 얻은 값은 ""ATS 필터 메타 - 위치""를 사용 할 때, hcode 값이 이용 된다.
+즉, 추정 집주소, 추정 회사 주소 등의 필터링시에 사용 한다.
+
+hcoe 는 다음 형태로 구성 되어 있다.
+- 8자리 코드의 앞에서 2자리 광역시/도 레벨 
+- 8자리 코드의 앞에서 5자리 시/구/군 레벨 
+- 8자리 코드 전체 동/면/읍 레벨 
+
+즉, ""ATS 필터 메타 - 위치"" 사용시 8자리 전체 코드를 사용 하지 않고, 부분 별로 사용 하면 특정 레벨의 필터링을 할 수 있다.
+예)
+- 서울의 hcode 는 11
+- 서울 종로구의 hcode 는 11110
+- 서울 종로구 청운동의 hcode 는 11110101
+
+[행정동 사용시 참고 사항]
+- 행정동, 법정동은 mix 해서 사용 하지 않도록 한다."				
+Method	POST				
+Header	Authorization: {token}				
+					
+Request					
+In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+Body	addr	Y	string	"양양"	주소 코드 검색값
+Example(Query parameter)	tid=1706078226511				
+Example(Body)	"{
+    ""addr"" : ""양양""
+}"				
+					
+Response					
+구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+	code	Y	string	"S000001"	API 성공, 실패 코드
+	msg	Y	string	"Success"	API 성공, 실패 메시지
+	data	Y	object		위치 코드 정보
+	data.list	Y	object array		위치 코드 목록
+	data.list[].hcode	Y	string	"51830250"	위치 코드
+	data.list[].ado	Y	string	"강원"	도
+	data.list[].sigu	Y	string	"양양군"	시구
+	data.list[].dong	Y	string	"양양읍"	동
+	data.listR	Y	object array		위치 코드 목록. 행정동
+	data.listR[].rcode	Y	string	"51830250"	위치 코드
+	data.listR[].ado	Y	string	"강원"	도
+	data.listR[].sigu	Y	string	"양양군"	시구
+	data.listR[].dong	Y	string	"양양읍"	동
+Example	"{
+    ""tid"": ""1753077125949"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""list"": [
+            {
+                ""hcode"": ""51830250"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""양양읍""
+            },
+            {
+                ""hcode"": ""51830310"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""서면""
+            },
+            {
+                ""hcode"": ""51830320"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""손양면""
+            },
+            {
+                ""hcode"": ""51830330"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""현북면""
+            },
+            {
+                ""hcode"": ""51830340"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""현남면""
+            },
+            {
+                ""hcode"": ""51830350"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""강현면""
+            }
+        ],
+        ""listR"": [
+            {
+                ""rcode"": ""51830310"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""서면""
+            },
+            {
+                ""rcode"": ""51830250"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""양양읍""
+            },
+            {
+                ""rcode"": ""51830320"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""손양면""
+            },
+            {
+                ""rcode"": ""51830340"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""현남면""
+            },
+            {
+                ""rcode"": ""51830330"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""현북면""
+            },
+            {
+                ""rcode"": ""51830350"",
+                ""ado"": ""강원"",
+                ""sigu"": ""양양군"",
+                ""dong"": ""강현면""
+            }
+        ]
+    }
+}"				

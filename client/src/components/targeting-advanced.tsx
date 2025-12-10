@@ -1,18 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   ShoppingBag,
   Smartphone,
-  Phone,
   MapPin,
-  Navigation,
   Target,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   Plus,
   X,
   Search,
   Loader2,
+  TrendingUp,
 } from "lucide-react";
 import { formatNumber } from "@/lib/authUtils";
 import { Button } from "@/components/ui/button";
@@ -26,35 +26,84 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { Geofence } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
 
-interface AtsMeta {
-  categoryCode: string;
-  categoryName: string;
-  level: number;
-  parentCode: string | null;
-  metadata?: any;
+// BizChat 카테고리 타입 (11st, webapp)
+interface BizChatCategory {
+  id: string;
+  name: string;
+  cateid: string;
 }
 
-interface AdvancedTargetingState {
-  carrierTypes: string[];
-  deviceTypes: string[];
-  shopping11stCategories: string[];
-  webappCategories: string[];
-  callUsageTypes: string[];
-  locationTypes: string[];
-  mobilityPatterns: string[];
-  geofenceIds: string[];
+interface BizChatCategoryResponse {
+  metaType: string;
+  dataType: string;
+  list: BizChatCategory[];
+}
+
+// BizChat 위치 타입
+interface BizChatLocation {
+  hcode: string;
+  ado: string;
+  sigu: string;
+  dong: string;
+}
+
+interface BizChatLocationResponse {
+  list: BizChatLocation[];
+  listR: BizChatLocation[];
+}
+
+// BizChat 필터 메타 타입
+interface BizChatFilterAttribute {
+  name: string;
+  val: string;
+  desc: string;
+}
+
+interface BizChatFilterMeta {
+  name: string;
+  desc: string;
+  code: string;
+  dataType: string;
+  min: number;
+  max: number;
+  unit: string;
+  attributes: BizChatFilterAttribute[];
+}
+
+interface BizChatFilterResponse {
+  metaType: string;
+  list: BizChatFilterMeta[];
+}
+
+// 선택된 카테고리 (ATS mosu 형식)
+interface SelectedCategory {
+  cat1: string;
+  cat2?: string;
+  cat3?: string;
+}
+
+// 타겟팅 상태 (BizChat 규격 준수)
+export interface AdvancedTargetingState {
+  // 11번가 카테고리 (cat1/cat2/cat3 형식)
+  shopping11stCategories: SelectedCategory[];
+  // 웹앱 카테고리 (cat1/cat2/cat3 형식)
+  webappCategories: SelectedCategory[];
+  // 위치 필터 (hcode 배열)
+  locations: {
+    code: string;
+    type: 'home' | 'work';
+    name: string;
+  }[];
+  // 프로파일링 필터 (pro)
+  profiling: {
+    code: string;
+    value: string | { gt: string; lt: string };
+    desc: string;
+  }[];
 }
 
 interface TargetingAdvancedProps {
@@ -68,26 +117,79 @@ interface TargetingAdvancedProps {
   };
 }
 
-function CategorySection({
+// 11번가/웹앱 계층적 카테고리 선택 컴포넌트
+function HierarchicalCategorySection({
   title,
   description,
   icon: Icon,
-  categories,
+  metaType,
   selectedCategories,
-  onToggle,
-  isLoading,
+  onCategoriesChange,
   testIdPrefix,
 }: {
   title: string;
   description: string;
   icon: typeof ShoppingBag;
-  categories: AtsMeta[];
-  selectedCategories: string[];
-  onToggle: (code: string) => void;
-  isLoading: boolean;
+  metaType: '11st' | 'webapp';
+  selectedCategories: SelectedCategory[];
+  onCategoriesChange: (categories: SelectedCategory[]) => void;
   testIdPrefix: string;
 }) {
   const [isOpen, setIsOpen] = useState(selectedCategories.length > 0);
+  const [selectedCat1, setSelectedCat1] = useState<string | null>(null);
+  const [selectedCat2, setSelectedCat2] = useState<string | null>(null);
+
+  // 카테고리 1 조회
+  const { data: cat1Data, isLoading: cat1Loading } = useQuery<BizChatCategoryResponse>({
+    queryKey: [`/api/ats/meta/${metaType}`],
+  });
+
+  // 카테고리 2 조회 (cat1 선택 시)
+  const { data: cat2Data, isLoading: cat2Loading } = useQuery<BizChatCategoryResponse>({
+    queryKey: [`/api/ats/meta/${metaType}`, selectedCat1],
+    queryFn: async () => {
+      if (!selectedCat1) return { metaType: '', dataType: '', list: [] };
+      const res = await fetch(`/api/ats/meta/${metaType}?cateid=${selectedCat1}`);
+      return res.json();
+    },
+    enabled: !!selectedCat1,
+  });
+
+  // 카테고리 3 조회 (cat2 선택 시)
+  const { data: cat3Data, isLoading: cat3Loading } = useQuery<BizChatCategoryResponse>({
+    queryKey: [`/api/ats/meta/${metaType}`, selectedCat1, selectedCat2],
+    queryFn: async () => {
+      if (!selectedCat2) return { metaType: '', dataType: '', list: [] };
+      const res = await fetch(`/api/ats/meta/${metaType}?cateid=${selectedCat2}`);
+      return res.json();
+    },
+    enabled: !!selectedCat2,
+  });
+
+  const cat1List = cat1Data?.list || [];
+  const cat2List = cat2Data?.list || [];
+  const cat3List = cat3Data?.list || [];
+
+  const getCat1Name = (id: string) => cat1List.find(c => c.id === id)?.name || id;
+  const getCat2Name = (id: string) => cat2List.find(c => c.id === id)?.name || id;
+
+  const addCategory = (cat1: string, cat2?: string, cat3?: string) => {
+    const newCat: SelectedCategory = { cat1: getCat1Name(cat1) };
+    if (cat2) newCat.cat2 = getCat2Name(cat2);
+    if (cat3) newCat.cat3 = cat3List.find(c => c.id === cat3)?.name || cat3;
+
+    // 중복 체크
+    const isDuplicate = selectedCategories.some(
+      c => c.cat1 === newCat.cat1 && c.cat2 === newCat.cat2 && c.cat3 === newCat.cat3
+    );
+    if (!isDuplicate) {
+      onCategoriesChange([...selectedCategories, newCat]);
+    }
+  };
+
+  const removeCategory = (index: number) => {
+    onCategoriesChange(selectedCategories.filter((_, i) => i !== index));
+  };
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
@@ -118,33 +220,154 @@ function CategorySection({
           </CardHeader>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <CardContent className="pt-0">
-            {isLoading ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {categories.map((category) => (
-                  <Label
-                    key={category.categoryCode}
-                    className={cn(
-                      "flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors",
-                      selectedCategories.includes(category.categoryCode)
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/50"
-                    )}
-                    data-testid={`${testIdPrefix}-${category.categoryCode}`}
+          <CardContent className="pt-0 space-y-4">
+            {/* 선택된 카테고리 표시 */}
+            {selectedCategories.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {selectedCategories.map((cat, index) => (
+                  <Badge
+                    key={index}
+                    variant="secondary"
+                    className="gap-1"
+                    data-testid={`${testIdPrefix}-selected-${index}`}
                   >
-                    <Checkbox
-                      checked={selectedCategories.includes(category.categoryCode)}
-                      onCheckedChange={() => onToggle(category.categoryCode)}
+                    {cat.cat1}
+                    {cat.cat2 && ` > ${cat.cat2}`}
+                    {cat.cat3 && ` > ${cat.cat3}`}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={() => removeCategory(index)}
                     />
-                    <span className="text-small">{category.categoryName}</span>
-                  </Label>
+                  </Badge>
                 ))}
               </div>
             )}
+
+            {/* 계층적 선택 UI */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* 카테고리 1 */}
+              <div className="space-y-2">
+                <Label className="text-small font-medium">대분류</Label>
+                <ScrollArea className="h-[200px] border rounded-lg p-2">
+                  {cat1Loading ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {cat1List.map((cat) => (
+                        <div
+                          key={cat.id}
+                          className={cn(
+                            "flex items-center justify-between p-2 rounded cursor-pointer text-small",
+                            selectedCat1 === cat.id
+                              ? "bg-primary/10 text-primary"
+                              : "hover:bg-muted"
+                          )}
+                          onClick={() => {
+                            setSelectedCat1(cat.id);
+                            setSelectedCat2(null);
+                          }}
+                          data-testid={`${testIdPrefix}-cat1-${cat.id}`}
+                        >
+                          <span>{cat.name}</span>
+                          <ChevronRight className="h-4 w-4" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+
+              {/* 카테고리 2 */}
+              <div className="space-y-2">
+                <Label className="text-small font-medium">중분류</Label>
+                <ScrollArea className="h-[200px] border rounded-lg p-2">
+                  {!selectedCat1 ? (
+                    <div className="text-center py-4 text-small text-muted-foreground">
+                      대분류를 선택하세요
+                    </div>
+                  ) : cat2Loading ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  ) : cat2List.length === 0 ? (
+                    <div className="text-center py-4">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addCategory(selectedCat1)}
+                        data-testid={`${testIdPrefix}-add-cat1`}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        대분류만 추가
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {cat2List.map((cat) => (
+                        <div
+                          key={cat.id}
+                          className={cn(
+                            "flex items-center justify-between p-2 rounded cursor-pointer text-small",
+                            selectedCat2 === cat.id
+                              ? "bg-primary/10 text-primary"
+                              : "hover:bg-muted"
+                          )}
+                          onClick={() => setSelectedCat2(cat.id)}
+                          data-testid={`${testIdPrefix}-cat2-${cat.id}`}
+                        >
+                          <span>{cat.name}</span>
+                          <ChevronRight className="h-4 w-4" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+
+              {/* 카테고리 3 */}
+              <div className="space-y-2">
+                <Label className="text-small font-medium">소분류</Label>
+                <ScrollArea className="h-[200px] border rounded-lg p-2">
+                  {!selectedCat2 ? (
+                    <div className="text-center py-4 text-small text-muted-foreground">
+                      중분류를 선택하세요
+                    </div>
+                  ) : cat3Loading ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    </div>
+                  ) : cat3List.length === 0 ? (
+                    <div className="text-center py-4">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => addCategory(selectedCat1!, selectedCat2)}
+                        data-testid={`${testIdPrefix}-add-cat2`}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        중분류까지 추가
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {cat3List.map((cat) => (
+                        <div
+                          key={cat.id}
+                          className="flex items-center justify-between p-2 rounded cursor-pointer text-small hover:bg-muted"
+                          onClick={() => addCategory(selectedCat1!, selectedCat2!, cat.id)}
+                          data-testid={`${testIdPrefix}-cat3-${cat.id}`}
+                        >
+                          <span>{cat.name}</span>
+                          <Plus className="h-4 w-4 text-primary" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+            </div>
           </CardContent>
         </CollapsibleContent>
       </Card>
@@ -152,69 +375,59 @@ function CategorySection({
   );
 }
 
-function GeofenceSection({
-  selectedGeofenceIds,
-  onGeofenceChange,
+// 위치 검색 컴포넌트
+function LocationSearchSection({
+  selectedLocations,
+  onLocationsChange,
 }: {
-  selectedGeofenceIds: string[];
-  onGeofenceChange: (ids: string[]) => void;
+  selectedLocations: AdvancedTargetingState['locations'];
+  onLocationsChange: (locations: AdvancedTargetingState['locations']) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(selectedGeofenceIds.length > 0);
-  const [poiSearch, setPoiSearch] = useState("");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(selectedLocations.length > 0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<BizChatLocation[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [locationType, setLocationType] = useState<'home' | 'work'>('home');
 
-  const { data: geofences, isLoading: geofencesLoading } = useQuery<Geofence[]>({
-    queryKey: ["/api/geofences"],
-  });
-
-  const { data: poiResults, isLoading: poiLoading, refetch: searchPoi } = useQuery<{ pois: any[]; totalCount: number }>({
-    queryKey: ["/api/maptics/poi", poiSearch],
-    queryFn: async () => {
-      if (!poiSearch) return { pois: [], totalCount: 0 };
-      const res = await apiRequest("POST", "/api/maptics/poi", { keyword: poiSearch });
-      return res.json();
-    },
-    enabled: false,
-  });
-
-  const handlePoiSearch = () => {
-    if (poiSearch.trim()) {
-      searchPoi();
-    }
-  };
-
-  const handleCreateGeofence = async (poi: any) => {
+  const handleSearch = useCallback(async () => {
+    if (!searchQuery.trim()) return;
+    
+    setIsSearching(true);
     try {
-      const response = await apiRequest("POST", "/api/geofences", {
-        name: poi.name,
-        latitude: poi.lat,
-        longitude: poi.lng,
-        radius: 500,
-        poiId: poi.id,
-        poiName: poi.name,
-        poiCategory: poi.category,
-      });
-      const newGeofence = await response.json() as Geofence;
-      queryClient.invalidateQueries({ queryKey: ["/api/geofences"] });
-      onGeofenceChange([...selectedGeofenceIds, newGeofence.id]);
-      setIsDialogOpen(false);
-      setPoiSearch("");
+      const res = await apiRequest('POST', '/api/ats/meta/loc', { addr: searchQuery });
+      const data: BizChatLocationResponse = await res.json();
+      setSearchResults(data.list || []);
     } catch (error) {
-      console.error("Failed to create geofence:", error);
+      console.error('Location search failed:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchQuery]);
+
+  const addLocation = (loc: BizChatLocation) => {
+    const newLoc = {
+      code: loc.hcode,
+      type: locationType,
+      name: `${loc.ado} ${loc.sigu} ${loc.dong}`.trim(),
+    };
+    
+    // 중복 체크
+    const isDuplicate = selectedLocations.some(
+      l => l.code === newLoc.code && l.type === newLoc.type
+    );
+    if (!isDuplicate) {
+      onLocationsChange([...selectedLocations, newLoc]);
     }
   };
 
-  const toggleGeofence = (id: string) => {
-    if (selectedGeofenceIds.includes(id)) {
-      onGeofenceChange(selectedGeofenceIds.filter((gId) => gId !== id));
-    } else {
-      onGeofenceChange([...selectedGeofenceIds, id]);
-    }
+  const removeLocation = (index: number) => {
+    onLocationsChange(selectedLocations.filter((_, i) => i !== index));
   };
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <Card className={cn(selectedGeofenceIds.length > 0 && "border-primary/50")}>
+      <Card className={cn(selectedLocations.length > 0 && "border-primary/50")}>
         <CollapsibleTrigger asChild>
           <CardHeader className="cursor-pointer hover-elevate">
             <div className="flex items-center justify-between">
@@ -223,15 +436,15 @@ function GeofenceSection({
                   <MapPin className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-body">위치 기반 타겟팅 (Maptics)</CardTitle>
+                  <CardTitle className="text-body">위치 타겟팅</CardTitle>
                   <CardDescription className="text-small">
-                    특정 위치 주변 고객 타겟팅
+                    추정 집주소/직장주소로 타겟팅
                   </CardDescription>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {selectedGeofenceIds.length > 0 && (
-                  <Badge variant="secondary">{selectedGeofenceIds.length}개 지역</Badge>
+                {selectedLocations.length > 0 && (
+                  <Badge variant="secondary">{selectedLocations.length}개 지역</Badge>
                 )}
                 {isOpen ? (
                   <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -244,100 +457,208 @@ function GeofenceSection({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <CardContent className="pt-0 space-y-4">
-            {geofencesLoading ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : geofences && geofences.length > 0 ? (
-              <div className="space-y-2">
-                <Label className="text-small text-muted-foreground">저장된 지오펜스</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {geofences.map((geofence) => (
-                    <Label
-                      key={geofence.id}
-                      className={cn(
-                        "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
-                        selectedGeofenceIds.includes(geofence.id)
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-primary/50"
-                      )}
-                      data-testid={`geofence-${geofence.id}`}
-                    >
-                      <Checkbox
-                        checked={selectedGeofenceIds.includes(geofence.id)}
-                        onCheckedChange={() => toggleGeofence(geofence.id)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-small truncate">{geofence.name}</div>
-                        <div className="text-tiny text-muted-foreground">
-                          반경 {geofence.radius}m
-                        </div>
-                      </div>
-                    </Label>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-4 text-small text-muted-foreground">
-                저장된 지오펜스가 없어요
+            {/* 선택된 위치 표시 */}
+            {selectedLocations.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {selectedLocations.map((loc, index) => (
+                  <Badge
+                    key={index}
+                    variant="secondary"
+                    className="gap-1"
+                    data-testid={`location-selected-${index}`}
+                  >
+                    [{loc.type === 'home' ? '집' : '직장'}] {loc.name}
+                    <X
+                      className="h-3 w-3 cursor-pointer hover:text-destructive"
+                      onClick={() => removeLocation(index)}
+                    />
+                  </Badge>
+                ))}
               </div>
             )}
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="w-full gap-2" data-testid="button-add-geofence">
-                  <Plus className="h-4 w-4" />
-                  새 지오펜스 추가
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>지오펜스 추가</DialogTitle>
-                  <DialogDescription>
-                    장소를 검색해서 타겟팅할 위치를 추가하세요
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="장소 검색 (예: 스타벅스, 이마트)"
-                      value={poiSearch}
-                      onChange={(e) => setPoiSearch(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handlePoiSearch()}
-                      data-testid="input-poi-search"
-                    />
-                    <Button onClick={handlePoiSearch} disabled={poiLoading}>
-                      {poiLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Search className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
+            {/* 위치 유형 선택 */}
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant={locationType === 'home' ? 'default' : 'outline'}
+                onClick={() => setLocationType('home')}
+                data-testid="button-location-type-home"
+              >
+                추정 집주소
+              </Button>
+              <Button
+                size="sm"
+                variant={locationType === 'work' ? 'default' : 'outline'}
+                onClick={() => setLocationType('work')}
+                data-testid="button-location-type-work"
+              >
+                추정 직장주소
+              </Button>
+            </div>
 
-                  {poiResults?.pois && poiResults.pois.length > 0 && (
-                    <div className="space-y-2 max-h-[300px] overflow-auto">
-                      {poiResults.pois.map((poi: any) => (
-                        <div
-                          key={poi.id}
-                          className="flex items-center justify-between p-3 rounded-lg border hover:border-primary/50 cursor-pointer"
-                          onClick={() => handleCreateGeofence(poi)}
-                          data-testid={`poi-result-${poi.id}`}
-                        >
-                          <div>
-                            <div className="font-medium text-small">{poi.name}</div>
-                            <div className="text-tiny text-muted-foreground">
-                              {poi.category} · {poi.distance}m
-                            </div>
-                          </div>
-                          <Plus className="h-4 w-4 text-primary" />
-                        </div>
-                      ))}
+            {/* 검색 */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="지역명 검색 (예: 강남, 양양)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                data-testid="input-location-search"
+              />
+              <Button onClick={handleSearch} disabled={isSearching}>
+                {isSearching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+
+            {/* 검색 결과 */}
+            {searchResults.length > 0 && (
+              <ScrollArea className="h-[200px] border rounded-lg p-2">
+                <div className="space-y-1">
+                  {searchResults.map((loc, index) => (
+                    <div
+                      key={`${loc.hcode}-${index}`}
+                      className="flex items-center justify-between p-2 rounded cursor-pointer text-small hover:bg-muted"
+                      onClick={() => addLocation(loc)}
+                      data-testid={`location-result-${loc.hcode}`}
+                    >
+                      <span>{loc.ado} {loc.sigu} {loc.dong}</span>
+                      <Plus className="h-4 w-4 text-primary" />
                     </div>
-                  )}
+                  ))}
                 </div>
-              </DialogContent>
-            </Dialog>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  );
+}
+
+// 프로파일링 필터 컴포넌트
+function ProfilingSection({
+  selectedProfiling,
+  onProfilingChange,
+}: {
+  selectedProfiling: AdvancedTargetingState['profiling'];
+  onProfilingChange: (profiling: AdvancedTargetingState['profiling']) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(selectedProfiling.length > 0);
+
+  // 프로파일링 필터 메타 조회
+  const { data: proFilterData, isLoading } = useQuery<BizChatFilterResponse>({
+    queryKey: ['/api/ats/meta/filter', 'pro'],
+    queryFn: async () => {
+      const res = await fetch('/api/ats/meta/filter?filterType=pro');
+      return res.json();
+    },
+  });
+
+  const proFilters = proFilterData?.list || [];
+
+  const toggleFilter = (filter: BizChatFilterMeta) => {
+    const existingIndex = selectedProfiling.findIndex(p => p.code === filter.code);
+    
+    if (existingIndex >= 0) {
+      // 제거
+      onProfilingChange(selectedProfiling.filter((_, i) => i !== existingIndex));
+    } else {
+      // 추가
+      let value: string | { gt: string; lt: string };
+      if (filter.dataType === 'boolean') {
+        value = 'Y';
+      } else if (filter.dataType === 'number') {
+        value = { gt: String(filter.min), lt: String(filter.max) };
+      } else {
+        value = filter.attributes[0]?.val || 'Y';
+      }
+      
+      onProfilingChange([
+        ...selectedProfiling,
+        {
+          code: filter.code,
+          value,
+          desc: filter.name + (filter.desc ? ` (${filter.desc})` : ''),
+        },
+      ]);
+    }
+  };
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Card className={cn(selectedProfiling.length > 0 && "border-primary/50")}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover-elevate">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <TrendingUp className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-body">프로파일링 (예측 모델)</CardTitle>
+                  <CardDescription className="text-small">
+                    행동 예측 기반 타겟팅
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedProfiling.length > 0 && (
+                  <Badge variant="secondary">{selectedProfiling.length}개 선택</Badge>
+                )}
+                {isOpen ? (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0">
+            {isLoading ? (
+              <div className="flex justify-center py-6">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : proFilters.length === 0 ? (
+              <div className="text-center py-6 text-small text-muted-foreground">
+                프로파일링 필터를 사용할 수 없습니다
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {proFilters.map((filter) => {
+                  const isSelected = selectedProfiling.some(p => p.code === filter.code);
+                  return (
+                    <Label
+                      key={filter.code}
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                        isSelected
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/50"
+                      )}
+                      data-testid={`profiling-${filter.code}`}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleFilter(filter)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-small">{filter.name}</div>
+                        {filter.desc && (
+                          <div className="text-tiny text-muted-foreground">{filter.desc}</div>
+                        )}
+                      </div>
+                    </Label>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </CollapsibleContent>
       </Card>
@@ -353,49 +674,11 @@ export default function TargetingAdvanced({
   const [estimatedCount, setEstimatedCount] = useState<number>(0);
   const [isEstimating, setIsEstimating] = useState(false);
 
-  const { data: shopping11st, isLoading: shopping11stLoading } = useQuery<AtsMeta[]>({
-    queryKey: ["/api/ats/meta/11st"],
-  });
-
-  const { data: webapp, isLoading: webappLoading } = useQuery<AtsMeta[]>({
-    queryKey: ["/api/ats/meta/webapp"],
-  });
-
-  const { data: call, isLoading: callLoading } = useQuery<AtsMeta[]>({
-    queryKey: ["/api/ats/meta/call"],
-  });
-
-  const { data: loc, isLoading: locLoading } = useQuery<AtsMeta[]>({
-    queryKey: ["/api/ats/meta/loc"],
-  });
-
-  const { data: filter, isLoading: filterLoading } = useQuery<AtsMeta[]>({
-    queryKey: ["/api/ats/meta/filter"],
-  });
-
-  const deviceCategories = filter?.filter((f) => f.metadata?.type === "device") || [];
-  const carrierCategories = filter?.filter((f) => f.metadata?.type === "carrier") || [];
-
-  const toggleCategory = (field: keyof AdvancedTargetingState, code: string) => {
-    const current = targeting[field] as string[];
-    if (current.includes(code)) {
-      onTargetingChange({
-        ...targeting,
-        [field]: current.filter((c) => c !== code),
-      });
-    } else {
-      onTargetingChange({
-        ...targeting,
-        [field]: [...current, code],
-      });
-    }
-  };
-
   useEffect(() => {
     const estimateAudience = async () => {
       setIsEstimating(true);
       try {
-        const res = await apiRequest("POST", "/api/ats/mosu", {
+        const res = await apiRequest("POST", "/api/targeting/estimate", {
           ...basicTargeting,
           ...targeting,
         });
@@ -413,23 +696,10 @@ export default function TargetingAdvanced({
   }, [targeting, basicTargeting]);
 
   const hasAdvancedFilters =
-    targeting.carrierTypes.length > 0 ||
-    targeting.deviceTypes.length > 0 ||
     targeting.shopping11stCategories.length > 0 ||
     targeting.webappCategories.length > 0 ||
-    targeting.callUsageTypes.length > 0 ||
-    targeting.locationTypes.length > 0 ||
-    targeting.mobilityPatterns.length > 0 ||
-    targeting.geofenceIds.length > 0;
-
-  const selectedFilters = [
-    ...targeting.carrierTypes.map((c) => carrierCategories.find((cat) => cat.categoryCode === c)?.categoryName),
-    ...targeting.deviceTypes.map((c) => deviceCategories.find((cat) => cat.categoryCode === c)?.categoryName),
-    ...targeting.shopping11stCategories.map((c) => shopping11st?.find((cat) => cat.categoryCode === c)?.categoryName),
-    ...targeting.webappCategories.map((c) => webapp?.find((cat) => cat.categoryCode === c)?.categoryName),
-    ...targeting.callUsageTypes.map((c) => call?.find((cat) => cat.categoryCode === c)?.categoryName),
-    ...targeting.locationTypes.map((c) => loc?.find((cat) => cat.categoryCode === c)?.categoryName),
-  ].filter(Boolean);
+    targeting.locations.length > 0 ||
+    targeting.profiling.length > 0;
 
   return (
     <div className="space-y-4">
@@ -459,86 +729,68 @@ export default function TargetingAdvanced({
         <Card className="bg-accent/30">
           <CardContent className="py-3">
             <div className="flex flex-wrap gap-1.5">
-              {selectedFilters.map((name, i) => (
-                <Badge key={i} variant="secondary" className="text-tiny">
-                  {name}
+              {targeting.shopping11stCategories.map((cat, i) => (
+                <Badge key={`11st-${i}`} variant="secondary" className="text-tiny">
+                  11번가: {cat.cat1}{cat.cat2 && ` > ${cat.cat2}`}{cat.cat3 && ` > ${cat.cat3}`}
                 </Badge>
               ))}
-              {targeting.geofenceIds.length > 0 && (
-                <Badge variant="secondary" className="text-tiny">
-                  지오펜스 {targeting.geofenceIds.length}개
+              {targeting.webappCategories.map((cat, i) => (
+                <Badge key={`webapp-${i}`} variant="secondary" className="text-tiny">
+                  앱: {cat.cat1}{cat.cat2 && ` > ${cat.cat2}`}{cat.cat3 && ` > ${cat.cat3}`}
                 </Badge>
-              )}
+              ))}
+              {targeting.locations.map((loc, i) => (
+                <Badge key={`loc-${i}`} variant="secondary" className="text-tiny">
+                  {loc.type === 'home' ? '집' : '직장'}: {loc.name}
+                </Badge>
+              ))}
+              {targeting.profiling.map((pro, i) => (
+                <Badge key={`pro-${i}`} variant="secondary" className="text-tiny">
+                  {pro.desc}
+                </Badge>
+              ))}
             </div>
           </CardContent>
         </Card>
       )}
 
       <div className="space-y-3">
-        <CategorySection
-          title="기기/회선 정보"
-          description="통신사, 기기 종류로 타겟팅"
-          icon={Smartphone}
-          categories={[...deviceCategories, ...carrierCategories]}
-          selectedCategories={[...targeting.deviceTypes, ...targeting.carrierTypes]}
-          onToggle={(code) => {
-            if (deviceCategories.some((c) => c.categoryCode === code)) {
-              toggleCategory("deviceTypes", code);
-            } else {
-              toggleCategory("carrierTypes", code);
-            }
-          }}
-          isLoading={filterLoading}
-          testIdPrefix="filter"
-        />
-
-        <CategorySection
-          title="11번가 쇼핑 행동"
-          description="11번가 쇼핑 카테고리 관심사 기반"
+        <HierarchicalCategorySection
+          title="11번가 쇼핑 관심사"
+          description="11번가 쇼핑 카테고리 기반 타겟팅"
           icon={ShoppingBag}
-          categories={shopping11st || []}
+          metaType="11st"
           selectedCategories={targeting.shopping11stCategories}
-          onToggle={(code) => toggleCategory("shopping11stCategories", code)}
-          isLoading={shopping11stLoading}
+          onCategoriesChange={(cats) => 
+            onTargetingChange({ ...targeting, shopping11stCategories: cats })
+          }
           testIdPrefix="11st"
         />
 
-        <CategorySection
-          title="웹/앱 사용 패턴"
-          description="자주 사용하는 앱 카테고리 기반"
+        <HierarchicalCategorySection
+          title="웹/앱 사용 관심사"
+          description="자주 사용하는 앱/웹 카테고리 기반 타겟팅"
           icon={Smartphone}
-          categories={webapp || []}
+          metaType="webapp"
           selectedCategories={targeting.webappCategories}
-          onToggle={(code) => toggleCategory("webappCategories", code)}
-          isLoading={webappLoading}
+          onCategoriesChange={(cats) => 
+            onTargetingChange({ ...targeting, webappCategories: cats })
+          }
           testIdPrefix="webapp"
         />
 
-        <CategorySection
-          title="통화 사용 패턴"
-          description="통화 빈도, 시간대 패턴 기반"
-          icon={Phone}
-          categories={call || []}
-          selectedCategories={targeting.callUsageTypes}
-          onToggle={(code) => toggleCategory("callUsageTypes", code)}
-          isLoading={callLoading}
-          testIdPrefix="call"
+        <LocationSearchSection
+          selectedLocations={targeting.locations}
+          onLocationsChange={(locs) =>
+            onTargetingChange({ ...targeting, locations: locs })
+          }
         />
 
-        <CategorySection
-          title="위치/이동 특성"
-          description="생활 패턴, 이동 특성 기반"
-          icon={Navigation}
-          categories={loc || []}
-          selectedCategories={targeting.locationTypes}
-          onToggle={(code) => toggleCategory("locationTypes", code)}
-          isLoading={locLoading}
-          testIdPrefix="loc"
-        />
-
-        <GeofenceSection
-          selectedGeofenceIds={targeting.geofenceIds}
-          onGeofenceChange={(ids) => onTargetingChange({ ...targeting, geofenceIds: ids })}
+        <ProfilingSection
+          selectedProfiling={targeting.profiling}
+          onProfilingChange={(pro) =>
+            onTargetingChange({ ...targeting, profiling: pro })
+          }
         />
       </div>
     </div>
