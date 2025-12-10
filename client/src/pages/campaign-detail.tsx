@@ -69,18 +69,42 @@ const GENDER_LABELS: Record<string, string> = {
   female: "여성",
 };
 
+interface BizChatStatsData {
+  statDate: string;           // 통계 수집 일자 YYYYMMDD
+  mdnCnt: number;             // 발송 대상자 수
+  dupExcludeCnt: number;      // 타 캠페인 수신자 수
+  adRcvExcludeCnt: number;    // 광고 수신 미동의 수신자 수
+  sendTryCnt: number;         // 발송 시도자 수
+  msgRecvCnt: number;         // 캠페인 메시지 수신자 수 (RCS + VMG)
+  rcsMsgRecvCnt: number;      // RCS 메시지 수신자 수
+  vmgMsgRecvCnt: number;      // 일반 메시지 수신자 수
+  msgNotRecvCnt: number;      // 메시지 미수신자 수
+  msgReactCnt: number;        // 메시지 반응자 수
+  msgReactRatio: string;      // 메시지 반응률
+  rcsMsgReactCnt: number;     // RCS 메시지 반응자 수
+  rcsMsgReactRatio: string;   // RCS 메시지 반응률
+  vmgMsgReactCnt: number;     // 일반 메시지 반응자 수
+  vmgMsgReactRatio: string;   // 일반 메시지 반응률
+  rcsMsgReadCnt: number;      // RCS 메시지 확인자 수
+  rcsMsgReadRatio: string;    // RCS 메시지 확인률
+  url?: {
+    list: Array<{
+      msgType: number;
+      slideNum: number;
+      linkType: number;
+      linkNum: number;
+      cnt: number;
+    }>;
+  };
+}
+
 interface BizChatStats {
   success: boolean;
-  result?: {
-    code?: string;
-    data?: {
-      sendCnt?: number;
-      successCnt?: number;
-      failCnt?: number;
-      waitCnt?: number;
-      readCnt?: number;
-      settleCnt?: number;
-    };
+  data?: BizChatStatsData;
+  meta?: {
+    campaignId: string;
+    bizchatCampaignId: string;
+    refreshedAt: string;
   };
   error?: string;
 }
@@ -242,17 +266,18 @@ export default function CampaignDetail() {
 
     setIsLoadingStats(true);
     try {
-      const response = await apiRequest("POST", "/api/bizchat/campaigns", {
-        action: "stats",
+      const response = await apiRequest("POST", "/api/bizchat/stats", {
+        action: "fetchStats",
         campaignId: campaign.id,
       });
       const data = await response.json();
       setBizChatStats(data);
       
       if (data.success) {
+        const stats = data.data;
         toast({
           title: "통계 조회 완료",
-          description: "BizChat 실시간 통계를 가져왔어요.",
+          description: `발송 ${formatNumber(stats?.sendTryCnt || 0)}건, 수신 ${formatNumber(stats?.msgRecvCnt || 0)}건`,
         });
       } else {
         toast({
@@ -1157,44 +1182,92 @@ export default function CampaignDetail() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {bizChatStats?.success && bizChatStats.result?.data ? (
-                  <div className="grid gap-3 md:grid-cols-6">
-                    <div className="text-center p-3 bg-background rounded-lg border">
-                      <p className="text-2xl font-bold text-primary">
-                        {formatNumber(bizChatStats.result.data.sendCnt || 0)}
-                      </p>
-                      <p className="text-tiny text-muted-foreground">발송</p>
+                {bizChatStats?.success && bizChatStats.data ? (
+                  <div className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <div className="text-center p-3 bg-background rounded-lg border">
+                        <p className="text-2xl font-bold text-primary">
+                          {formatNumber(bizChatStats.data.mdnCnt || 0)}
+                        </p>
+                        <p className="text-tiny text-muted-foreground">발송 대상자</p>
+                      </div>
+                      <div className="text-center p-3 bg-background rounded-lg border">
+                        <p className="text-2xl font-bold text-chart-4">
+                          {formatNumber(bizChatStats.data.sendTryCnt || 0)}
+                        </p>
+                        <p className="text-tiny text-muted-foreground">발송 시도</p>
+                      </div>
+                      <div className="text-center p-3 bg-background rounded-lg border">
+                        <p className="text-2xl font-bold text-success">
+                          {formatNumber(bizChatStats.data.msgRecvCnt || 0)}
+                        </p>
+                        <p className="text-tiny text-muted-foreground">수신 성공</p>
+                      </div>
+                      <div className="text-center p-3 bg-background rounded-lg border">
+                        <p className="text-2xl font-bold text-destructive">
+                          {formatNumber(bizChatStats.data.msgNotRecvCnt || 0)}
+                        </p>
+                        <p className="text-tiny text-muted-foreground">수신 실패</p>
+                      </div>
                     </div>
-                    <div className="text-center p-3 bg-background rounded-lg border">
-                      <p className="text-2xl font-bold text-success">
-                        {formatNumber(bizChatStats.result.data.successCnt || 0)}
-                      </p>
-                      <p className="text-tiny text-muted-foreground">성공</p>
+                    
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <div className="text-center p-3 bg-background rounded-lg border">
+                        <p className="text-2xl font-bold text-chart-5">
+                          {formatNumber(bizChatStats.data.rcsMsgRecvCnt || 0)}
+                        </p>
+                        <p className="text-tiny text-muted-foreground">RCS 수신</p>
+                      </div>
+                      <div className="text-center p-3 bg-background rounded-lg border">
+                        <p className="text-2xl font-bold text-chart-3">
+                          {formatNumber(bizChatStats.data.vmgMsgRecvCnt || 0)}
+                        </p>
+                        <p className="text-tiny text-muted-foreground">일반 수신 (VMG)</p>
+                      </div>
+                      <div className="text-center p-3 bg-background rounded-lg border">
+                        <p className="text-2xl font-bold text-primary">
+                          {formatNumber(bizChatStats.data.msgReactCnt || 0)}
+                        </p>
+                        <p className="text-tiny text-muted-foreground">반응자</p>
+                      </div>
+                      <div className="text-center p-3 bg-background rounded-lg border">
+                        <p className="text-2xl font-bold text-chart-1">
+                          {bizChatStats.data.msgReactRatio || '0'}%
+                        </p>
+                        <p className="text-tiny text-muted-foreground">반응률</p>
+                      </div>
                     </div>
-                    <div className="text-center p-3 bg-background rounded-lg border">
-                      <p className="text-2xl font-bold text-destructive">
-                        {formatNumber(bizChatStats.result.data.failCnt || 0)}
-                      </p>
-                      <p className="text-tiny text-muted-foreground">실패</p>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="p-3 bg-muted/50 rounded-lg border">
+                        <h4 className="font-medium mb-2 text-small">제외 현황</h4>
+                        <div className="flex justify-between text-small">
+                          <span className="text-muted-foreground">타 캠페인 수신자</span>
+                          <span>{formatNumber(bizChatStats.data.dupExcludeCnt || 0)}명</span>
+                        </div>
+                        <div className="flex justify-between text-small">
+                          <span className="text-muted-foreground">광고 수신 미동의</span>
+                          <span>{formatNumber(bizChatStats.data.adRcvExcludeCnt || 0)}명</span>
+                        </div>
+                      </div>
+                      <div className="p-3 bg-muted/50 rounded-lg border">
+                        <h4 className="font-medium mb-2 text-small">RCS 상세</h4>
+                        <div className="flex justify-between text-small">
+                          <span className="text-muted-foreground">RCS 반응자</span>
+                          <span>{formatNumber(bizChatStats.data.rcsMsgReactCnt || 0)}명 ({bizChatStats.data.rcsMsgReactRatio || '0'}%)</span>
+                        </div>
+                        <div className="flex justify-between text-small">
+                          <span className="text-muted-foreground">RCS 읽음</span>
+                          <span>{formatNumber(bizChatStats.data.rcsMsgReadCnt || 0)}명 ({bizChatStats.data.rcsMsgReadRatio || '0'}%)</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-center p-3 bg-background rounded-lg border">
-                      <p className="text-2xl font-bold text-warning">
-                        {formatNumber(bizChatStats.result.data.waitCnt || 0)}
+
+                    {bizChatStats.meta?.refreshedAt && (
+                      <p className="text-tiny text-muted-foreground text-right">
+                        마지막 갱신: {formatDateTime(bizChatStats.meta.refreshedAt)} (5분 주기 갱신)
                       </p>
-                      <p className="text-tiny text-muted-foreground">대기</p>
-                    </div>
-                    <div className="text-center p-3 bg-background rounded-lg border">
-                      <p className="text-2xl font-bold text-chart-5">
-                        {formatNumber(bizChatStats.result.data.readCnt || 0)}
-                      </p>
-                      <p className="text-tiny text-muted-foreground">읽음</p>
-                    </div>
-                    <div className="text-center p-3 bg-background rounded-lg border">
-                      <p className="text-2xl font-bold text-chart-4">
-                        {formatNumber(bizChatStats.result.data.settleCnt ?? 0)}
-                      </p>
-                      <p className="text-tiny text-muted-foreground">정산</p>
-                    </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-6 text-muted-foreground">

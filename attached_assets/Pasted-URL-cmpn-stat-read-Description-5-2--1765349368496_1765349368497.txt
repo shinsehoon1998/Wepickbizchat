@@ -1,0 +1,141 @@
+URL	/cmpn/stat/read				
+Description	"캠패인 통계 조회. 통계 데이터는 5분 주기로 갱신 된다.
+
+링크 개별 클릭 카운트및 반응률 계산은 2종류로 계산 된다. 
+- 접근하는 브라우저의 UA, IP 를 제한하여 계산된 반응률 
+- 접근하는 브라우저의 IP 만 제한하여 계산된 반응률"				
+Method	GET				
+Header	Authorization: {token}				
+					
+Request					
+In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+	id	Y	string	"19ca34b180394f15a9c66f798b65ef95"	대상 캠패인 아이디
+Example(Query string)	"아래 데이터는 실제 데이터로 변환하여 입력해야한다.
+- id : 캠페인 id
+
+tid=1706073253324&id=19ca34b180394f15a9c66f798b65ef95"				
+					
+Response					
+구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+	code	Y	string	"S000001"	API 성공, 실패 코드
+	msg	Y	string	"success"	API 성공, 실패 메시지
+	data	Y	object	{}	결과 데이터
+	data.statDate	Y	string	"20240312"	통계 수집 일자. YYYYMMDD 포멧
+	data.mdnCnt	Y	number	51100	발송 대상자 수. 메시지 발송한 카운트 이며, 발송 완료시 까지 값은 계속 변경 된다.
+	data.dupExcludeCnt	Y	number	35	타 캠패인 수신자 수
+	data.adRcvExcludeCnt	Y	number	194	광고 수신 미동의 수신자 수
+	data.sendTryCnt	Y	number	50871	발송 시도자 수 (발송 대상자 수 - 타 캠패인 수신자 수 - 광고 수신 미동의 수신자 수)
+	data.msgRecvCnt	Y	number	50512	캠패인 메시지 수신자 수. (RCS 메시지 수신자 수 + VMG 메시지 수신자 수)
+	data.rcsMsgRecvCnt	Y	number	39282	RCS 메시지 수신자 수
+	data.vmgMsgRecvCnt	Y	number	11230	일반 메시지 수신자 수
+	data.msgNotRecvCnt	Y	number	359	메시지 미수신자 수. (발송 시도자 수 - 캠페인 메시지 수신자 수)
+	data.msgReactCnt	Y	number	2126	메시지 반응자 수. (일반 메시지 반응자 수 + RCS 메시지 반응자 수). UA, IP 제한으로 계산된 값
+	data.msgReactRatio	Y	string	"4.2"	"메시지 반응률. (메시지 반응자 수 / 캠패인 메시지 수신자 수 * 100). 
+소수점 2자리까지 표기된다.
+UA, IP 제한으로 계산된 값"
+	data.rcsMsgReactCnt	Y	number	1656	RCS 메시지 반응자 수. RCS 본문, 버튼, Option 반응자 수 유니크 값. UA, IP 제한으로 계산된 값
+	data.rcsMsgReactRatio	Y	string	"4.21"	"RCS 메시지 반응률. (RCS 메시지 반응자 수 / RCS 메시지 수신자 수 * 100). 
+소수점 2자리까지 표기된다.
+UA, IP 제한으로 계산된 값"
+	msg.vmgMsgReactCnt	Y	number	470	일반 메시지 반응자 수. 본문 URL 선택한 수신자 수의 유니크 값. UA, IP 제한으로 계산된 값
+	msg.vmgMsgReactRatio	Y	string	"4.18"	"일반 메시지 반응률. (일반 메시지 반응자 수 / 일반 메시지 수신자 수 * 100).
+소수점 2자리까지 표기된다.
+UA, IP 제한으로 계산된 값"
+	data.msgReactCnt2	Y	number	2126	메시지 반응자 수. (일반 메시지 반응자 수 + RCS 메시지 반응자 수). UA 제한으로 계산된 값
+	data.msgReactRatio2	Y	string	"4.2"	"메시지 반응률. (메시지 반응자 수 / 캠패인 메시지 수신자 수 * 100). 
+소수점 2자리까지 표기된다.
+UA 제한으로 계산된 값"
+	data.rcsMsgReactCnt2	Y	number	1656	RCS 메시지 반응자 수. RCS 본문, 버튼, Option 반응자 수 유니크 값. UA 제한으로 계산된 값
+	data.rcsMsgReactRatio2	Y	string	"4.21"	"RCS 메시지 반응률. (RCS 메시지 반응자 수 / RCS 메시지 수신자 수 * 100). 
+소수점 2자리까지 표기된다.
+UA 제한으로 계산된 값"
+	msg.vmgMsgReactCnt2	Y	number	470	일반 메시지 반응자 수. 본문 URL 선택한 수신자 수의 유니크 값. UA 제한으로 계산된 값
+	msg.vmgMsgReactRatio2	Y	string	"4.18"	"일반 메시지 반응률. (일반 메시지 반응자 수 / 일반 메시지 수신자 수 * 100).
+소수점 2자리까지 표기된다.
+UA 제한으로 계산된 값"
+	rcsMsgReadCnt	Y	number	0	메시지 확인자 수(read). 
+	rcsMsgReadRatio	Y	string	"0.00"	"RCS 메시지 확인률. (RCS 메시지 확인자 수 / RCS 메시지 수신자 수 * 100). 
+소수점 2자리까지 표기된다."
+	url	Y	object	{}	메시지 반응 상세 정보. UA, IP 제한으로 계산된 값
+	url.list	Y	array	[]	메시지 반응 URL별 상세 정보
+	url.list[].msgType	Y	number	12	"메시지 종류.
+- 1 : fallback 메시지
+- 11 : 캠패인 LMS
+- 12 : 캠패인 MMS
+- 21 : 캠패인 RCS(스탠다드)
+- 22 : 캠패인 RCS(LMS)
+- 23 : 캠패인 RCS(슬라이드)
+- 24 : 캠패인 RCS(이미지 강조A)
+- 25 : 캠패인 RCS(이미지 강조B)
+- 26 : 캠패인 상품소개세로"
+	url.list[].slideNum	Y	number	1	개인화 URL 이 포함되는 슬라이드 넘버. 최소값 1. 메시지 구분이 RCS(슬라이드)가 아니면 항상 1
+	url.list[].linkType	Y	number	0	"개인화 URL 이 들어가는 위치.
+- 0 : 메시지 본문 
+- 1 : RCS 버튼 
+- 2 : RCS 상품소개세로 옵션
+- 3 : fallback 메시지"
+	url.list[].linkNum	Y	number	1	캠패인 및 실시간 메시지에서 링크 넘버
+	url.list[].cnt	Y	number	1	unique 한 클릭 횟수
+	url2	Y	object	{}	메시지 반응 상세 정보. UA 제한으로 계산된 값
+	url2.list	Y	array	[]	메시지 반응 URL별 상세 정보
+	url2.list[].msgType	Y	number	12	"메시지 종류.
+- 1 : fallback 메시지
+- 11 : 캠패인 LMS
+- 12 : 캠패인 MMS
+- 21 : 캠패인 RCS(스탠다드)
+- 22 : 캠패인 RCS(LMS)
+- 23 : 캠패인 RCS(슬라이드)
+- 24 : 캠패인 RCS(이미지 강조A)
+- 25 : 캠패인 RCS(이미지 강조B)
+- 26 : 캠패인 상품소개세로"
+	url2.list[].slideNum	Y	number	1	개인화 URL 이 포함되는 슬라이드 넘버. 최소값 1. 메시지 구분이 RCS(슬라이드)가 아니면 항상 1
+	url2.list[].linkType	Y	number	0	"개인화 URL 이 들어가는 위치.
+- 0 : 메시지 본문 
+- 1 : RCS 버튼 
+- 2 : RCS 상품소개세로 옵션
+- 3 : fallback 메시지"
+	url2.list[].linkNum	Y	number	1	캠패인 및 실시간 메시지에서 링크 넘버
+	url2.list[].cnt	Y	number	1	unique 한 클릭 횟수
+Example	"{
+    ""tid"": ""1706073253324"",
+    ""code"": ""S000001"",
+    ""msg"": ""success"",
+    ""data"": {
+        ""statDate"": ""20240312"",
+        ""mdnCnt"": 51100,
+        ""dupExcludeCnt"": 35,
+        ""adRcvExcludeCnt"": 194,
+        ""sendTryCnt"": 50871,
+        ""msgRecvCnt"": 50512,
+        ""rcsMsgRecvCnt"": 39282,
+        ""vmgMsgRecvCnt"": 11230,
+        ""msgNotRecvCnt"": 359,
+        ""msgReactCnt"": 2126,
+        ""msgReactRatio"": ""4.2"",
+        ""rcsMsgReactCnt"": 1656,
+        ""rcsMsgReactRatio"": ""4.21"",
+        ""vmgMsgReactCnt"": 470,
+        ""vmgMsgReactRatio"": ""4.18"",
+        ""msgReactCnt2"": 2126,
+        ""msgReactRatio2"": ""4.2"",
+        ""rcsMsgReactCnt2"": 1656,
+        ""rcsMsgReactRatio2"": ""4.21"",
+        ""vmgMsgReactCnt2"": 470,
+        ""vmgMsgReactRatio2"": ""4.18"",
+        ""rcsMsgReadCnt"": 0,
+        ""rcsMsgReadRatio"": ""0.00"",
+        ""url"": {
+            ""list"": [
+                {
+                    ""msgType"": 12,
+                    ""slideNum"": 1,
+                    ""linkType"": 0,
+                    ""linkNum"": 1,
+                    ""cnt"": 1
+                }
+            ]
+        }
+    }
+}"				
