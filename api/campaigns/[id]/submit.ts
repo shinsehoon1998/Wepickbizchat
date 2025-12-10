@@ -920,6 +920,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         settleCnt: campaign.settleCnt ?? sndGoalCnt,
         sndMosu: sndMosu,
         sndMosuFlag: 0,
+        isTmp: false, // 필수 필드: 임시저장 여부 (승인 요청 시 false)
         mms: {
           title: message?.title || '',
           msg: message?.content || '',

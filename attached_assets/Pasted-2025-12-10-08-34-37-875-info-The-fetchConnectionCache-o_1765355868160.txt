@@ -1,0 +1,67 @@
+2025-12-10 08:34:37.875 [info] The `fetchConnectionCache` option is deprecated (now always `true`)
+2025-12-10 08:34:38.089 [info] [BizChat Submit] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-10 08:34:38.089 [info] [BizChat Submit] Environment: DEVELOPMENT (VERCEL_ENV=production)
+2025-12-10 08:34:38.098 [error] (node:4) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2025-12-10 08:34:39.142 [info] [Submit] Test campaign (rcvType=10): Skipping strict time validation
+2025-12-10 08:34:39.142 [info] [Submit] Updating existing BizChat campaign...
+2025-12-10 08:34:39.142 [info] [Submit] Update payload: {
+  "name": "테스트발송_2025-12-10",
+  "tgtCompanyName": "위픽",
+  "sndNum": "001001",
+  "rcvType": 10,
+  "sndGoalCnt": 1,
+  "billingType": 0,
+  "settleCnt": 0,
+  "sndMosu": 2,
+  "sndMosuFlag": 0,
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlFile": "",
+    "urlLink": {}
+  },
+  "rcs": [],
+  "atsSndStartDate": 1765356000
+}
+2025-12-10 08:34:39.143 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-10 08:34:39.143 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-10 08:34:39.143 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-10 08:34:39.143 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-10 08:34:39.143 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/update?id=a1e939f4a77734a7add649a5abf9b59f&tid=1765355679143
+2025-12-10 08:34:39.143 [info] [BizChat] Request body: {
+  "name": "테스트발송_2025-12-10",
+  "tgtCompanyName": "위픽",
+  "sndNum": "001001",
+  "rcvType": 10,
+  "sndGoalCnt": 1,
+  "billingType": 0,
+  "settleCnt": 0,
+  "sndMosu": 2,
+  "sndMosuFlag": 0,
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlFile": "",
+    "urlLink": {}
+  },
+  "rcs": [],
+  "atsSndStartDate": 1765356000
+}
+2025-12-10 08:34:39.257 [info] [BizChat] Response: 400 - {"tid":"1765355679143","code":"E000002","msg":"Invalid request","errors":[{"field":"isTmp","message":"필수값 입니다."}]}
+2025-12-10 08:34:39.257 [warning] [Submit] BizChat update warning: {
+  tid: '1765355679143',
+  code: 'E000002',
+  msg: 'Invalid request',
+  errors: [ { field: 'isTmp', message: '필수값 입니다.' } ]
+}
+2025-12-10 08:34:39.435 [info] [Submit] Requesting approval...
+2025-12-10 08:34:39.435 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-10 08:34:39.435 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-10 08:34:39.435 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-10 08:34:39.435 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-10 08:34:39.435 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/appr/req?id=a1e939f4a77734a7add649a5abf9b59f&tid=1765355679435
+2025-12-10 08:34:39.436 [info] [BizChat] Request body: {}
+2025-12-10 08:34:39.517 [info] [BizChat] Response: 200 - {"tid":"1765355679435","code":"S000001","msg":"Success"}
+2025-12-10 08:34:39.696 [info] [Submit] Approval requested for campaign: 4f7aea53-4ee4-439d-a532-173ada08534f
