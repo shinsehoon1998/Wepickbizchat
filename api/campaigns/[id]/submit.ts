@@ -640,13 +640,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // BizChat API 규격 v0.29.0: 발송 시간 검증
-    const sendDateToValidate = scheduledAt || campaign.atsSndStartDate || campaign.scheduledAt;
+    // rcvType 0 또는 10일 때 atsSndStartDate는 필수 - 없으면 기본값 설정 (현재 + 1시간)
+    const rcvType = campaign.rcvType ?? 0;
+    let sendDateToValidate = scheduledAt || campaign.atsSndStartDate || campaign.scheduledAt;
+    
+    // rcvType 0/10일 때 발송 시간이 없으면 기본값 생성 (현재 + 1시간, 10분 단위 올림)
+    if (!sendDateToValidate && (rcvType === 0 || rcvType === 10)) {
+      const now = new Date();
+      const defaultSendDate = new Date(now.getTime() + 60 * 60 * 1000); // 현재 + 1시간
+      defaultSendDate.setSeconds(0);
+      defaultSendDate.setMilliseconds(0);
+      // 10분 단위로 올림
+      const minutes = defaultSendDate.getMinutes();
+      const remainder = minutes % 10;
+      if (remainder > 0) {
+        defaultSendDate.setMinutes(minutes + (10 - remainder));
+      }
+      sendDateToValidate = defaultSendDate;
+      console.log('[Submit] No scheduledAt provided, using default send date:', defaultSendDate.toISOString());
+    }
+    
     const timeValidation = validateSendTime(sendDateToValidate);
     if (!timeValidation.valid) {
       return res.status(400).json({ error: timeValidation.error });
     }
     
-    // 10분 단위로 조정된 발송 시간 사용
+    // 10분 단위로 조정된 발송 시간 사용 (rcvType 0/10일 때 필수)
     const adjustedSendDate = timeValidation.adjustedDate || sendDateToValidate;
 
     if (!campaign.bizchatCampaignId) {
