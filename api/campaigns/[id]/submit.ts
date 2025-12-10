@@ -640,14 +640,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // BizChat API 규격 v0.29.0: 발송 시간 검증
-    // rcvType 0 또는 10일 때 atsSndStartDate는 필수 - 없으면 기본값 설정 (현재 + 1시간)
+    // rcvType 0: ATS 타겟팅 - 시간 검증 필요 (1시간 이후, 09:00~19:00)
+    // rcvType 10: MDN 직접 지정 (테스트 발송) - 시간 검증 완화 (10분 단위 조정만)
     const rcvType = campaign.rcvType ?? 0;
     let sendDateToValidate = scheduledAt || campaign.atsSndStartDate || campaign.scheduledAt;
     
-    // rcvType 0/10일 때 발송 시간이 없으면 기본값 생성 (현재 + 1시간, 10분 단위 올림)
+    // 발송 시간이 없으면 기본값 생성
     if (!sendDateToValidate && (rcvType === 0 || rcvType === 10)) {
       const now = new Date();
-      const defaultSendDate = new Date(now.getTime() + 60 * 60 * 1000); // 현재 + 1시간
+      // rcvType 10 (테스트 발송): 10분 후로 설정 (BizChat에서 실제로 허용)
+      // rcvType 0 (ATS 타겟팅): 1시간 후로 설정 (규격 요구사항)
+      const offsetMinutes = rcvType === 10 ? 10 : 60;
+      const defaultSendDate = new Date(now.getTime() + offsetMinutes * 60 * 1000);
       defaultSendDate.setSeconds(0);
       defaultSendDate.setMilliseconds(0);
       // 10분 단위로 올림
@@ -657,16 +661,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         defaultSendDate.setMinutes(minutes + (10 - remainder));
       }
       sendDateToValidate = defaultSendDate;
-      console.log('[Submit] No scheduledAt provided, using default send date:', defaultSendDate.toISOString());
+      console.log(`[Submit] No scheduledAt provided, using default send date for rcvType ${rcvType}:`, defaultSendDate.toISOString());
     }
     
-    const timeValidation = validateSendTime(sendDateToValidate);
-    if (!timeValidation.valid) {
-      return res.status(400).json({ error: timeValidation.error });
+    // 테스트 발송(rcvType: 10)은 시간 검증 완화 - 10분 단위 조정만 수행
+    let adjustedSendDate: Date | string | null | undefined = sendDateToValidate;
+    if (rcvType === 10) {
+      // 테스트 발송: 10분 단위 조정만 수행 (1시간 제한 및 시간대 검증 스킵)
+      if (sendDateToValidate) {
+        const targetDate = typeof sendDateToValidate === 'string' ? new Date(sendDateToValidate) : new Date(sendDateToValidate);
+        targetDate.setSeconds(0);
+        targetDate.setMilliseconds(0);
+        const minutes = targetDate.getMinutes();
+        const remainder = minutes % 10;
+        if (remainder !== 0) {
+          targetDate.setMinutes(minutes + (10 - remainder));
+        }
+        adjustedSendDate = targetDate;
+      }
+      console.log('[Submit] Test campaign (rcvType=10): Skipping strict time validation');
+    } else {
+      // ATS 타겟팅 (rcvType: 0): 전체 시간 검증 수행
+      const timeValidation = validateSendTime(sendDateToValidate);
+      if (!timeValidation.valid) {
+        return res.status(400).json({ error: timeValidation.error });
+      }
+      adjustedSendDate = timeValidation.adjustedDate || sendDateToValidate;
     }
-    
-    // 10분 단위로 조정된 발송 시간 사용 (rcvType 0/10일 때 필수)
-    const adjustedSendDate = timeValidation.adjustedDate || sendDateToValidate;
 
     if (!campaign.bizchatCampaignId) {
       // billingType 결정 (BizChat API 규격 v0.29.0)
