@@ -56,7 +56,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import TargetingAdvanced from "@/components/targeting-advanced";
+import TargetingAdvanced, { type AdvancedTargetingState } from "@/components/targeting-advanced";
 import type { Template } from "@shared/schema";
 
 interface BizChatSenderNumber {
@@ -126,14 +126,18 @@ export default function CampaignsNew() {
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [showAdvancedTargeting, setShowAdvancedTargeting] = useState(false);
-  const [advancedTargeting, setAdvancedTargeting] = useState({
-    targetingMode: 'ats' as 'ats' | 'maptics',
-    shopping11stCategories: [] as { cat1: string; cat2?: string; cat3?: string }[],
-    webappCategories: [] as { cat1: string; cat2?: string; cat3?: string }[],
-    callCategories: [] as { cat1: string; cat2?: string; cat3?: string }[],
-    locations: [] as { code: string; type: 'home' | 'work'; name: string }[],
-    profiling: [] as { code: string; value: string | { gt: string; lt: string }; desc: string }[],
-    geofences: [] as { id: number; name: string; targets: any[] }[],
+  const [advancedTargeting, setAdvancedTargeting] = useState<AdvancedTargetingState>({
+    targetingMode: 'ats',
+    shopping11stCategories: [],
+    webappCategories: [],
+    callCategories: [],
+    locations: [],
+    profiling: [],
+    geofences: [],
+    // ATS 모수 정보 (BizChat 연동용)
+    sndMosu: undefined,
+    sndMosuQuery: undefined,
+    sndMosuDesc: undefined,
   });
   
   // 타겟팅 모드에 따른 편의 변수
@@ -347,6 +351,17 @@ export default function CampaignsNew() {
         budget: parseFloat(existingCampaign.budget as string) || 100000,
         scheduledAt: hasScheduledAt && scheduledDate ? scheduledDate.toISOString() : undefined,
       });
+      
+      // 기존 sndMosu 데이터를 advancedTargeting에 설정
+      const campaign = existingCampaign as any;
+      if (campaign.sndMosu || campaign.sndMosuQuery || campaign.sndMosuDesc) {
+        setAdvancedTargeting(prev => ({
+          ...prev,
+          sndMosu: campaign.sndMosu || undefined,
+          sndMosuQuery: campaign.sndMosuQuery || undefined,
+          sndMosuDesc: campaign.sndMosuDesc || undefined,
+        }));
+      }
     }
   }, [isEditMode, existingCampaign, form]);
 
@@ -460,6 +475,12 @@ export default function CampaignsNew() {
         scheduledAt: data.scheduledAt || undefined,
         // 고급 타겟팅 옵션
         ...advancedTargeting,
+        // ATS 모수 정보 명시적 포함 (캠페인 수정 시 누락 방지)
+        sndMosu: advancedTargeting.sndMosu || null,
+        sndMosuQuery: advancedTargeting.sndMosuQuery || null,
+        sndMosuDesc: advancedTargeting.sndMosuDesc || null,
+        // 발송 목표 건수
+        sndGoalCnt: data.targetCount,
       };
 
       if (isEditMode && campaignId) {

@@ -138,6 +138,10 @@ export interface AdvancedTargetingState {
   }[];
   // 지오펜스 타겟팅 (Maptics) - Maptics 전용
   geofences: SavedGeofence[];
+  // ATS 모수 정보 (BizChat API 연동용) - ATS 전용
+  sndMosu?: number;
+  sndMosuQuery?: string;
+  sndMosuDesc?: string;
 }
 
 interface TargetingAdvancedProps {
@@ -1149,6 +1153,16 @@ export default function TargetingAdvanced({
         const res = await apiRequest("POST", "/api/targeting/estimate", estimatePayload);
         const data = await res.json();
         setEstimatedCount(data.estimatedCount || 0);
+        
+        // ATS 모드일 때 모수 정보를 부모에게 전달 (캠페인 저장에 필요)
+        if (currentMode === 'ats' && data.estimatedCount > 0) {
+          onTargetingChange({
+            ...targeting,
+            sndMosu: data.estimatedCount,
+            sndMosuQuery: data.sndMosuQuery || data.query || '',
+            sndMosuDesc: data.sndMosuDesc || data.description || '',
+          });
+        }
       } catch (error) {
         console.error("Failed to estimate audience:", error);
       } finally {
@@ -1158,7 +1172,7 @@ export default function TargetingAdvanced({
 
     const debounce = setTimeout(estimateAudience, 500);
     return () => clearTimeout(debounce);
-  }, [targeting, basicTargeting, currentMode]);
+  }, [targeting?.shopping11stCategories, targeting?.webappCategories, targeting?.callCategories, targeting?.locations, targeting?.profiling, targeting?.geofences, basicTargeting, currentMode]);
 
   // ATS 필터 개수
   const atsFilterCount =

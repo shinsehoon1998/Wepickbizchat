@@ -26,6 +26,17 @@ const campaigns = pgTable('campaigns', {
   completedAt: timestamp('completed_at'),
   rejectionReason: text('rejection_reason'),
   bizchatCampaignId: text('bizchat_campaign_id'),
+  rcvType: integer('rcv_type').default(0),
+  billingType: integer('billing_type').default(0),
+  rcsType: integer('rcs_type'),
+  tgtCompanyName: text('tgt_company_name'),
+  sndGoalCnt: integer('snd_goal_cnt'),
+  sndMosu: integer('snd_mosu'),
+  sndMosuQuery: text('snd_mosu_query'),
+  sndMosuDesc: text('snd_mosu_desc'),
+  settleCnt: integer('settle_cnt').default(0),
+  mdnFileId: text('mdn_file_id'),
+  atsSndStartDate: timestamp('ats_snd_start_date'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
@@ -138,12 +149,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
       if (campaign.userId !== userId) return res.status(403).json({ error: 'Access denied' });
 
-      // scheduledAt을 Date로 변환
       const updateData: Record<string, unknown> = { ...req.body, updatedAt: new Date() };
-      if (updateData.scheduledAt && typeof updateData.scheduledAt === 'string') {
-        updateData.scheduledAt = new Date(updateData.scheduledAt as string);
-      } else if (updateData.scheduledAt === '' || updateData.scheduledAt === null) {
-        updateData.scheduledAt = null;
+      
+      // Date 필드 변환
+      const dateFields = ['scheduledAt', 'atsSndStartDate', 'completedAt'];
+      for (const field of dateFields) {
+        if (updateData[field] && typeof updateData[field] === 'string') {
+          updateData[field] = new Date(updateData[field] as string);
+        } else if (updateData[field] === '' || updateData[field] === null) {
+          updateData[field] = null;
+        }
+      }
+      
+      // 숫자 필드 변환 (문자열로 전달된 경우)
+      const intFields = ['sndMosu', 'sndGoalCnt', 'targetCount', 'rcvType', 'billingType', 'rcsType', 'settleCnt', 'statusCode'];
+      for (const field of intFields) {
+        if (updateData[field] !== undefined && updateData[field] !== null) {
+          const value = updateData[field];
+          if (typeof value === 'string') {
+            updateData[field] = parseInt(value, 10);
+          }
+        }
+      }
+
+      console.log('[Campaign PATCH] Updating campaign:', id, 'Fields:', Object.keys(updateData).filter(k => k !== 'updatedAt'));
+      if (updateData.sndMosu !== undefined) {
+        console.log('[Campaign PATCH] sndMosu value:', updateData.sndMosu);
       }
 
       const updatedResult = await db.update(campaigns).set(updateData).where(eq(campaigns.id, id)).returning();
