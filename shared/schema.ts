@@ -110,7 +110,18 @@ export const campaigns = pgTable("campaigns", {
   mdnFileId: varchar("mdn_file_id", { length: 50 }), // MDN 파일 ID
   
   // 발송 일정
-  atsSndStartDate: timestamp("ats_snd_start_date"), // ATS 발송 시작 일시
+  atsSndStartDate: timestamp("ats_snd_start_date"), // ATS 발송 시작 일시 (rcvType=0,10)
+  
+  // Maptics 지오펜스 발송 일정 (rcvType=1,2)
+  collStartDate: timestamp("coll_start_date"), // 수집 시작 일시
+  collEndDate: timestamp("coll_end_date"), // 수집 종료 일시
+  collSndDate: timestamp("coll_snd_date"), // 발송 시작 일시 (rcvType=2 모아서 보내기)
+  sndGeofenceId: integer("snd_geofence_id"), // 지오펜스 ID
+  
+  // Maptics 실시간 보내기 전용 (rcvType=1)
+  rtStartHhmm: varchar("rt_start_hhmm", { length: 4 }), // 발송 시작 시간 (HHMM, 0900~1950)
+  rtEndHhmm: varchar("rt_end_hhmm", { length: 4 }), // 발송 종료 시간 (HHMM, 0910~2000)
+  sndDayDiv: integer("snd_day_div").default(0), // 일 균등 분할 (0: 미분할, 1: 분할)
   
   // 통계
   targetCount: integer("target_count").default(0).notNull(),

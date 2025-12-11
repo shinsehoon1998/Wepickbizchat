@@ -14,6 +14,7 @@ import {
   Search,
   Loader2,
   TrendingUp,
+  Clock,
 } from "lucide-react";
 import { formatNumber } from "@/lib/authUtils";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -114,6 +122,9 @@ export interface SavedGeofence {
 // BizChat API에서 두 방식은 상호 배타적 (rcvType=0 vs rcvType=1,2)
 export type TargetingMode = 'ats' | 'maptics';
 
+// Maptics 발송 방식: 실시간(rcvType=1) vs 모아서(rcvType=2)
+export type MapticsSendType = 'realtime' | 'batch';
+
 // 타겟팅 상태 (BizChat 규격 준수)
 export interface AdvancedTargetingState {
   // 타겟팅 모드 (ATS vs Maptics)
@@ -142,6 +153,14 @@ export interface AdvancedTargetingState {
   sndMosu?: number;
   sndMosuQuery?: string;
   sndMosuDesc?: string;
+  
+  // Maptics 발송 방식 (rcvType=1: realtime, rcvType=2: batch)
+  mapticsSendType?: MapticsSendType;
+  // Maptics 실시간 발송 시간대 (rcvType=1, HHMM 형식)
+  rtStartHhmm?: string; // 0900~1950
+  rtEndHhmm?: string;   // 0910~2000
+  // Maptics 일 균등 분할 (rcvType=1, 0: 미분할, 1: 분할)
+  sndDayDiv?: number;
 }
 
 interface TargetingAdvancedProps {
@@ -1402,14 +1421,249 @@ export default function TargetingAdvanced({
           </>
         )}
 
-        {/* Maptics 모드: 지오펜스만 */}
+        {/* Maptics 모드: 발송 방식 선택 + 지오펜스 */}
         {currentMode === 'maptics' && (
-          <GeofenceSection
-            savedGeofences={targeting?.geofences ?? []}
-            onGeofencesChange={(geos) =>
-              onTargetingChange({ ...targeting, geofences: geos })
-            }
-          />
+          <>
+            {/* 발송 방식 선택 (실시간 vs 모아서) */}
+            <Card className="mb-4">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-medium flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary" />
+                  발송 방식
+                </CardTitle>
+                <CardDescription className="text-sm">
+                  지오펜스 진입 시 메시지 발송 방식을 선택하세요
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* 발송 방식 선택 카드 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* 실시간 보내기 (rcvType=1) */}
+                  <div
+                    className={cn(
+                      "relative p-4 rounded-lg border-2 cursor-pointer transition-all",
+                      (targeting?.mapticsSendType ?? 'batch') === 'realtime'
+                        ? "border-primary bg-primary/5"
+                        : "border-muted hover:border-muted-foreground/50"
+                    )}
+                    onClick={() => onTargetingChange({
+                      ...targeting,
+                      mapticsSendType: 'realtime',
+                      rtStartHhmm: targeting?.rtStartHhmm ?? '0900',
+                      rtEndHhmm: targeting?.rtEndHhmm ?? '2000',
+                      sndDayDiv: targeting?.sndDayDiv ?? 0,
+                    })}
+                    data-testid="card-maptics-realtime"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={cn(
+                        "p-2 rounded-lg",
+                        (targeting?.mapticsSendType ?? 'batch') === 'realtime' 
+                          ? "bg-primary/10" : "bg-muted"
+                      )}>
+                        <TrendingUp className={cn(
+                          "h-5 w-5",
+                          (targeting?.mapticsSendType ?? 'batch') === 'realtime'
+                            ? "text-primary" : "text-muted-foreground"
+                        )} />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium text-sm">실시간 보내기</h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          지오펜스에 진입하면 즉시 발송
+                        </p>
+                      </div>
+                    </div>
+                    {(targeting?.mapticsSendType ?? 'batch') === 'realtime' && (
+                      <div className="absolute top-2 right-2">
+                        <Badge variant="default" className="text-xs">선택됨</Badge>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* 모아서 보내기 (rcvType=2) */}
+                  <div
+                    className={cn(
+                      "relative p-4 rounded-lg border-2 cursor-pointer transition-all",
+                      (targeting?.mapticsSendType ?? 'batch') === 'batch'
+                        ? "border-primary bg-primary/5"
+                        : "border-muted hover:border-muted-foreground/50"
+                    )}
+                    onClick={() => onTargetingChange({
+                      ...targeting,
+                      mapticsSendType: 'batch',
+                      rtStartHhmm: undefined,
+                      rtEndHhmm: undefined,
+                      sndDayDiv: undefined,
+                    })}
+                    data-testid="card-maptics-batch"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={cn(
+                        "p-2 rounded-lg",
+                        (targeting?.mapticsSendType ?? 'batch') === 'batch' 
+                          ? "bg-primary/10" : "bg-muted"
+                      )}>
+                        <Clock className={cn(
+                          "h-5 w-5",
+                          (targeting?.mapticsSendType ?? 'batch') === 'batch'
+                            ? "text-primary" : "text-muted-foreground"
+                        )} />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium text-sm">모아서 보내기</h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          수집 후 지정 시간에 일괄 발송
+                        </p>
+                      </div>
+                    </div>
+                    {(targeting?.mapticsSendType ?? 'batch') === 'batch' && (
+                      <div className="absolute top-2 right-2">
+                        <Badge variant="default" className="text-xs">선택됨</Badge>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 실시간 보내기 옵션 (rcvType=1 선택 시) */}
+                {(targeting?.mapticsSendType ?? 'batch') === 'realtime' && (
+                  <div className="pt-4 border-t space-y-4">
+                    <div className="text-sm font-medium text-muted-foreground mb-2">
+                      실시간 발송 시간대 설정
+                    </div>
+                    
+                    {/* 발송 시간대 */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="rtStartHhmm" className="text-sm">
+                          발송 시작 시간
+                        </Label>
+                        <Select
+                          value={targeting?.rtStartHhmm ?? '0900'}
+                          onValueChange={(val) => onTargetingChange({
+                            ...targeting,
+                            rtStartHhmm: val,
+                          })}
+                        >
+                          <SelectTrigger data-testid="select-rt-start-time">
+                            <SelectValue placeholder="시작 시간" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {['0900', '0910', '0920', '0930', '0940', '0950',
+                              '1000', '1010', '1020', '1030', '1040', '1050',
+                              '1100', '1110', '1120', '1130', '1140', '1150',
+                              '1200', '1210', '1220', '1230', '1240', '1250',
+                              '1300', '1310', '1320', '1330', '1340', '1350',
+                              '1400', '1410', '1420', '1430', '1440', '1450',
+                              '1500', '1510', '1520', '1530', '1540', '1550',
+                              '1600', '1610', '1620', '1630', '1640', '1650',
+                              '1700', '1710', '1720', '1730', '1740', '1750',
+                              '1800', '1810', '1820', '1830', '1840', '1850',
+                              '1900', '1910', '1920', '1930', '1940', '1950'
+                            ].map((time) => (
+                              <SelectItem key={time} value={time}>
+                                {time.slice(0, 2)}:{time.slice(2)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          09:00~19:50
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="rtEndHhmm" className="text-sm">
+                          발송 종료 시간
+                        </Label>
+                        <Select
+                          value={targeting?.rtEndHhmm ?? '2000'}
+                          onValueChange={(val) => onTargetingChange({
+                            ...targeting,
+                            rtEndHhmm: val,
+                          })}
+                        >
+                          <SelectTrigger data-testid="select-rt-end-time">
+                            <SelectValue placeholder="종료 시간" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {['0910', '0920', '0930', '0940', '0950',
+                              '1000', '1010', '1020', '1030', '1040', '1050',
+                              '1100', '1110', '1120', '1130', '1140', '1150',
+                              '1200', '1210', '1220', '1230', '1240', '1250',
+                              '1300', '1310', '1320', '1330', '1340', '1350',
+                              '1400', '1410', '1420', '1430', '1440', '1450',
+                              '1500', '1510', '1520', '1530', '1540', '1550',
+                              '1600', '1610', '1620', '1630', '1640', '1650',
+                              '1700', '1710', '1720', '1730', '1740', '1750',
+                              '1800', '1810', '1820', '1830', '1840', '1850',
+                              '1900', '1910', '1920', '1930', '1940', '1950', '2000'
+                            ].map((time) => (
+                              <SelectItem key={time} value={time}>
+                                {time.slice(0, 2)}:{time.slice(2)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          09:10~20:00
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 일 균등 분할 옵션 */}
+                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-medium">일 균등 분할 발송</Label>
+                        <p className="text-xs text-muted-foreground">
+                          하루 발송량을 균등하게 분배합니다
+                        </p>
+                      </div>
+                      <Checkbox
+                        checked={(targeting?.sndDayDiv ?? 0) === 1}
+                        onCheckedChange={(checked) => onTargetingChange({
+                          ...targeting,
+                          sndDayDiv: checked ? 1 : 0,
+                        })}
+                        data-testid="checkbox-snd-day-div"
+                      />
+                    </div>
+
+                    {/* 안내 메시지 */}
+                    <div className="flex items-start gap-2 p-3 bg-blue-50 text-blue-700 rounded-lg text-xs">
+                      <Target className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium">실시간 발송 안내</p>
+                        <p className="mt-1">
+                          지오펜스에 진입한 고객에게 설정한 시간대({targeting?.rtStartHhmm?.slice(0,2)}:{targeting?.rtStartHhmm?.slice(2)}~{targeting?.rtEndHhmm?.slice(0,2)}:{targeting?.rtEndHhmm?.slice(2)}) 내에서 즉시 메시지가 발송됩니다.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 모아서 보내기 안내 (rcvType=2 선택 시) */}
+                {(targeting?.mapticsSendType ?? 'batch') === 'batch' && (
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 text-amber-700 rounded-lg text-xs">
+                    <Clock className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-medium">모아서 보내기 안내</p>
+                      <p className="mt-1">
+                        수집 기간 동안 지오펜스에 진입한 고객을 모아서 지정 시간에 일괄 발송합니다. 발송 일시는 캠페인 생성 시 자동 설정됩니다.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <GeofenceSection
+              savedGeofences={targeting?.geofences ?? []}
+              onGeofencesChange={(geos) =>
+                onTargetingChange({ ...targeting, geofences: geos })
+              }
+            />
+          </>
         )}
       </div>
     </div>

@@ -657,6 +657,10 @@ async function createCampaignInBizChat(
     collStartDate?: Date | null;  // 수집 시작 일시
     collEndDate?: Date | null;    // 수집 종료 일시
     collSndDate?: Date | null;    // 발송 시작 일시 (rcvType=2)
+    // Maptics 실시간 보내기 전용 (rcvType=1)
+    rtStartHhmm?: string;         // 발송 시작 시간 (HHMM, 0900~1950)
+    rtEndHhmm?: string;           // 발송 종료 시간 (HHMM, 0910~2000)
+    sndDayDiv?: number;           // 일 균등 분할 (0: 미분할, 1: 분할)
   },
   messageData: {
     title?: string;
@@ -802,6 +806,18 @@ async function createCampaignInBizChat(
       payload.collSndDate = Math.floor(new Date(campaignData.collSndDate).getTime() / 1000);
     }
     
+    // rcvType=1 (실시간 보내기)일 때 발송 시간대 및 일 균등 분할
+    if (rcvType === 1) {
+      if (campaignData.rtStartHhmm) {
+        payload.rtStartHhmm = campaignData.rtStartHhmm;
+      }
+      if (campaignData.rtEndHhmm) {
+        payload.rtEndHhmm = campaignData.rtEndHhmm;
+      }
+      // sndDayDiv: 0=미분할 (기본), 1=분할
+      payload.sndDayDiv = campaignData.sndDayDiv ?? 0;
+    }
+    
     // Maptics는 ATS mosu가 아닌 지오펜스로 타겟팅하므로, atsSndStartDate 제거
     delete payload.atsSndStartDate;
     delete payload.sndMosu;
@@ -879,6 +895,13 @@ const createCampaignSchema = z.object({
       lon: z.string().optional(),
     })),
   })).optional(),
+  // Maptics 발송 방식 (rcvType=1: realtime, rcvType=2: batch)
+  mapticsSendType: z.enum(['realtime', 'batch']).optional(),
+  // Maptics 실시간 발송 시간대 (rcvType=1, HHMM 형식)
+  rtStartHhmm: z.string().regex(/^(0[9]|1[0-9])([0-5][0])$/).optional(), // 0900~1950
+  rtEndHhmm: z.string().regex(/^(0[9]|1[0-9]|20)([0-1][0])$/).optional(), // 0910~2000
+  // Maptics 일 균등 분할 (rcvType=1, 0: 미분할, 1: 분할)
+  sndDayDiv: z.number().min(0).max(1).optional(),
   targetCount: z.number().min(100).default(1000),
   budget: z.number().min(10000),
   scheduledAt: z.string().datetime().optional().or(z.literal('')).transform(val => val === '' ? undefined : val),
@@ -931,9 +954,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // 지오펜스 선택 여부 먼저 확인 (ATS vs Maptics 분기)
       const geofenceIds = data.geofenceIds || (data.geofences?.map(g => String(g.id)) ?? []);
       const hasGeofence = geofenceIds.length > 0;
-      const rcvType = hasGeofence ? 2 : 0; // 0=ATS 일반, 2=Maptics 모아서
+      
+      // rcvType 결정: 지오펜스가 있으면 Maptics (1=실시간, 2=모아서), 없으면 ATS (0)
+      // mapticsSendType: 'realtime' → rcvType=1, 'batch' (기본) → rcvType=2
+      let rcvType = 0; // 기본: ATS 일반
+      if (hasGeofence) {
+        rcvType = data.mapticsSendType === 'realtime' ? 1 : 2;
+      }
+      
+      // 실시간 보내기(rcvType=1) 검증
+      if (rcvType === 1) {
+        if (!data.rtStartHhmm || !data.rtEndHhmm) {
+          return res.status(400).json({ 
+            error: '실시간 보내기는 발송 시작/종료 시간이 필요합니다',
+            code: 'MAPTICS_REALTIME_TIME_REQUIRED',
+          });
+        }
+        // 시간 유효성 검증: rtStartHhmm < rtEndHhmm
+        const startTime = parseInt(data.rtStartHhmm, 10);
+        const endTime = parseInt(data.rtEndHhmm, 10);
+        if (startTime >= endTime) {
+          return res.status(400).json({ 
+            error: '발송 시작 시간은 종료 시간보다 이전이어야 합니다',
+            code: 'MAPTICS_REALTIME_INVALID_TIME_RANGE',
+          });
+        }
+      }
 
-      console.log(`[Campaign] rcvType=${rcvType}, hasGeofence=${hasGeofence}`);
+      console.log(`[Campaign] rcvType=${rcvType}, hasGeofence=${hasGeofence}, mapticsSendType=${data.mapticsSendType}`);
 
       // ATS 일반 (rcvType=0)일 때만 ATS mosu API 호출
       // Maptics (rcvType=1,2)는 지오펜스로 타겟팅하므로 ATS mosu 불필요
@@ -1013,6 +1061,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         budget: data.budget.toString(),
         costPerMessage: '50',
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
+        // Maptics 실시간 보내기 필드 (rcvType=1)
+        ...(rcvType === 1 ? {
+          rtStartHhmm: data.rtStartHhmm,
+          rtEndHhmm: data.rtEndHhmm,
+          sndDayDiv: data.sndDayDiv ?? 0,
+        } : {}),
       }).returning();
 
       await db.insert(messages).values({
@@ -1239,11 +1293,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             atsSndStartDate: atsSndStartDate,
             sndMosuQuery: sndMosuQuerySQL,
             sndMosuDesc: sndMosuDescHTML,
-            // Maptics 지오펜스 (rcvType=2)용
+            // Maptics 지오펜스 (rcvType=1,2)용
             sndGeofenceId: hasGeofence ? Number(geofenceIds[0]) : undefined,
             collStartDate: hasGeofence ? collStartDate : undefined,
             collEndDate: hasGeofence ? collEndDate : undefined,
-            collSndDate: hasGeofence ? collSndDate : undefined,
+            collSndDate: rcvType === 2 ? collSndDate : undefined,
+            // Maptics 실시간 보내기 (rcvType=1)용
+            rtStartHhmm: rcvType === 1 ? data.rtStartHhmm : undefined,
+            rtEndHhmm: rcvType === 1 ? data.rtEndHhmm : undefined,
+            sndDayDiv: rcvType === 1 ? (data.sndDayDiv ?? 0) : undefined,
           },
           {
             title: template.title || undefined,
