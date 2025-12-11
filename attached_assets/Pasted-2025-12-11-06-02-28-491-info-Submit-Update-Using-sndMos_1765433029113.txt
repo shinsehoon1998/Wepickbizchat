@@ -1,0 +1,62 @@
+2025-12-11 06:02:28.491 [info] [Submit Update] Using sndMosu: 45,099 (from campaign)
+2025-12-11 06:02:28.491 [info] [Submit] Detected legacy SQL format in sndMosuQuery, returning as-is
+2025-12-11 06:02:28.491 [info] [Submit Update] Using legacy SQL query directly (skipping ATS mosu API)
+2025-12-11 06:02:28.491 [info] [Submit] Updating existing BizChat campaign...
+2025-12-11 06:02:28.492 [info] [Submit] Update payload: {
+  "name": "251211",
+  "tgtCompanyName": "위픽",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "settleCnt": 100,
+  "sndMosu": 45099,
+  "sndMosuFlag": 0,
+  "isTmp": false,
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트"
+  },
+  "atsSndStartDate": 1765440600,
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 20) ) AND ( (regexp_like(home_location, '^41|,41|^11|,11')) ) ) and indv_info_use_agree_yn = 'Y'",
+  "sndMosuDesc": "<html><body><p>레거시 SQL 형식</p></body></html>"
+}
+2025-12-11 06:02:28.492 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-11 06:02:28.492 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-11 06:02:28.492 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-11 06:02:28.492 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-11 06:02:28.492 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/update?id=4088ffeb2aa13cfba244c7dada77a94f&tid=1765432948491
+2025-12-11 06:02:28.492 [info] [BizChat] Request body: {
+  "name": "251211",
+  "tgtCompanyName": "위픽",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "settleCnt": 100,
+  "sndMosu": 45099,
+  "sndMosuFlag": 0,
+  "isTmp": false,
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트"
+  },
+  "atsSndStartDate": 1765440600,
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 20) ) AND ( (regexp_like(home_location, '^41|,41|^11|,11')) ) ) and indv_info_use_agree_yn = 'Y'",
+  "sndMosuDesc": "<html><body><p>레거시 SQL 형식</p></body></html>"
+}
+2025-12-11 06:02:28.552 [info] [BizChat] Response: 400 - {"tid":"1765432948491","code":"E000002","msg":"Invalid request"}
+2025-12-11 06:02:28.553 [warning] [Submit] BizChat update warning: { tid: '1765432948491', code: 'E000002', msg: 'Invalid request' }
+2025-12-11 06:02:28.726 [info] [Submit] Requesting approval...
+2025-12-11 06:02:28.726 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-11 06:02:28.726 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-11 06:02:28.726 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-11 06:02:28.726 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-11 06:02:28.726 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/appr/req?id=4088ffeb2aa13cfba244c7dada77a94f&tid=1765432948725
+2025-12-11 06:02:28.726 [info] [BizChat] Request body: {}
+2025-12-11 06:02:28.812 [info] [BizChat] Response: 200 - {"tid":"1765432948725","code":"S000001","msg":"Success"}
+2025-12-11 06:02:28.980 [info] [Submit] Approval requested for campaign: a347a7ba-c22f-4fc4-ad5f-6c3ce270cb0c
+2025-12-11 06:02:22.754 [info] The `fetchConnectionCache` option is deprecated (now always `true`)
+2025-12-11 06:02:22.964 [info] [BizChat Submit] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-11 06:02:22.964 [info] [BizChat Submit] Environment: DEVELOPMENT (VERCEL_ENV=production)
+2025-12-11 06:02:22.971 [error] (node:4) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.

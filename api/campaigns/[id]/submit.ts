@@ -1069,7 +1069,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         settleCnt: campaign.settleCnt ?? sndGoalCnt,
         sndMosu: sndMosu,
         sndMosuFlag: 0,
-        isTmp: false, // 필수 필드: 임시저장 여부 (승인 요청 시 false)
+        isTmp: 0, // 필수 필드: 임시저장 여부 (0=아니오, 1=예) - BizChat API 규격: number 타입만 허용
         mms: updateMmsObject,
         // RCS 타입일 때만 rcs 배열 포함 (빈 배열 생략 - E000002 방지)
         ...(updateRcsSlide && { rcs: [updateRcsSlide] }),
@@ -1105,7 +1105,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (convertResult.isLegacySql) {
           console.log('[Submit Update] Using legacy SQL query directly (skipping ATS mosu API)');
           updatePayload.sndMosuQuery = convertResult.query;
-          updateAtsFilterStr = convertResult.desc;
+          // 레거시 SQL인 경우 DB에 저장된 sndMosuDesc 우선 사용
+          updateAtsFilterStr = campaign.sndMosuDesc || '';
         } else {
           // JSON 필터인 경우 ATS mosu API 호출
           let filterPayload: Record<string, unknown>;
