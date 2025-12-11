@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 import { neon, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, or } from 'drizzle-orm';
 import { pgTable, text, integer, timestamp } from 'drizzle-orm/pg-core';
 import { z } from 'zod';
 import { randomUUID } from 'crypto';
@@ -84,7 +84,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === 'GET') {
     try {
-      const templateList = await db.select().from(templates).where(eq(templates.userId, userId)).orderBy(desc(templates.createdAt));
+      // 사용자 본인 템플릿 + 시스템 기본 템플릿 모두 조회
+      const SYSTEM_USER_ID = 'system';
+      const templateList = await db.select().from(templates)
+        .where(or(eq(templates.userId, userId), eq(templates.userId, SYSTEM_USER_ID)))
+        .orderBy(desc(templates.createdAt));
       
       const templatesWithStats = await Promise.all(
         templateList.map(async (template) => {
@@ -106,6 +110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           
           return {
             ...template,
+            isSystem: template.userId === SYSTEM_USER_ID,
             sendHistory: {
               campaignCount: templateCampaigns.length,
               totalSent,
