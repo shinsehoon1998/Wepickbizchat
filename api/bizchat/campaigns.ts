@@ -72,6 +72,51 @@ async function verifyAuth(req: VercelRequest) {
   } catch { return null; }
 }
 
+// 빈 객체/배열/문자열 필드 제거 유틸리티
+function cleanEmptyFields(obj: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    // null, undefined는 제외
+    if (value === null || value === undefined) continue;
+    
+    // 빈 문자열은 제외 (urlFile 등)
+    if (typeof value === 'string' && value === '') continue;
+    
+    // 빈 배열은 제외
+    if (Array.isArray(value) && value.length === 0) continue;
+    
+    // 빈 객체는 제외 (fileInfo: {}, urlLink: {} 등)
+    if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value as object).length === 0) continue;
+    
+    // 중첩 객체도 정리
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      const cleanedNested = cleanEmptyFields(value as Record<string, unknown>);
+      // 정리 후에도 필드가 있으면 포함
+      if (Object.keys(cleanedNested).length > 0) {
+        cleaned[key] = cleanedNested;
+      }
+    } else if (Array.isArray(value)) {
+      // 배열 내 객체도 정리
+      const cleanedArray = value.map(item => 
+        typeof item === 'object' && item !== null 
+          ? cleanEmptyFields(item as Record<string, unknown>)
+          : item
+      ).filter(item => {
+        if (typeof item === 'object' && !Array.isArray(item)) {
+          return Object.keys(item as object).length > 0;
+        }
+        return true;
+      });
+      if (cleanedArray.length > 0) {
+        cleaned[key] = cleanedArray;
+      }
+    } else {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
 // Transaction ID 생성 (밀리초 타임스탬프)
 function generateTid(): string {
   return Date.now().toString();
@@ -508,34 +553,34 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
   }
 
   // MMS 메시지 객체 (BizChat API 규격 v0.29.0)
-  // - mms.title: 메시지 제목 (최대 30자)
-  // - mms.msg: 메시지 본문 (최대 1000자)
-  // - mms.fileInfo: 이미지 파일 정보 (파일이 없으면 빈 객체 {})
-  // - mms.urlLink: 마케팅 URL 정보 (링크가 없으면 빈 객체 {})
   // billingType별 파일 규칙:
-  // - LMS(0): 파일 없음
-  // - RCS MMS(1): 파일 있음
-  // - MMS(2): 파일 있음
-  // - RCS LMS(3): 파일 없음
-  const needsFileForBilling = payload.billingType === 1 || payload.billingType === 2;
+  // - LMS(0): 파일 없음 → fileInfo 필드 생략
+  // - MMS(2): 파일 필수 → fileInfo.list 포함
+  // - RCS MMS(1): RCS에서 처리
+  // - RCS LMS(3): RCS에서 처리
+  const needsFileForBilling = payload.billingType === 2; // MMS만 mms.fileInfo 필요
   const mmsUrlList: string[] = message?.urlLinks || message?.urls || [];
   const mmsUrlLink = mmsUrlList.length > 0 
     ? { list: mmsUrlList.slice(0, 3), reward: message?.urlLinkReward }
     : {}; // 링크가 없으면 빈 객체 {} (문서 규격)
     
-  // MMS 이미지 첨부 (billingType 규칙에 따라)
+  // MMS 이미지 첨부 (MMS billingType=2일 때만)
   const hasImage = !!message?.imageUrl;
-  const mmsFileInfo = (needsFileForBilling && hasImage)
-    ? { list: [{ origId: message.imageUrl }] }
-    : {}; // 파일이 없으면 빈 객체 {} (문서 규격)
-    
-  payload.mms = {
+  
+  // mms 객체 구성: fileInfo는 MMS이고 이미지가 있을 때만 포함
+  const mmsObj: Record<string, unknown> = {
     title: message?.title || '',
     msg: message?.content || '',
-    fileInfo: mmsFileInfo,
     urlFile: message?.urlFile || '', // 필수 필드: 사용하지 않을 때 빈 문자열 (문서 규격)
     urlLink: mmsUrlLink,
   };
+  
+  // fileInfo는 MMS이고 이미지가 있을 때만 포함 (빈 객체 {} 전송 금지)
+  if (needsFileForBilling && hasImage) {
+    mmsObj.fileInfo = { list: [{ origId: message.imageUrl }] };
+  }
+  
+  payload.mms = mmsObj;
 
   // MMS 개별 URL 파일 리워드 (urlFile 사용 시)
   if (message?.urlFile && message?.urlFileReward !== undefined) {
@@ -614,14 +659,39 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
     });
   }
   // LMS/MMS일 때는 rcs 필드 자체를 생략 (빈 배열도 포함하지 않음)
+  // 위에서 조건부로 payload.rcs를 설정하므로 LMS/MMS에서는 rcs가 없음
 
+  console.log('[BizChat Create] Payload keys:', Object.keys(payload));
+  console.log('[BizChat Create] Has rcs field:', 'rcs' in payload);
+  console.log('[BizChat Create] Has fileInfo in mms:', 'fileInfo' in (payload.mms as Record<string, unknown> || {}));
+  
   return callBizChatAPI('/api/v1/cmpn/create', 'POST', payload, useProduction);
 }
 
 // BizChat 캠페인 수정 (POST /api/v1/cmpn/update)
 async function updateCampaignInBizChat(bizchatCampaignId: string, updateData: Record<string, unknown>, useProduction: boolean = false) {
+  // 문제가 되는 빈 필드만 선택적으로 제거 (fileInfo: {}, rcs: [])
+  // urlLink: {}, urlFile: "", buttons: {} 는 BizChat에서 필수로 요구하므로 유지
+  const cleanedData = { ...updateData };
+  
+  // mms.fileInfo가 빈 객체면 제거
+  if (cleanedData.mms && typeof cleanedData.mms === 'object') {
+    const mms = cleanedData.mms as Record<string, unknown>;
+    if (mms.fileInfo && typeof mms.fileInfo === 'object' && Object.keys(mms.fileInfo as object).length === 0) {
+      delete mms.fileInfo;
+      cleanedData.mms = mms;
+    }
+  }
+  
+  // rcs가 빈 배열이면 제거
+  if (Array.isArray(cleanedData.rcs) && cleanedData.rcs.length === 0) {
+    delete cleanedData.rcs;
+  }
+  
+  console.log('[BizChat Update] Payload keys:', Object.keys(cleanedData));
+  
   // Query Parameter로 id 전달
-  return callBizChatAPI(`/api/v1/cmpn/update?id=${bizchatCampaignId}`, 'POST', updateData, useProduction);
+  return callBizChatAPI(`/api/v1/cmpn/update?id=${bizchatCampaignId}`, 'POST', cleanedData, useProduction);
 }
 
 // BizChat 캠페인 승인 요청 (POST /api/v1/cmpn/appr/req)
