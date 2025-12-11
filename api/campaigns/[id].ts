@@ -261,25 +261,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             ? Math.floor(new Date(atsSndStartDate).getTime() / 1000) 
             : undefined;
           
-          // MMS 객체 구성 - 기존 BizChat 데이터에서 urlLink, urlFile, fileInfo 보존
+          // BizChat API 규격: 빈 객체/배열은 완전히 생략해야 함 (E000002 에러 방지)
+          // MMS 객체 구성 - 조건부로 필드 포함 (빈 객체/배열 생략)
           const existingMms = existingBizchatData?.mms as Record<string, unknown> | undefined;
+          const existingFileInfo = existingMms?.fileInfo;
+          const existingUrlFile = existingMms?.urlFile;
+          const existingUrlLink = existingMms?.urlLink as { list?: unknown[] } | undefined;
+          
+          // 새 이미지가 있으면 사용, 없으면 기존 BizChat fileInfo 보존
+          const newFileInfo = (currentMessage?.imageUrl && currentMessage.imageUrl.trim())
+            ? { list: [{ origId: currentMessage.imageUrl }] }
+            : existingFileInfo;
+          
           const mmsPayload: Record<string, unknown> = {
             title: currentMessage?.title || updatedCampaign.name || campaign.name || '',
             msg: currentMessage?.content || '',
-            fileInfo: existingMms?.fileInfo || {},
-            urlFile: existingMms?.urlFile ?? '',
-            urlLink: existingMms?.urlLink || { list: [] },
+            // 조건부 필드 포함 - 빈 객체/배열 생략
+            ...(newFileInfo && Object.keys(newFileInfo as object).length > 0 && { fileInfo: newFileInfo }),
+            ...(existingUrlFile && { urlFile: existingUrlFile }),
+            ...(existingUrlLink?.list && existingUrlLink.list.length > 0 && { urlLink: existingUrlLink }),
           };
-          
-          // 이미지가 변경된 경우에만 fileInfo 덮어쓰기
-          // imageUrl이 존재하고 비어있지 않으면 새 이미지로 사용
-          if (currentMessage?.imageUrl && currentMessage.imageUrl.trim()) {
-            mmsPayload.fileInfo = {
-              list: [{ origId: currentMessage.imageUrl }],
-            };
-          }
 
-          // BizChat update API payload
+          // 기존 RCS/CB 데이터 검증
+          const existingRcs = existingBizchatData?.rcs as unknown[] | undefined;
+          const existingCb = existingBizchatData?.cb as Record<string, unknown> | undefined;
+
+          // BizChat update API payload - 빈 객체/배열 완전 생략
           const bizchatUpdatePayload: Record<string, unknown> = {
             tgtCompanyName: updatedCampaign.tgtCompanyName || campaign.tgtCompanyName || existingBizchatData?.tgtCompanyName || 'wepick',
             name: updatedCampaign.name || campaign.name || existingBizchatData?.name,
@@ -290,8 +297,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             isTmp: 0,
             settleCnt: updatedCampaign.settleCnt ?? campaign.settleCnt ?? existingBizchatData?.settleCnt ?? 0,
             mms: mmsPayload,
-            rcs: existingBizchatData?.rcs || [],
-            cb: existingBizchatData?.cb || {},
+            // RCS/CB는 값이 있을 때만 포함 (빈 배열/객체 생략 - E000002 방지)
+            ...(existingRcs && existingRcs.length > 0 && { rcs: existingRcs }),
+            ...(existingCb && Object.keys(existingCb).length > 0 && { cb: existingCb }),
           };
 
           // rcvType에 따른 조건부 필드 추가

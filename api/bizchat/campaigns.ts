@@ -567,18 +567,15 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
   // MMS 이미지 첨부 (MMS billingType=2일 때만)
   const hasImage = !!message?.imageUrl;
   
-  // mms 객체 구성: fileInfo는 MMS이고 이미지가 있을 때만 포함
+  // BizChat API 규격: 빈 객체/배열은 완전히 생략해야 함 (E000002 에러 방지)
+  // mms 객체 구성 - 조건부 필드 포함 (빈 객체 생략)
   const mmsObj: Record<string, unknown> = {
     title: message?.title || '',
     msg: message?.content || '',
-    urlFile: message?.urlFile || '', // 필수 필드: 사용하지 않을 때 빈 문자열 (문서 규격)
-    urlLink: mmsUrlLink,
+    ...(message?.urlFile && { urlFile: message.urlFile }),
+    ...(mmsUrlList.length > 0 && { urlLink: { list: mmsUrlList.slice(0, 3), reward: message?.urlLinkReward } }),
+    ...(needsFileForBilling && hasImage && { fileInfo: { list: [{ origId: message.imageUrl }] } }),
   };
-  
-  // fileInfo는 MMS이고 이미지가 있을 때만 포함 (빈 객체 {} 전송 금지)
-  if (needsFileForBilling && hasImage) {
-    mmsObj.fileInfo = { list: [{ origId: message.imageUrl }] };
-  }
   
   payload.mms = mmsObj;
 
@@ -633,29 +630,26 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
       
       // 버튼 객체 구성 (없으면 빈 객체 {})
       // BizChat API 규격: button.type은 문자열이어야 함 ('0'=URL, '1'=앱실행, '2'=전화)
+      // BizChat API 규격: 빈 객체/배열은 완전히 생략해야 함 (E000002 에러 방지)
       const buttonList = (slide.buttons || rcsButtons.slice(0, 2)).map((btn: any) => ({
         ...btn,
         type: String(btn.type), // 숫자를 문자열로 변환
       }));
-      const buttons = buttonList.length > 0 
-        ? { list: buttonList }
-        : {}; // 버튼이 없으면 빈 객체 {} (문서 규격)
-        
-      // 상품소개세로(rcsType=5) 옵션 구성 (없으면 빈 객체 {})
-      const opts = slide.opts && slide.opts.list && slide.opts.list.length > 0
-        ? slide.opts
-        : {}; // 상품소개세로가 아니면 빈 객체 {} (문서 규격)
-        
-      return {
+      
+      // RCS 슬라이드 객체 - 조건부 필드 포함 (빈 객체 생략)
+      const rcsSlideObj: Record<string, unknown> = {
         slideNum: slide.slideNum || idx + 1,
         title: slide.title || message?.title || '',
         msg: slide.msg || slide.content || message?.content || '',
-        imgOrigId: slide.imgOrigId || slide.imageUrl,
-        urlFile: slide.urlFile || '', // 필수 필드: 사용하지 않을 때 빈 문자열 (문서 규격)
-        urlLink,
-        buttons,
-        opts, // 상품소개세로 옵션 (없으면 빈 객체)
+        ...(slide.imgOrigId || slide.imageUrl ? { imgOrigId: slide.imgOrigId || slide.imageUrl } : {}),
+        ...(slide.urlFile ? { urlFile: slide.urlFile } : {}),
+        // 조건부: 빈 객체 생략
+        ...(slideUrls.length > 0 && { urlLink: { list: slideUrls, reward: slide.urlLinkReward || message?.rcsUrlLinkReward } }),
+        ...(buttonList.length > 0 && { buttons: { list: buttonList } }),
+        ...(slide.opts?.list?.length > 0 && { opts: slide.opts }),
       };
+        
+      return rcsSlideObj;
     });
   }
   // LMS/MMS일 때는 rcs 필드 자체를 생략 (빈 배열도 포함하지 않음)
@@ -670,25 +664,79 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
 
 // BizChat 캠페인 수정 (POST /api/v1/cmpn/update)
 async function updateCampaignInBizChat(bizchatCampaignId: string, updateData: Record<string, unknown>, useProduction: boolean = false) {
-  // 문제가 되는 빈 필드만 선택적으로 제거 (fileInfo: {}, rcs: [])
-  // urlLink: {}, urlFile: "", buttons: {} 는 BizChat에서 필수로 요구하므로 유지
+  // BizChat API 규격: 빈 객체/배열은 완전히 생략해야 함 (E000002 에러 방지)
   const cleanedData = { ...updateData };
   
-  // mms.fileInfo가 빈 객체면 제거
+  // mms 내부 빈 필드 정리
   if (cleanedData.mms && typeof cleanedData.mms === 'object') {
-    const mms = cleanedData.mms as Record<string, unknown>;
+    const mms = { ...cleanedData.mms as Record<string, unknown> };
+    
+    // 빈 객체 필드 제거: fileInfo, urlLink
     if (mms.fileInfo && typeof mms.fileInfo === 'object' && Object.keys(mms.fileInfo as object).length === 0) {
       delete mms.fileInfo;
-      cleanedData.mms = mms;
+    }
+    if (mms.urlLink && typeof mms.urlLink === 'object') {
+      const urlLink = mms.urlLink as { list?: unknown[] };
+      if (!urlLink.list || urlLink.list.length === 0) {
+        delete mms.urlLink;
+      }
+    }
+    // 빈 문자열 urlFile 제거
+    if (mms.urlFile === '' || mms.urlFile === null || mms.urlFile === undefined) {
+      delete mms.urlFile;
+    }
+    cleanedData.mms = mms;
+  }
+  
+  // rcs 배열 정리
+  if (Array.isArray(cleanedData.rcs)) {
+    if (cleanedData.rcs.length === 0) {
+      // 빈 배열이면 완전히 제거
+      delete cleanedData.rcs;
+    } else {
+      // 각 슬라이드 내 빈 필드 정리
+      cleanedData.rcs = (cleanedData.rcs as Record<string, unknown>[]).map(slide => {
+        const cleanedSlide = { ...slide };
+        
+        // 빈 객체 필드 제거: urlLink, buttons, opts
+        if (cleanedSlide.urlLink && typeof cleanedSlide.urlLink === 'object') {
+          const urlLink = cleanedSlide.urlLink as { list?: unknown[] };
+          if (!urlLink.list || urlLink.list.length === 0) {
+            delete cleanedSlide.urlLink;
+          }
+        }
+        if (cleanedSlide.buttons && typeof cleanedSlide.buttons === 'object') {
+          const buttons = cleanedSlide.buttons as { list?: unknown[] };
+          if (!buttons.list || buttons.list.length === 0) {
+            delete cleanedSlide.buttons;
+          }
+        }
+        if (cleanedSlide.opts && typeof cleanedSlide.opts === 'object') {
+          const opts = cleanedSlide.opts as { list?: unknown[] };
+          if (!opts.list || opts.list.length === 0) {
+            delete cleanedSlide.opts;
+          }
+        }
+        // 빈 문자열/undefined 필드 제거
+        if (cleanedSlide.urlFile === '' || cleanedSlide.urlFile === null || cleanedSlide.urlFile === undefined) {
+          delete cleanedSlide.urlFile;
+        }
+        if (cleanedSlide.imgOrigId === '' || cleanedSlide.imgOrigId === null || cleanedSlide.imgOrigId === undefined) {
+          delete cleanedSlide.imgOrigId;
+        }
+        
+        return cleanedSlide;
+      });
     }
   }
   
-  // rcs가 빈 배열이면 제거
-  if (Array.isArray(cleanedData.rcs) && cleanedData.rcs.length === 0) {
-    delete cleanedData.rcs;
+  // cb가 빈 객체면 제거
+  if (cleanedData.cb && typeof cleanedData.cb === 'object' && Object.keys(cleanedData.cb as object).length === 0) {
+    delete cleanedData.cb;
   }
   
   console.log('[BizChat Update] Payload keys:', Object.keys(cleanedData));
+  console.log('[BizChat Update] MMS keys:', Object.keys((cleanedData.mms as object) || {}));
   
   // Query Parameter로 id 전달
   return callBizChatAPI(`/api/v1/cmpn/update?id=${bizchatCampaignId}`, 'POST', cleanedData, useProduction);
