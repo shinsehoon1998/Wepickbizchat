@@ -127,11 +127,17 @@ export default function CampaignsNew() {
   const [uploading, setUploading] = useState(false);
   const [showAdvancedTargeting, setShowAdvancedTargeting] = useState(false);
   const [advancedTargeting, setAdvancedTargeting] = useState({
+    targetingMode: 'ats' as 'ats' | 'maptics',
     shopping11stCategories: [] as { cat1: string; cat2?: string; cat3?: string }[],
     webappCategories: [] as { cat1: string; cat2?: string; cat3?: string }[],
+    callCategories: [] as { cat1: string; cat2?: string; cat3?: string }[],
     locations: [] as { code: string; type: 'home' | 'work'; name: string }[],
     profiling: [] as { code: string; value: string | { gt: string; lt: string }; desc: string }[],
+    geofences: [] as { id: number; name: string; targets: any[] }[],
   });
+  
+  // 타겟팅 모드에 따른 편의 변수
+  const isMaptics = advancedTargeting.targetingMode === 'maptics';
   const [useScheduledSend, setUseScheduledSend] = useState(false);
   const [selectedScheduleDate, setSelectedScheduleDate] = useState<Date | null>(null);
   const [selectedScheduleTime, setSelectedScheduleTime] = useState<string | null>(null);
@@ -363,6 +369,12 @@ export default function CampaignsNew() {
 
   useEffect(() => {
     const fetchEstimate = async () => {
+      // Maptics 모드에서는 모수 조회 API가 없으므로 스킵
+      if (isMaptics) {
+        console.log('[Campaign Form] Maptics mode - skipping ATS estimate API');
+        return;
+      }
+      
       try {
         const res = await apiRequest("POST", "/api/targeting/estimate", {
           gender: watchGender,
@@ -385,7 +397,7 @@ export default function CampaignsNew() {
     if (currentStep === 2) {
       fetchEstimate();
     }
-  }, [currentStep, watchGender, watchAgeMin, watchAgeMax, watchRegions]);
+  }, [currentStep, watchGender, watchAgeMin, watchAgeMax, watchRegions, isMaptics]);
 
   const costPerMessage = 50;
   const estimatedCost = watchTargetCount * costPerMessage;
@@ -1057,10 +1069,38 @@ export default function CampaignsNew() {
 
           {currentStep === 3 && (
             <div className="space-y-6">
+              {/* Maptics 모드: 모수 조회 불가 안내 */}
+              {isMaptics && (
+                <Card className="border-amber-200 bg-amber-50">
+                  <CardContent className="py-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-medium text-amber-800">Maptics 지오펜스 안내</p>
+                        <p className="text-small text-amber-700 mt-1">
+                          Maptics 지오펜스는 <strong>모수 조회 API가 없어</strong> 예상 발송 대상 수를 제공할 수 없어요. 
+                          MDN(발신번호) 수집 후 승인 단계에서 최종 모수가 확정됩니다.
+                        </p>
+                        <ul className="text-small text-amber-700 mt-2 list-disc list-inside space-y-1">
+                          <li>보수적인 목표 건수를 설정해 주세요</li>
+                          <li>예산은 실제 발송 건수에 따라 차감됩니다</li>
+                          <li>캠페인 생성 후 <strong>최소 24시간</strong> 이상 여유를 두세요</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
               <Card>
                 <CardHeader>
                   <CardTitle>발송 수량</CardTitle>
-                  <CardDescription>광고를 받을 대상 수를 설정해주세요</CardDescription>
+                  <CardDescription>
+                    {isMaptics 
+                      ? "희망 발송 수량을 입력해주세요 (실제 발송은 수집된 MDN 수에 따라 결정됩니다)" 
+                      : "광고를 받을 대상 수를 설정해주세요"
+                    }
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <FormField
@@ -1069,28 +1109,49 @@ export default function CampaignsNew() {
                     render={({ field }) => (
                       <FormItem>
                         <div className="flex items-center justify-between mb-4">
-                          <FormLabel>발송 수량</FormLabel>
+                          <FormLabel>{isMaptics ? "희망 발송 수량" : "발송 수량"}</FormLabel>
                           <div className="text-h3 font-bold" data-testid="text-target-count">
                             {formatNumber(field.value)}명
                           </div>
                         </div>
                         <FormControl>
-                          <div className="space-y-4">
-                            <input
-                              type="range"
-                              min={100}
-                              max={Math.min(estimatedAudience.estimated, 100000)}
-                              step={100}
-                              value={field.value}
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                              className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                              data-testid="slider-target-count"
-                            />
-                            <div className="flex justify-between text-tiny text-muted-foreground">
-                              <span>100명</span>
-                              <span>{formatNumber(Math.min(estimatedAudience.estimated, 100000))}명</span>
+                          {isMaptics ? (
+                            /* Maptics: 직접 입력 방식 */
+                            <div className="space-y-4">
+                              <Input
+                                type="number"
+                                min={100}
+                                max={100000}
+                                step={100}
+                                value={field.value}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 100)}
+                                className="text-right"
+                                data-testid="input-target-count-maptics"
+                              />
+                              <p className="text-tiny text-muted-foreground">
+                                100명 ~ 100,000명 사이로 입력해주세요. 
+                                실제 발송 수는 수집된 MDN 수에 따라 달라질 수 있어요.
+                              </p>
                             </div>
-                          </div>
+                          ) : (
+                            /* ATS: 슬라이더 방식 */
+                            <div className="space-y-4">
+                              <input
+                                type="range"
+                                min={100}
+                                max={Math.min(estimatedAudience.estimated, 100000)}
+                                step={100}
+                                value={field.value}
+                                onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+                                data-testid="slider-target-count"
+                              />
+                              <div className="flex justify-between text-tiny text-muted-foreground">
+                                <span>100명</span>
+                                <span>{formatNumber(Math.min(estimatedAudience.estimated, 100000))}명</span>
+                              </div>
+                            </div>
+                          )}
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -1175,18 +1236,31 @@ export default function CampaignsNew() {
                     </div>
                   )}
 
-                  {/* ATS 발송 모수 안내 */}
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200" data-testid="info-ats-mosu">
-                    <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
-                    <div>
-                      <p className="font-medium">발송 모수 안내</p>
-                      <p className="text-small">
-                        발송 목표 건수의 <strong>150% 이상</strong>의 타겟 모수가 필요합니다. 
-                        타겟팅 조건이 너무 좁으면 승인이 거부될 수 있습니다. 
-                        (최대 발송 모수: 400,000명)
-                      </p>
+                  {/* 타겟팅 모드별 안내 메시지 */}
+                  {isMaptics ? (
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 text-amber-700 border border-amber-200" data-testid="info-maptics-budget">
+                      <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-medium">Maptics 예산 안내</p>
+                        <p className="text-small">
+                          예상 비용은 <strong>참고용</strong>입니다. 실제 비용은 수집된 MDN 수와 발송 건수에 따라 달라져요.
+                          충분한 예산을 확보해 두시는 것을 권장합니다.
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200" data-testid="info-ats-mosu">
+                      <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-medium">발송 모수 안내</p>
+                        <p className="text-small">
+                          발송 목표 건수의 <strong>150% 이상</strong>의 타겟 모수가 필요합니다. 
+                          타겟팅 조건이 너무 좁으면 승인이 거부될 수 있습니다. 
+                          (최대 발송 모수: 400,000명)
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
