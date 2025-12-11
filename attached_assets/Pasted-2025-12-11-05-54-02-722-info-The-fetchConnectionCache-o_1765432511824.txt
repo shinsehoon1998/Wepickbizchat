@@ -1,0 +1,42 @@
+2025-12-11 05:54:02.722 [info] The `fetchConnectionCache` option is deprecated (now always `true`)
+2025-12-11 05:54:03.155 [error] (node:4) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2025-12-11 05:54:04.208 [info] [Campaign PATCH] Updating campaign: a347a7ba-c22f-4fc4-ad5f-6c3ce270cb0c Fields: [
+  'name',             'templateId',
+  'messageType',      'sndNum',
+  'gender',           'ageMin',
+  'ageMax',           'regions',
+  'targetCount',      'budget',
+  'targetingMode',    'shopping11stCategories',
+  'webappCategories', 'callCategories',
+  'locations',        'profiling',
+  'geofences',        'sndMosu',
+  'sndMosuQuery',     'sndMosuDesc',
+  'sndGoalCnt'
+]
+2025-12-11 05:54:04.208 [info] [Campaign PATCH] sndMosu value: 307153
+2025-12-11 05:54:06.037 [info] [Campaign PATCH] Retrieved existing BizChat data for campaign: 4088ffeb2aa13cfba244c7dada77a94f
+2025-12-11 05:54:06.037 [info] [Campaign PATCH] 발송일시 기본값 설정: 2025-12-11T07:24:06.036Z
+2025-12-11 05:54:06.238 [info] [Campaign PATCH] Using sndMosu: 307,153 (from request)
+2025-12-11 05:54:06.238 [info] [Campaign PATCH] Calling BizChat update API for: 4088ffeb2aa13cfba244c7dada77a94f
+2025-12-11 05:54:06.238 [info] [Campaign PATCH] BizChat payload: {
+  "tgtCompanyName": "위픽",
+  "name": "251211",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 100,
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트"
+  },
+  "cb": {
+    "state": "https://wepickbizchat-f0qqobe36-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "atsSndStartDate": 1765437846,
+  "sndMosu": 307153,
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 30) ) AND ( (regexp_like(home_location, '^11|,11|^30|,30')) ) ) and indv_info_use_agree_yn = 'Y'",
+  "sndMosuDesc": "연령: 20세 ~ 30세, 지역: 서울, 대전"
+}
+2025-12-11 05:54:06.650 [error] [Campaign PATCH] BizChat update failed: { error: '발송 시간은 10분 단위여야 합니다 (예: 7:30)' }

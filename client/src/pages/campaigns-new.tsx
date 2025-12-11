@@ -277,7 +277,7 @@ export default function CampaignsNew() {
   });
 
   const { data: approvedTemplates, isLoading: templatesLoading } = useQuery<Template[]>({
-    queryKey: ["/api/templates/approved"],
+    queryKey: ["/api/templates"],
   });
 
   const [senderNumbers, setSenderNumbers] = useState<BizChatSenderNumber[]>([]);

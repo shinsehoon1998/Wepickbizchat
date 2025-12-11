@@ -256,24 +256,40 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const sndGoalCnt = updatedCampaign.sndGoalCnt || campaign.sndGoalCnt || 1;
           
           // Unix timestamp (초 단위) 계산
-          // 발송일시 재설정 로직: 기존 값이 과거이거나 1시간 이내이면 현재+1시간 30분으로 자동 설정
+          // 발송일시 재설정 로직: 기존 값이 과거이거나 1시간 이내이면 현재+2시간으로 자동 설정
+          // BizChat 규격: 발송 시간은 10분 단위여야 함 (예: 7:30, 7:40)
           const now = new Date();
-          const minSendTime = new Date(now.getTime() + 90 * 60 * 1000); // 현재 + 1시간 30분 (여유)
+          
+          // 10분 단위로 올림하는 함수
+          const roundUpTo10Minutes = (date: Date): Date => {
+            const ms = date.getTime();
+            const tenMinutes = 10 * 60 * 1000;
+            const rounded = Math.ceil(ms / tenMinutes) * tenMinutes;
+            return new Date(rounded);
+          };
+          
+          // 현재 + 2시간, 10분 단위로 올림
+          const minSendTime = roundUpTo10Minutes(new Date(now.getTime() + 120 * 60 * 1000));
           
           let effectiveAtsSndStartDate = updatedCampaign.atsSndStartDate || campaign.atsSndStartDate;
           
           // 기존 발송일시 검증 및 자동 재설정
           if (effectiveAtsSndStartDate) {
             const existingSendTime = new Date(effectiveAtsSndStartDate);
-            if (existingSendTime <= minSendTime) {
+            // 기존 시간도 10분 단위로 올림
+            const roundedExistingTime = roundUpTo10Minutes(existingSendTime);
+            if (roundedExistingTime <= minSendTime) {
               // 기존 발송일시가 최소 시간보다 이전이면 자동 재설정
-              console.log(`[Campaign PATCH] 발송일시 자동 재설정: ${existingSendTime.toISOString()} → ${minSendTime.toISOString()}`);
+              console.log(`[Campaign PATCH] 발송일시 자동 재설정: ${existingSendTime.toISOString()} → ${minSendTime.toISOString()} (10분 단위)`);
               effectiveAtsSndStartDate = minSendTime;
+            } else {
+              // 유효한 시간이지만 10분 단위로 맞춤
+              effectiveAtsSndStartDate = roundedExistingTime;
             }
           } else {
             // 발송일시가 없으면 기본값 설정
             effectiveAtsSndStartDate = minSendTime;
-            console.log(`[Campaign PATCH] 발송일시 기본값 설정: ${minSendTime.toISOString()}`);
+            console.log(`[Campaign PATCH] 발송일시 기본값 설정: ${minSendTime.toISOString()} (10분 단위)`);
           }
           
           const atsSndStartTimestamp = effectiveAtsSndStartDate 
