@@ -303,21 +303,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               bizchatUpdatePayload.atsSndStartDate = existingBizchatData.atsSndStartDate;
             }
             
-            // sndMosu: 최소값은 sndGoalCnt의 150%, 최대값은 400,000으로 자동 조정
-            const rawSndMosu = updatedCampaign.sndMosu || campaign.sndMosu || (existingBizchatData?.sndMosu as number) || 0;
+            // sndMosu: 요청에서 전달된 값을 그대로 사용 (프론트엔드에서 ATS mosu API로 계산된 값)
+            // 프론트엔드가 타겟팅 변경 시 새로운 모수를 계산하여 전달해야 함
+            const sndMosu = updatedCampaign.sndMosu || campaign.sndMosu || (existingBizchatData?.sndMosu as number) || 0;
             const minSndMosu = Math.ceil(sndGoalCnt * 1.5);
             const maxSndMosu = 400000;
             
-            // 최대값 초과 시 자동으로 400,000으로 제한 (에러 대신 자동 조정)
-            const sndMosu = Math.min(rawSndMosu, maxSndMosu);
-            if (rawSndMosu > maxSndMosu) {
-              console.log(`[Campaign PATCH] sndMosu capped from ${rawSndMosu.toLocaleString()} to ${maxSndMosu.toLocaleString()} (max limit)`);
+            // 최대값 검증 (자동 제한 없이 에러 반환 - 프론트엔드에서 타겟팅 조건 수정 필요)
+            if (sndMosu > maxSndMosu) {
+              return res.status(400).json({
+                error: `발송 모수(${sndMosu.toLocaleString()})가 최대값(${maxSndMosu.toLocaleString()})을 초과합니다. 타겟팅 조건을 좁혀주세요.`,
+                currentSndMosu: sndMosu,
+                maxSndMosu,
+                sndGoalCnt,
+                hint: '연령대 범위 축소, 지역 제한 등으로 타겟팅을 좁히면 모수가 줄어듭니다.',
+                ...updatedCampaign,
+              });
             }
             
-            // 최소값 미달 시 에러 반환 (타겟팅 조건 조정 필요)
+            // 최소값 검증 (150% 이상)
             if (sndMosu < minSndMosu) {
               return res.status(400).json({
-                error: `발송 모수가 최소값(${minSndMosu.toLocaleString()})보다 작습니다. 발송 목표(${sndGoalCnt.toLocaleString()})의 150% 이상이어야 합니다.`,
+                error: `발송 모수(${sndMosu.toLocaleString()})가 최소값(${minSndMosu.toLocaleString()})보다 작습니다. 발송 목표(${sndGoalCnt.toLocaleString()})의 150% 이상이어야 합니다.`,
                 currentSndMosu: sndMosu,
                 minSndMosu,
                 sndGoalCnt,
@@ -328,6 +335,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             bizchatUpdatePayload.sndMosu = sndMosu;
             bizchatUpdatePayload.sndMosuQuery = updatedCampaign.sndMosuQuery || campaign.sndMosuQuery || (existingBizchatData?.sndMosuQuery as string) || '';
             bizchatUpdatePayload.sndMosuDesc = updatedCampaign.sndMosuDesc || campaign.sndMosuDesc || (existingBizchatData?.sndMosuDesc as string) || '';
+            
+            console.log(`[Campaign PATCH] Using sndMosu: ${sndMosu.toLocaleString()} (from ${updatedCampaign.sndMosu ? 'request' : 'stored'})`);
             
             // sndMosuQuery가 비어있으면 에러
             if (!bizchatUpdatePayload.sndMosuQuery) {
