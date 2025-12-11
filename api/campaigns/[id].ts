@@ -256,10 +256,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const sndGoalCnt = updatedCampaign.sndGoalCnt || campaign.sndGoalCnt || 1;
           
           // Unix timestamp (초 단위) 계산
-          const atsSndStartDate = updatedCampaign.atsSndStartDate || campaign.atsSndStartDate;
-          const atsSndStartTimestamp = atsSndStartDate 
-            ? Math.floor(new Date(atsSndStartDate).getTime() / 1000) 
+          // 발송일시 재설정 로직: 기존 값이 과거이거나 1시간 이내이면 현재+1시간 30분으로 자동 설정
+          const now = new Date();
+          const minSendTime = new Date(now.getTime() + 90 * 60 * 1000); // 현재 + 1시간 30분 (여유)
+          
+          let effectiveAtsSndStartDate = updatedCampaign.atsSndStartDate || campaign.atsSndStartDate;
+          
+          // 기존 발송일시 검증 및 자동 재설정
+          if (effectiveAtsSndStartDate) {
+            const existingSendTime = new Date(effectiveAtsSndStartDate);
+            if (existingSendTime <= minSendTime) {
+              // 기존 발송일시가 최소 시간보다 이전이면 자동 재설정
+              console.log(`[Campaign PATCH] 발송일시 자동 재설정: ${existingSendTime.toISOString()} → ${minSendTime.toISOString()}`);
+              effectiveAtsSndStartDate = minSendTime;
+            }
+          } else {
+            // 발송일시가 없으면 기본값 설정
+            effectiveAtsSndStartDate = minSendTime;
+            console.log(`[Campaign PATCH] 발송일시 기본값 설정: ${minSendTime.toISOString()}`);
+          }
+          
+          const atsSndStartTimestamp = effectiveAtsSndStartDate 
+            ? Math.floor(new Date(effectiveAtsSndStartDate).getTime() / 1000) 
             : undefined;
+          
+          // 로컬 DB에도 재설정된 발송일시 반영
+          if (effectiveAtsSndStartDate && (
+            !campaign.atsSndStartDate || 
+            new Date(campaign.atsSndStartDate).getTime() !== new Date(effectiveAtsSndStartDate).getTime()
+          )) {
+            await db.update(campaigns).set({ 
+              atsSndStartDate: new Date(effectiveAtsSndStartDate),
+              scheduledAt: new Date(effectiveAtsSndStartDate),
+              updatedAt: new Date()
+            }).where(eq(campaigns.id, id));
+          }
           
           // BizChat API 규격: 빈 객체/배열은 완전히 생략해야 함 (E000002 에러 방지)
           // MMS 객체 구성 - 조건부로 필드 포함 (빈 객체/배열 생략)
