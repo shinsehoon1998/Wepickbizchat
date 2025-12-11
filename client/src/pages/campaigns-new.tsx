@@ -1174,6 +1174,19 @@ export default function CampaignsNew() {
                       </div>
                     </div>
                   )}
+
+                  {/* ATS 발송 모수 안내 */}
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200" data-testid="info-ats-mosu">
+                    <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="font-medium">발송 모수 안내</p>
+                      <p className="text-small">
+                        발송 목표 건수의 <strong>150% 이상</strong>의 타겟 모수가 필요합니다. 
+                        타겟팅 조건이 너무 좁으면 승인이 거부될 수 있습니다. 
+                        (최대 발송 모수: 400,000명)
+                      </p>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
