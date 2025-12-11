@@ -1258,23 +1258,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const bizchatCampaignId = responseData?.id;
           
           if (bizchatCampaignId) {
-            // BizChat 캠페인 ID 저장
+            console.log(`[Campaign] Created in BizChat: ${bizchatCampaignId}`);
+            
+            // BizChat 등록 후 바로 승인요청 API 호출
+            console.log('[Campaign] Requesting approval...');
+            let finalStatusCode = 0;
+            let finalStatus = 'temp_registered';
+            
+            try {
+              const approvalResult = await callBizChatAPI(
+                `/api/v1/cmpn/appr/req?id=${bizchatCampaignId}`,
+                'POST',
+                {},
+                useProduction
+              );
+              
+              if (approvalResult.data.code === 'S000001') {
+                finalStatusCode = 10;
+                finalStatus = 'approval_requested';
+                console.log(`[Campaign] Approval requested successfully`);
+              } else {
+                console.warn(`[Campaign] Approval request failed: ${approvalResult.data.msg || approvalResult.data.code}`);
+              }
+            } catch (approvalError) {
+              console.error('[Campaign] Approval request error:', approvalError);
+              // 승인요청 실패해도 캠페인 생성은 완료됨 (temp_registered 상태)
+            }
+            
+            // BizChat 캠페인 ID 및 상태 저장
             await db.update(campaigns)
               .set({ 
                 bizchatCampaignId,
-                statusCode: 0, // 임시등록
-                status: 'temp_registered',
+                statusCode: finalStatusCode,
+                status: finalStatus,
                 updatedAt: new Date(),
               })
               .where(eq(campaigns.id, campaignId));
 
-            console.log(`[Campaign] Created in BizChat: ${bizchatCampaignId}`);
-
             return res.status(201).json({
               ...campaignResult[0],
               bizchatCampaignId,
-              statusCode: 0,
-              status: 'temp_registered',
+              statusCode: finalStatusCode,
+              status: finalStatus,
               bizchatRegistered: true,
             });
           }
