@@ -856,46 +856,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const isRcs = billingType === 1 || billingType === 3;
       const needsFile = billingType === 1 || billingType === 2;
       
-      // BizChat API 규격 v0.29.0: MMS 메시지 객체
-      // - fileInfo: 파일이 있으면 { list: [...] }, 없으면 빈 객체 {} (문서 예제 참고)
-      // - urlLink: URL이 있으면 { list: [...] }, 없으면 빈 객체 {} (문서 예제 참고)
+      // BizChat API 규격: 빈 객체/배열은 완전히 생략해야 함 (E000002 에러 방지)
       // URL 리스트 추출 (message에서 urlLinks 또는 urls 필드)
       const mmsUrlList: string[] = (message as any)?.urlLinks || (message as any)?.urls || [];
-      const mmsUrlLink = mmsUrlList.length > 0 
-        ? { list: mmsUrlList.slice(0, 3) }
-        : {}; // 링크가 없으면 빈 객체 {} (문서 규격)
-        
+      
+      // MMS 객체 구성 - 조건부로 필드 포함 (빈 객체/배열 생략)
       const mmsObject: Record<string, unknown> = {
         title: message?.title || '',
         msg: message?.content || '',
-        fileInfo: (needsFile && message?.imageUrl) 
-          ? { list: [{ origId: message.imageUrl }] } 
-          : {}, // 파일이 없으면 빈 객체 {} (문서 규격)
-        urlFile: (message as any)?.urlFile || '', // 필수 필드: 실제 값 있으면 사용, 없으면 빈 문자열 (문서 규격)
-        urlLink: mmsUrlLink,
+        ...(needsFile && message?.imageUrl && { fileInfo: { list: [{ origId: message.imageUrl }] } }),
+        ...((message as any)?.urlFile && { urlFile: (message as any).urlFile }),
+        ...(mmsUrlList.length > 0 && { urlLink: { list: mmsUrlList.slice(0, 3) } }),
       };
       
-      // BizChat API 규격 v0.29.0: RCS 배열
-      // 문서 예제: LMS(billingType=0)일 때도 "rcs": [] 빈 배열 포함
-      // billingType 1(RCS MMS), 3(RCS LMS)일 때는 rcs 슬라이드 데이터 필요
-      const rcsUrlLink = mmsUrlList.length > 0 
-        ? { list: mmsUrlList.slice(0, 3) }
-        : {}; // 링크가 없으면 빈 객체 {} (문서 규격)
-        
-      const rcsArray = isRcs ? [{
+      // RCS 배열 구성 - RCS 타입일 때만 포함, 아니면 완전히 생략
+      const rcsSlide: Record<string, unknown> | null = isRcs ? {
         slideNum: 1,
         title: message?.title || '',
         msg: message?.content || '',
-        imgOrigId: (needsFile && message?.imageUrl) ? message.imageUrl : undefined,
-        urlFile: (message as any)?.rcsUrlFile || '', // 필수 필드: 실제 값 있으면 사용, 없으면 빈 문자열 (문서 규격)
-        urlLink: rcsUrlLink,
-        buttons: (message as any)?.rcsButtons?.length > 0 
-          ? { list: (message as any).rcsButtons.map((btn: any) => ({ ...btn, type: String(btn.type) })) }
-          : {}, // 버튼이 없으면 빈 객체 {} (문서 규격)
-        opts: (message as any)?.rcsOpts?.list?.length > 0 
-          ? (message as any).rcsOpts 
-          : {}, // 상품소개세로가 아니면 빈 객체 {} (문서 규격)
-      }] : []; // LMS/MMS일 때는 빈 배열 [] (문서 예제 참고)
+        ...(needsFile && message?.imageUrl && { imgOrigId: message.imageUrl }),
+        ...((message as any)?.rcsUrlFile && { urlFile: (message as any).rcsUrlFile }),
+        ...(mmsUrlList.length > 0 && { urlLink: { list: mmsUrlList.slice(0, 3) } }),
+        ...((message as any)?.rcsButtons?.length > 0 && { 
+          buttons: { list: (message as any).rcsButtons.map((btn: any) => ({ ...btn, type: String(btn.type) })) }
+        }),
+        ...((message as any)?.rcsOpts?.list?.length > 0 && { opts: (message as any).rcsOpts }),
+      } : null;
 
       const createPayload: Record<string, unknown> = {
         tgtCompanyName: campaign.tgtCompanyName || '위픽',
@@ -913,10 +899,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           state: `${CALLBACK_BASE_URL}/api/bizchat/callback/state`,
         },
         mms: mmsObject,
+        // RCS 타입일 때만 rcs 배열 포함 (빈 배열 생략 - E000002 방지)
+        ...(rcsSlide && { rcs: [rcsSlide] }),
       };
-      
-      // BizChat API 규격 v0.29.0: rcs 필드는 항상 포함 (문서 예제: "rcs": [])
-      createPayload.rcs = rcsArray;
 
       // 타겟팅 정보 추가 (ATS 발송 모수 필터)
       // BizChat API 규격: sndMosuQuery는 ATS mosu API 응답의 query 문자열(SQL 형식)을 사용해야 함
@@ -1046,13 +1031,34 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const sndMosu = campaign.sndMosu || Math.ceil(sndGoalCnt * 1.5);
       console.log(`[Submit Update] Using sndMosu: ${sndMosu.toLocaleString()} (from ${campaign.sndMosu ? 'campaign' : 'calculated'})`);
       
+      // BizChat API 규격: 빈 객체/배열은 완전히 생략해야 함 (E000002 에러 방지)
       // URL 리스트 추출
       const updateMmsUrlList: string[] = (message as any)?.urlLinks || (message as any)?.urls || [];
-      const updateMmsUrlLink = updateMmsUrlList.length > 0 
-        ? { list: updateMmsUrlList.slice(0, 3) }
-        : {}; // 링크가 없으면 빈 객체 {} (문서 규격)
       
-      // BizChat API 규격 v0.29.0: 전체 업데이트 페이로드 구성
+      // MMS 객체 구성 - 조건부로 필드 포함 (빈 객체/배열 생략)
+      const updateMmsObject: Record<string, unknown> = {
+        title: message?.title || '',
+        msg: message?.content || '',
+        ...(needsFile && message?.imageUrl && { fileInfo: { list: [{ origId: message.imageUrl }] } }),
+        ...((message as any)?.urlFile && { urlFile: (message as any).urlFile }),
+        ...(updateMmsUrlList.length > 0 && { urlLink: { list: updateMmsUrlList.slice(0, 3) } }),
+      };
+      
+      // RCS 슬라이드 구성 - RCS 타입일 때만 생성
+      const updateRcsSlide: Record<string, unknown> | null = isRcs ? {
+        slideNum: 1,
+        title: message?.title || '',
+        msg: message?.content || '',
+        ...(needsFile && message?.imageUrl && { imgOrigId: message.imageUrl }),
+        ...((message as any)?.rcsUrlFile && { urlFile: (message as any).rcsUrlFile }),
+        ...(updateMmsUrlList.length > 0 && { urlLink: { list: updateMmsUrlList.slice(0, 3) } }),
+        ...((message as any)?.rcsButtons?.length > 0 && { 
+          buttons: { list: (message as any).rcsButtons.map((btn: any) => ({ ...btn, type: String(btn.type) })) }
+        }),
+        ...((message as any)?.rcsOpts?.list?.length > 0 && { opts: (message as any).rcsOpts }),
+      } : null;
+      
+      // 업데이트 페이로드 구성 - 빈 배열/객체 완전히 생략
       const updatePayload: Record<string, unknown> = {
         name: campaign.name,
         tgtCompanyName: campaign.tgtCompanyName || '위픽',
@@ -1064,41 +1070,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         sndMosu: sndMosu,
         sndMosuFlag: 0,
         isTmp: false, // 필수 필드: 임시저장 여부 (승인 요청 시 false)
-        mms: {
-          title: message?.title || '',
-          msg: message?.content || '',
-          fileInfo: (needsFile && message?.imageUrl) 
-            ? { list: [{ origId: message.imageUrl }] } 
-            : {}, // 파일 없으면 빈 객체 {} (문서 규격)
-          urlFile: (message as any)?.urlFile || '', // 필수 필드: 실제 값 있으면 사용, 없으면 빈 문자열 (문서 규격)
-          urlLink: updateMmsUrlLink,
-        },
+        mms: updateMmsObject,
+        // RCS 타입일 때만 rcs 배열 포함 (빈 배열 생략 - E000002 방지)
+        ...(updateRcsSlide && { rcs: [updateRcsSlide] }),
       };
-      
-      // BizChat API 규격 v0.29.0: rcs 필드는 항상 포함
-      const updateRcsUrlLink = updateMmsUrlList.length > 0 
-        ? { list: updateMmsUrlList.slice(0, 3) }
-        : {}; // 링크가 없으면 빈 객체 {} (문서 규격)
-        
-      if (isRcs) {
-        updatePayload.rcs = [{
-          slideNum: 1,
-          title: message?.title || '',
-          msg: message?.content || '',
-          imgOrigId: (needsFile && message?.imageUrl) ? message.imageUrl : undefined,
-          urlFile: (message as any)?.rcsUrlFile || '', // 필수 필드: 실제 값 있으면 사용, 없으면 빈 문자열 (문서 규격)
-          urlLink: updateRcsUrlLink,
-          buttons: (message as any)?.rcsButtons?.length > 0 
-            ? { list: (message as any).rcsButtons.map((btn: any) => ({ ...btn, type: String(btn.type) })) }
-            : {}, // 버튼이 없으면 빈 객체 {} (문서 규격)
-          opts: (message as any)?.rcsOpts?.list?.length > 0 
-            ? (message as any).rcsOpts 
-            : {}, // 상품소개세로가 아니면 빈 객체 {} (문서 규격)
-        }];
-      } else {
-        // LMS/MMS일 때도 rcs 필드는 빈 배열로 포함 (문서 예제 참고)
-        updatePayload.rcs = [];
-      }
       
       // 발송 시간 업데이트
       if (adjustedSendDate) {
