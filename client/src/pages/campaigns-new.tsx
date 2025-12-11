@@ -1076,15 +1076,16 @@ export default function CampaignsNew() {
                     <div className="flex items-start gap-3">
                       <AlertCircle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
                       <div>
-                        <p className="font-medium text-amber-800">Maptics 지오펜스 안내</p>
+                        <p className="font-medium text-amber-800">위치 기반 광고 안내</p>
                         <p className="text-small text-amber-700 mt-1">
-                          Maptics 지오펜스는 <strong>모수 조회 API가 없어</strong> 예상 발송 대상 수를 제공할 수 없어요. 
-                          MDN(발신번호) 수집 후 승인 단계에서 최종 모수가 확정됩니다.
+                          특정 장소 주변 고객에게 광고를 보내는 방식이에요. 
+                          <strong>미리 몇 명에게 보낼 수 있는지 알 수 없어요.</strong> 
+                          광고 승인 후에 최종 인원이 정해져요.
                         </p>
                         <ul className="text-small text-amber-700 mt-2 list-disc list-inside space-y-1">
-                          <li>보수적인 목표 건수를 설정해 주세요</li>
-                          <li>예산은 실제 발송 건수에 따라 차감됩니다</li>
-                          <li>캠페인 생성 후 <strong>최소 24시간</strong> 이상 여유를 두세요</li>
+                          <li>목표 인원은 넉넉하게 설정해 주세요</li>
+                          <li>실제로 보낸 만큼만 비용이 청구돼요</li>
+                          <li>광고 등록 후 <strong>하루 이상</strong> 여유를 두세요</li>
                         </ul>
                       </div>
                     </div>
@@ -1097,7 +1098,7 @@ export default function CampaignsNew() {
                   <CardTitle>발송 수량</CardTitle>
                   <CardDescription>
                     {isMaptics 
-                      ? "희망 발송 수량을 입력해주세요 (실제 발송은 수집된 MDN 수에 따라 결정됩니다)" 
+                      ? "광고를 보내고 싶은 인원을 입력해주세요" 
                       : "광고를 받을 대상 수를 설정해주세요"
                     }
                   </CardDescription>
@@ -1129,8 +1130,8 @@ export default function CampaignsNew() {
                                 data-testid="input-target-count-maptics"
                               />
                               <p className="text-tiny text-muted-foreground">
-                                100명 ~ 100,000명 사이로 입력해주세요. 
-                                실제 발송 수는 수집된 MDN 수에 따라 달라질 수 있어요.
+                                100명에서 100,000명 사이로 입력할 수 있어요. 
+                                실제로 광고를 받는 사람 수는 달라질 수 있어요.
                               </p>
                             </div>
                           ) : (
@@ -1241,10 +1242,10 @@ export default function CampaignsNew() {
                     <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 text-amber-700 border border-amber-200" data-testid="info-maptics-budget">
                       <AlertCircle className="h-5 w-5 mt-0.5 shrink-0" />
                       <div>
-                        <p className="font-medium">Maptics 예산 안내</p>
+                        <p className="font-medium">예산 안내</p>
                         <p className="text-small">
-                          예상 비용은 <strong>참고용</strong>입니다. 실제 비용은 수집된 MDN 수와 발송 건수에 따라 달라져요.
-                          충분한 예산을 확보해 두시는 것을 권장합니다.
+                          위에 표시된 예상 비용은 <strong>대략적인 금액</strong>이에요. 
+                          실제로 광고를 받는 사람 수에 따라 비용이 달라질 수 있으니, 예산을 여유 있게 준비해 주세요.
                         </p>
                       </div>
                     </div>
