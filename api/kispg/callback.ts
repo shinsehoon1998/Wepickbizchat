@@ -90,8 +90,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.redirect(302, errorUrl.toString());
     }
 
-    const mid = process.env.KISPG_MID;
-    const merchantKey = process.env.KISPG_MERCHANT_KEY;
+    const mid = (process.env.KISPG_MID || '').trim();
+    const merchantKey = (process.env.KISPG_MERCHANT_KEY || '').trim();
 
     if (!mid || !merchantKey) {
       const errorUrl = new URL(`${baseUrl}/billing`);
@@ -114,7 +114,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? 'https://api.kispg.co.kr/v2/payment'
       : 'https://testapi.kispg.co.kr/v2/payment';
 
-    const paymentEdiDate = new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14);
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    const paymentEdiDate = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
     const paymentEncData = generateEncData(mid, paymentEdiDate, amt, merchantKey);
 
     const paymentResponse = await fetch(kispgPaymentUrl, {

@@ -25,16 +25,9 @@ function generateEncData(mid: string, ediDate: string, goodsAmt: string, merchan
 }
 
 function getEdiDate(): string {
-  const now = new Date();
-  const kstOffset = 9 * 60 * 60 * 1000;
-  const kstTime = new Date(now.getTime() + kstOffset);
-  const year = kstTime.getUTCFullYear().toString();
-  const month = (kstTime.getUTCMonth() + 1).toString().padStart(2, '0');
-  const day = kstTime.getUTCDate().toString().padStart(2, '0');
-  const hours = kstTime.getUTCHours().toString().padStart(2, '0');
-  const minutes = kstTime.getUTCMinutes().toString().padStart(2, '0');
-  const seconds = kstTime.getUTCSeconds().toString().padStart(2, '0');
-  return year + month + day + hours + minutes + seconds;
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
 function generateOrderNo(userId: string): string {
@@ -61,8 +54,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: '최소 충전 금액은 10,000원입니다' });
     }
 
-    const mid = process.env.KISPG_MID;
-    const merchantKey = process.env.KISPG_MERCHANT_KEY;
+    const mid = (process.env.KISPG_MID || '').trim();
+    const merchantKey = (process.env.KISPG_MERCHANT_KEY || '').trim();
 
     if (!mid || !merchantKey) {
       return res.status(500).json({ error: 'KISPG configuration is missing' });
