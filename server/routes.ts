@@ -177,8 +177,74 @@ export async function registerRoutes(
   app.get("/api/templates/approved", isAuthenticated, async (req, res) => {
     try {
       const userId = (req as any).userId;
-      const templates = await storage.getTemplates(userId);
-      res.json(templates);
+      
+      // 1. 로컬 DB 템플릿 조회
+      const localTemplates = await storage.getTemplates(userId);
+      
+      // 2. BizChat 템플릿 조회 (선택적)
+      let bizchatTemplates: any[] = [];
+      try {
+        const bizchatApiUrl = process.env.BIZCHAT_USE_PROD === 'true'
+          ? (process.env.BIZCHAT_PROD_API_URL || 'https://gw.bizchat1.co.kr')
+          : (process.env.BIZCHAT_DEV_API_URL || 'https://gw-dev.bizchat1.co.kr:8443');
+        const bizchatApiKey = process.env.BIZCHAT_USE_PROD === 'true'
+          ? process.env.BIZCHAT_PROD_API_KEY
+          : process.env.BIZCHAT_DEV_API_KEY;
+        
+        if (bizchatApiKey) {
+          const tid = Date.now().toString();
+          const response = await fetch(`${bizchatApiUrl}/api/v1/cmpn/tpl/list?tid=${tid}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': bizchatApiKey,
+            },
+            body: JSON.stringify({ pageNumber: 1, pageSize: 100 }),
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.code === 'S000001' && data.data?.list) {
+              // BizChat 템플릿을 로컬 형식으로 변환 (승인된 것만)
+              bizchatTemplates = data.data.list
+                .filter((tpl: any) => tpl.state === 2) // state 2 = 승인완료
+                .map((tpl: any) => ({
+                  id: `bizchat_${tpl.id}`,
+                  bizchatTemplateId: tpl.id,
+                  userId: userId,
+                  name: tpl.name || '(이름 없음)',
+                  messageType: tpl.msgType === 'RCS' ? 'RCS' : (tpl.msgType === 'MMS' ? 'MMS' : 'LMS'),
+                  rcsType: tpl.rcsType,
+                  title: tpl.title || '',
+                  content: tpl.msg || '',
+                  imageUrl: tpl.mms?.[0]?.origId || null,
+                  status: 'approved',
+                  source: 'bizchat',
+                  createdAt: tpl.regDate ? new Date(tpl.regDate * 1000) : new Date(),
+                  updatedAt: tpl.updDate ? new Date(tpl.updDate * 1000) : new Date(),
+                }));
+              console.log(`[Templates] Fetched ${bizchatTemplates.length} approved templates from BizChat`);
+            }
+          }
+        }
+      } catch (bizchatError) {
+        console.error('[Templates] BizChat API error (non-blocking):', bizchatError);
+        // BizChat 오류는 무시하고 로컬 템플릿만 반환
+      }
+      
+      // 3. 로컬 + BizChat 템플릿 병합 (중복 제거)
+      const allTemplates = [...localTemplates];
+      for (const bzTpl of bizchatTemplates) {
+        // 로컬에 같은 bizchatTemplateId가 없는 경우만 추가
+        const exists = localTemplates.some(
+          (lt: any) => lt.bizchatTemplateId === bzTpl.bizchatTemplateId
+        );
+        if (!exists) {
+          allTemplates.push(bzTpl);
+        }
+      }
+      
+      res.json(allTemplates);
     } catch (error) {
       console.error("Error fetching templates:", error);
       res.status(500).json({ error: "Failed to fetch templates" });
