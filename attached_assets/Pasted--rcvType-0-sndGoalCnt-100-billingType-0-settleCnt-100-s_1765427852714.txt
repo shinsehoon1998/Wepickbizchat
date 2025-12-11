@@ -1,0 +1,69 @@
+ "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "settleCnt": 100,
+  "sndMosu": 320524,
+  "sndMosuFlag": 0,
+  "isTmp": false,
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlFile": "",
+    "urlLink": {}
+  },
+  "rcs": [],
+  "atsSndStartDate": 1765429800,
+2025-12-11 04:03:06.237 [info] [BizChat Submit] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-11 04:03:06.237 [info] [BizChat Submit] Environment: DEVELOPMENT (VERCEL_ENV=production)
+2025-12-11 04:03:07.284 [info] [Submit] No scheduledAt provided, using default send date for rcvType 0: 2025-12-11T05:10:00.000Z
+2025-12-11 04:03:07.285 [info] [Submit] Detected legacy SQL format in sndMosuQuery, returning as-is
+2025-12-11 04:03:07.285 [info] [Submit Update] Using legacy SQL query directly (skipping ATS mosu API)
+2025-12-11 04:03:07.285 [info] [Submit] Updating existing BizChat campaign...
+2025-12-11 04:03:07.285 [info] [Submit] Update payload: {
+  "name": "취소테스트",
+  "tgtCompanyName": "위픽",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "settleCnt": 100,
+  "sndMosu": 320524,
+  "sndMosuFlag": 0,
+  "isTmp": false,
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlFile": "",
+    "urlLink": {}
+  },
+  "rcs": [],
+  "atsSndStartDate": 1765429800,
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 30) ) AND ( (regexp_like(home_location, '^41|,41|^31|,31')) ) ) and indv_info_use_agree_yn = 'Y'",
+  "sndMosuDesc": "<html><body><p>레거시 SQL 형식</p></body></html>"
+}
+2025-12-11 04:03:07.285 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-11 04:03:07.285 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-11 04:03:07.285 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-11 04:03:07.285 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-11 04:03:07.285 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/update?id=9f491a0b97eb3f63b4269ac57c395ba7&tid=1765425787285
+2025-12-11 04:03:07.285 [info] [BizChat] Request body: {
+  "name": "취소테스트",
+  "tgtCompanyName": "위픽",
+  "sndNum": "001001",
+
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 30) ) AND ( (regexp_like(home_location, '^41|,41|^31|,31')) ) ) and indv_info_use_agree_yn = 'Y'",
+  "sndMosuDesc": "<html><body><p>레거시 SQL 형식</p></body></html>"
+}
+2025-12-11 04:03:07.346 [info] [BizChat] Response: 400 - {"tid":"1765425787285","code":"E000002","msg":"Invalid request"}
+2025-12-11 04:03:07.346 [warning] [Submit] BizChat update warning: { tid: '1765425787285', code: 'E000002', msg: 'Invalid request' }
+2025-12-11 04:03:07.527 [info] [Submit] Requesting approval...
+2025-12-11 04:03:07.527 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-11 04:03:07.527 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-11 04:03:07.527 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-11 04:03:07.527 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-11 04:03:07.527 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/appr/req?id=9f491a0b97eb3f63b4269ac57c395ba7&tid=1765425787527
+2025-12-11 04:03:07.527 [info] [BizChat] Request body: {}
+2025-12-11 04:03:07.605 [info] [BizChat] Response: 200 - {"tid":"1765425787527","code":"S000001","msg":"Success"}
+2025-12-11 04:03:07.784 [info] [Submit] Approval requested for campaign: bf84f745-1332-41cb-9c8f-8b9863dc9958
