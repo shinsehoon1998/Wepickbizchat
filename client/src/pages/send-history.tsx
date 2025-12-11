@@ -50,7 +50,7 @@ function getRelativeTime(date: Date | string | null): string {
 
 function getStatusIcon(statusCode: number | null) {
   switch (statusCode) {
-    case CAMPAIGN_STATUS.DRAFT:
+    case CAMPAIGN_STATUS.TEMP_REGISTERED:
       return Clock;
     case CAMPAIGN_STATUS.APPROVAL_REQUESTED:
       return Clock;

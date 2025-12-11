@@ -283,9 +283,9 @@ export default function CampaignDetail() {
     );
   }
 
-  const canEdit = campaign.status === "draft" || campaign.status === "rejected" || campaign.status === "temp_registered";
-  const canSubmit = campaign.status === "draft" || campaign.status === "rejected" || campaign.status === "temp_registered";
-  const canDelete = campaign.status === "draft" || campaign.status === "temp_registered";
+  const canEdit = campaign.status === "temp_registered" || campaign.status === "rejected";
+  const canSubmit = campaign.status === "temp_registered" || campaign.status === "rejected";
+  const canDelete = campaign.status === "temp_registered";
   const canApprove = campaign.status === "pending";
   const canStart = campaign.status === "approved";
   const budget = parseFloat(campaign.budget as string || "0");

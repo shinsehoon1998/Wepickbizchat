@@ -285,7 +285,7 @@ export default function Campaigns() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value={CAMPAIGN_STATUS.DRAFT.toString()}>초안</SelectItem>
+                  <SelectItem value={CAMPAIGN_STATUS.TEMP_REGISTERED.toString()}>임시등록</SelectItem>
                   <SelectItem value={CAMPAIGN_STATUS.APPROVAL_REQUESTED.toString()}>승인 대기</SelectItem>
                   <SelectItem value={CAMPAIGN_STATUS.APPROVED.toString()}>발송 대기</SelectItem>
                   <SelectItem value={CAMPAIGN_STATUS.SEND_PREPARATION.toString()}>발송 준비중</SelectItem>
@@ -340,7 +340,7 @@ export default function Campaigns() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {campaign.statusCode === CAMPAIGN_STATUS.DRAFT && (
+                    {campaign.statusCode === CAMPAIGN_STATUS.TEMP_REGISTERED && (
                       <Button
                         variant="default"
                         size="sm"

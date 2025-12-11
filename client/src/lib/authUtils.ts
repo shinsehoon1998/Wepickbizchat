@@ -6,7 +6,6 @@ export const CAMPAIGN_STATUS = {
   TEMP_REGISTERED: 0,
   INSPECTION_REQUESTED: 1,
   INSPECTION_COMPLETED: 2,
-  DRAFT: 5,
   APPROVAL_REQUESTED: 10,
   APPROVED: 11,
   REJECTED: 17,
@@ -19,12 +18,11 @@ export const CAMPAIGN_STATUS = {
 
 // 삭제 가능 상태 (BizChat API 규격)
 // BizChat: isTmp=1 또는 state=0 (임시등록)
-// 로컬: 0(임시등록), 5(초안/BizChat 미등록)
-export const DELETABLE_STATUS_CODES = [0, 5];
+export const DELETABLE_STATUS_CODES = [0];
 
 // 취소 가능 상태 (BizChat API 규격)
 // BizChat: 검수요청(1), 검수완료(2), 승인요청(10), 승인완료(11), 반려(17), 발송준비(20)
-// 참고: 임시등록(0)과 초안(5)은 '취소'가 아닌 '삭제' 대상
+// 참고: 임시등록(0)은 '취소'가 아닌 '삭제' 대상
 export const CANCELLABLE_STATUS_CODES = [1, 2, 10, 11, 17, 20];
 
 // 중단 가능 상태: 발송중(30)
@@ -35,7 +33,6 @@ export function getStatusCodeLabel(statusCode: number): string {
     [CAMPAIGN_STATUS.TEMP_REGISTERED]: '임시등록',
     [CAMPAIGN_STATUS.INSPECTION_REQUESTED]: '검수요청',
     [CAMPAIGN_STATUS.INSPECTION_COMPLETED]: '검수완료',
-    [CAMPAIGN_STATUS.DRAFT]: '초안',
     [CAMPAIGN_STATUS.APPROVAL_REQUESTED]: '승인 대기',
     [CAMPAIGN_STATUS.APPROVED]: '발송 대기',
     [CAMPAIGN_STATUS.REJECTED]: '반려됨',
@@ -49,7 +46,7 @@ export function getStatusCodeLabel(statusCode: number): string {
 }
 
 export function getStatusCodeStyles(statusCode: number): string {
-  if (statusCode === CAMPAIGN_STATUS.DRAFT) {
+  if (statusCode === CAMPAIGN_STATUS.TEMP_REGISTERED) {
     return 'bg-muted text-muted-foreground border-muted-border';
   }
   if (statusCode === CAMPAIGN_STATUS.APPROVAL_REQUESTED) {
@@ -115,8 +112,7 @@ export function formatDateTime(date: Date | string): string {
 
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
-    draft: '초안',
-    temp_registered: '상태 0',
+    temp_registered: '임시등록',
     pending: '승인 대기',
     approved: '승인 완료',
     running: '발송 중',

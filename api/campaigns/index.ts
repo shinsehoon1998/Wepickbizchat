@@ -990,7 +990,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const campaignId = randomUUID();
 
-      // 1. 로컬 DB에 캠페인 저장 (초기 상태: draft)
+      // 1. 로컬 DB에 캠페인 저장 (초기 상태: temp_registered)
       const campaignResult = await db.insert(campaigns).values({
         id: campaignId,
         userId,
@@ -999,8 +999,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         templateId: data.templateId,
         messageType: data.messageType,
         sndNum: data.sndNum,
-        statusCode: 5, // draft (BizChat 등록 전)
-        status: 'draft',
+        statusCode: 0, // temp_registered (BizChat 등록 시도)
+        status: 'temp_registered',
         rcvType: rcvType,
         billingType: data.messageType === 'MMS' ? 2 : (data.messageType === 'RCS' ? 3 : 0),
         sndGoalCnt: data.targetCount,
@@ -1280,13 +1280,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
 
-        // BizChat 등록 실패 시 draft 상태 유지
+        // BizChat 등록 실패 시에도 로컬 캠페인은 유지 (임시등록 상태로)
         console.error('[Campaign] BizChat registration failed:', bizchatResult.data);
         
         return res.status(201).json({
           ...campaignResult[0],
-          statusCode: 5,
-          status: 'draft',
+          statusCode: 0,
+          status: 'temp_registered',
           bizchatRegistered: false,
           bizchatError: {
             code: bizchatResult.data.code,
@@ -1300,8 +1300,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         return res.status(201).json({
           ...campaignResult[0],
-          statusCode: 5,
-          status: 'draft',
+          statusCode: 0,
+          status: 'temp_registered',
           bizchatRegistered: false,
           bizchatError: {
             code: 'API_ERROR',

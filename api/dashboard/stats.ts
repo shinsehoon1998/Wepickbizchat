@@ -13,7 +13,7 @@ const campaigns = pgTable('campaigns', {
   name: text('name').notNull(),
   messageType: text('message_type'),
   statusCode: integer('status_code').default(0),
-  status: text('status').default('draft'),
+  status: text('status').default('temp_registered'),
   templateId: text('template_id'),
   budget: numeric('budget'),
   targetCount: integer('target_count'),

@@ -12,7 +12,7 @@ const campaigns = pgTable('campaigns', {
   userId: text('user_id').notNull(),
   name: text('name').notNull(),
   statusCode: integer('status_code').default(0),
-  status: text('status').default('draft'),
+  status: text('status').default('temp_registered'),
   bizchatCampaignId: text('bizchat_campaign_id'),
   updatedAt: timestamp('updated_at').defaultNow(),
 });

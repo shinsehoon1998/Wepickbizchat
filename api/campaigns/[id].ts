@@ -15,7 +15,7 @@ const campaigns = pgTable('campaigns', {
   messageType: text('message_type'),
   sndNum: text('snd_num'),
   statusCode: integer('status_code').default(0),
-  status: text('status').default('draft'),
+  status: text('status').default('temp_registered'),
   targetCount: integer('target_count'),
   sentCount: integer('sent_count'),
   successCount: integer('success_count'),
@@ -193,12 +193,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (campaign.userId !== userId) return res.status(403).json({ error: 'Access denied' });
       
       // BizChat API 규격: isTmp=1 또는 state=0 (임시등록) 캠페인만 삭제 가능
-      // 로컬 상태: statusCode 0 (임시등록), 5 (초안/BizChat 미등록)
-      const DELETABLE_STATUS_CODES = [0, 5];
+      const DELETABLE_STATUS_CODES = [0];
       if (!DELETABLE_STATUS_CODES.includes(campaign.statusCode || 0)) {
         console.error(`Cannot delete campaign with status ${campaign.statusCode}`);
         return res.status(400).json({ 
-          error: '임시등록(0) 또는 초안(5) 상태의 캠페인만 삭제할 수 있습니다.' 
+          error: '임시등록(0) 상태의 캠페인만 삭제할 수 있습니다.' 
         });
       }
 

@@ -73,16 +73,18 @@ export const files = pgTable("files", {
 });
 
 // Campaigns table
-// Status codes based on state diagram:
-// 5: 임시저장 (draft)
+// Status codes based on BizChat API state diagram:
+// 0: 임시등록 (temp_registered) - BizChat에 등록됨
+// 1: 검수요청 (inspection_requested)
+// 2: 검수완료 (inspection_completed)
 // 10: 승인요청 (approval_requested)
 // 11: 승인완료 (approved)
 // 17: 반려 (rejected)
 // 20: 발송준비 (send_ready)
-// 25: 취소 (cancelled)
-// 30: 진행중 (running)
-// 35: 캠페인중단 (stopped)
-// 40: 종료 (completed)
+// 30: 발송중 (running)
+// 40: 발송완료 (completed)
+// 90: 취소 (cancelled)
+// 91: 발송중단 (stopped)
 export const campaigns = pgTable("campaigns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
@@ -91,8 +93,8 @@ export const campaigns = pgTable("campaigns", {
   // 기본 정보
   name: varchar("name", { length: 200 }).notNull(),
   tgtCompanyName: varchar("tgt_company_name", { length: 100 }), // 고객사명
-  statusCode: integer("status_code").default(5).notNull(), // 5=draft, 10=approval_requested, etc
-  status: varchar("status", { length: 20 }).default("draft").notNull(),
+  statusCode: integer("status_code").default(0).notNull(), // 0=temp_registered, 10=approval_requested, etc
+  status: varchar("status", { length: 20 }).default("temp_registered").notNull(),
   messageType: varchar("message_type", { length: 10 }).notNull(), // LMS, MMS, RCS
   
   // BizChat API 필수 필드
