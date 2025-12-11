@@ -192,14 +192,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
       if (campaign.userId !== userId) return res.status(403).json({ error: 'Access denied' });
       
-      if (campaign.statusCode !== 0 && campaign.statusCode !== 5 && campaign.statusCode !== 10) {
+      // BizChat API 규격: isTmp=1 또는 state=0 (임시등록) 캠페인만 삭제 가능
+      // 로컬 상태: statusCode 0 (임시등록), 5 (초안/BizChat 미등록)
+      const DELETABLE_STATUS_CODES = [0, 5];
+      if (!DELETABLE_STATUS_CODES.includes(campaign.statusCode || 0)) {
         console.error(`Cannot delete campaign with status ${campaign.statusCode}`);
         return res.status(400).json({ 
-          error: 'Only temp_registered (0), draft (5) or approval-requested (10) campaigns can be deleted' 
+          error: '임시등록(0) 또는 초안(5) 상태의 캠페인만 삭제할 수 있습니다.' 
         });
       }
 
-      if (campaign.bizchatCampaignId) {
+      // BizChat에 등록된 캠페인인 경우 BizChat API 호출
+      // SIM_ 접두사는 시뮬레이션 ID이므로 BizChat 호출 생략
+      const bizchatId = campaign.bizchatCampaignId;
+      const isSimulation = bizchatId?.startsWith('SIM_');
+      
+      if (bizchatId && !isSimulation) {
         try {
           const host = req.headers.host || process.env.VERCEL_URL || 'localhost:5000';
           const isLocalhost = host.includes('localhost') || host.includes('127.0.0.1');
@@ -214,23 +222,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             },
             body: JSON.stringify({
               action: 'delete',
-              campaignIds: [campaign.bizchatCampaignId],
+              campaignIds: [bizchatId],
             }),
           });
 
           if (!deleteResponse.ok) {
             const errorData = await deleteResponse.json();
             console.error('BizChat deletion failed:', errorData);
-            return res.status(400).json({ 
-              error: 'Failed to delete campaign from BizChat: ' + (errorData.error || 'Unknown error')
-            });
+            // BizChat 삭제 실패해도 로컬 삭제는 진행 (경고 로그만 남김)
+            console.warn(`[DELETE] BizChat deletion failed for ${bizchatId}, proceeding with local deletion`);
           }
         } catch (bizchatError) {
           console.error('Error calling BizChat delete API:', bizchatError);
-          return res.status(500).json({ 
-            error: 'Failed to communicate with BizChat API' 
-          });
+          // BizChat 통신 오류 시에도 로컬 삭제는 진행
+          console.warn(`[DELETE] BizChat API communication failed, proceeding with local deletion`);
         }
+      } else if (isSimulation) {
+        console.log(`[DELETE] Skipping BizChat API call for simulation campaign: ${bizchatId}`);
       }
 
       await db.delete(messages).where(eq(messages.campaignId, id));

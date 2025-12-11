@@ -17,10 +17,16 @@ export const CAMPAIGN_STATUS = {
   STOPPED: 91,
 } as const;
 
-// 취소 가능 상태 (BizChat API 기준 + 로컬 상태)
+// 삭제 가능 상태 (BizChat API 규격)
+// BizChat: isTmp=1 또는 state=0 (임시등록)
+// 로컬: 0(임시등록), 5(초안/BizChat 미등록)
+export const DELETABLE_STATUS_CODES = [0, 5];
+
+// 취소 가능 상태 (BizChat API 규격)
 // BizChat: 검수요청(1), 검수완료(2), 승인요청(10), 승인완료(11), 반려(17), 발송준비(20)
-// 로컬: 초안(5)도 취소 가능
-export const CANCELLABLE_STATUS_CODES = [1, 2, 5, 10, 11, 17, 20];
+// 참고: 임시등록(0)과 초안(5)은 '취소'가 아닌 '삭제' 대상
+export const CANCELLABLE_STATUS_CODES = [1, 2, 10, 11, 17, 20];
+
 // 중단 가능 상태: 발송중(30)
 export const STOPPABLE_STATUS_CODES = [30];
 

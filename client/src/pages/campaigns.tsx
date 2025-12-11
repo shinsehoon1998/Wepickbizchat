@@ -18,7 +18,7 @@ import {
   StopCircle,
 } from "lucide-react";
 import { useState } from "react";
-import { formatCurrency, formatNumber, formatDateTime, getMessageTypeLabel, CAMPAIGN_STATUS, CANCELLABLE_STATUS_CODES, STOPPABLE_STATUS_CODES } from "@/lib/authUtils";
+import { formatCurrency, formatNumber, formatDateTime, getMessageTypeLabel, CAMPAIGN_STATUS, CANCELLABLE_STATUS_CODES, STOPPABLE_STATUS_CODES, DELETABLE_STATUS_CODES } from "@/lib/authUtils";
 import { CampaignStatusBadge } from "@/components/campaign-status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
@@ -402,7 +402,7 @@ export default function Campaigns() {
                             </DropdownMenuItem>
                           </>
                         )}
-                        {(campaign.statusCode === CAMPAIGN_STATUS.DRAFT || campaign.statusCode === CAMPAIGN_STATUS.APPROVAL_REQUESTED) && (
+                        {DELETABLE_STATUS_CODES.includes(campaign.statusCode || 0) && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
