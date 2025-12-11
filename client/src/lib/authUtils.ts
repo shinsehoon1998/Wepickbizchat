@@ -17,8 +17,10 @@ export const CAMPAIGN_STATUS = {
   STOPPED: 91,
 } as const;
 
-// 취소 가능 상태: 검수요청(1), 검수완료(2), 승인요청(10), 승인완료(11), 반려(17), 발송준비(20)
-export const CANCELLABLE_STATUS_CODES = [1, 2, 10, 11, 17, 20];
+// 취소 가능 상태 (BizChat API 기준 + 로컬 상태)
+// BizChat: 검수요청(1), 검수완료(2), 승인요청(10), 승인완료(11), 반려(17), 발송준비(20)
+// 로컬: 초안(5)도 취소 가능
+export const CANCELLABLE_STATUS_CODES = [1, 2, 5, 10, 11, 17, 20];
 // 중단 가능 상태: 발송중(30)
 export const STOPPABLE_STATUS_CODES = [30];
 

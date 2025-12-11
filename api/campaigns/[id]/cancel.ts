@@ -40,9 +40,10 @@ async function verifyAuth(req: VercelRequest) {
   } catch { return null; }
 }
 
-// 캠페인 취소 가능 상태 코드
-// 검수요청(1), 검수완료(2), 승인요청(10), 승인완료(11), 반려(17), 발송준비(20)
-const CANCELLABLE_STATUS_CODES = [1, 2, 10, 11, 17, 20];
+// 캠페인 취소 가능 상태 코드 (BizChat API 기준 + 로컬 상태)
+// BizChat: 검수요청(1), 검수완료(2), 승인요청(10), 승인완료(11), 반려(17), 발송준비(20)
+// 로컬: 초안(5)도 취소 가능 (BizChat 등록 전 캠페인)
+const CANCELLABLE_STATUS_CODES = [1, 2, 5, 10, 11, 17, 20];
 
 // 상태 코드별 한글 명칭
 const STATUS_NAMES: Record<number, string> = {
