@@ -431,6 +431,101 @@ function validateStringLengths(data: {
   return { valid: true };
 }
 
+// ATS 발송 모수(sndMosu) 검증 (BizChat API 규격 v0.29.0)
+// - 최소값: sndGoalCnt × 150%
+// - 최대값: 400,000
+// - sndMosu가 0이면 승인 불가
+function validateATSMosu(data: {
+  rcvType: number;
+  sndGoalCnt: number;
+  sndMosu: number | null | undefined;
+  sndMosuFlag?: number;
+}): { valid: boolean; error?: string; warning?: string } {
+  // ATS 일반 타겟팅(rcvType=0)일 때만 검증
+  if (data.rcvType !== 0) {
+    return { valid: true };
+  }
+  
+  const sndGoalCnt = data.sndGoalCnt || 0;
+  const sndMosu = data.sndMosu || 0;
+  const sndMosuFlag = data.sndMosuFlag ?? 0; // 0: 150% 체크 사용, 1: 체크 안 함
+  
+  // 모수가 0이면 승인 불가
+  if (sndMosu === 0) {
+    return { 
+      valid: false, 
+      error: '발송 대상 모수가 0명입니다. 타겟팅 조건을 변경해주세요.' 
+    };
+  }
+  
+  // 최대값 체크: 400,000
+  if (sndMosu > 400000) {
+    return { 
+      valid: false, 
+      error: `발송 모수가 최대값(400,000명)을 초과했습니다. 현재: ${sndMosu.toLocaleString()}명` 
+    };
+  }
+  
+  // 150% 체크 (sndMosuFlag=0일 때만)
+  if (sndMosuFlag === 0) {
+    const minMosu = Math.ceil(sndGoalCnt * 1.5);
+    if (sndMosu < minMosu) {
+      return { 
+        valid: false, 
+        error: `발송 모수(${sndMosu.toLocaleString()}명)가 발송 목표(${sndGoalCnt.toLocaleString()}건)의 150%(${minMosu.toLocaleString()}명) 미만입니다. 타겟팅 조건을 변경하거나 발송 목표를 줄여주세요.`,
+        warning: `발송 모수가 부족합니다. 최소 ${minMosu.toLocaleString()}명 이상이 필요합니다.`
+      };
+    }
+  }
+  
+  return { valid: true };
+}
+
+// Maptics 캠페인 collStartDate 검증 (BizChat API 규격 v0.29.0)
+// - 최소: 캠페인 생성 시간 +1시간 이후
+// - 권장: 수집 시작일 24시간 이전에 캠페인 생성
+function validateMapticsCollStartDate(data: {
+  rcvType: number;
+  collStartDate?: Date | string | null;
+}): { valid: boolean; error?: string; warning?: string } {
+  // Maptics 타겟팅(rcvType=1,2)일 때만 검증
+  if (data.rcvType !== 1 && data.rcvType !== 2) {
+    return { valid: true };
+  }
+  
+  if (!data.collStartDate) {
+    return { 
+      valid: false, 
+      error: 'Maptics 캠페인은 수집 시작일(collStartDate)이 필수입니다.' 
+    };
+  }
+  
+  const collStartDate = typeof data.collStartDate === 'string' 
+    ? new Date(data.collStartDate) 
+    : data.collStartDate;
+  const now = new Date();
+  
+  // 최소 1시간 이후
+  const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
+  if (collStartDate < oneHourFromNow) {
+    return { 
+      valid: false, 
+      error: '수집 시작일은 현재 시간으로부터 최소 1시간 이후여야 합니다.' 
+    };
+  }
+  
+  // 권장: 24시간 이상 여유
+  const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  if (collStartDate < oneDayFromNow) {
+    return { 
+      valid: true, 
+      warning: '⚠️ Maptics 캠페인은 수집 시작일 최소 24시간 전에 생성하시는 것을 권장합니다. 승인 절차를 고려해주세요.' 
+    };
+  }
+  
+  return { valid: true };
+}
+
 // ATS 발송 모수 API 호출하여 SQL 형식의 query 획득
 // BizChat API 규격: /api/v1/ats/mosu 호출 후 응답의 query 필드를 sndMosuQuery에 사용
 async function callATSMosuAPI(
@@ -694,6 +789,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(400).json({ error: timeValidation.error });
       }
       adjustedSendDate = timeValidation.adjustedDate || sendDateToValidate;
+    }
+
+    // ========== ATS 발송 모수(sndMosu) 검증 ==========
+    // BizChat API 규격 v0.29.0: sndMosu는 sndGoalCnt의 150% 이상, 최대 400,000
+    const sndGoalCnt = campaign.sndGoalCnt || campaign.targetCount || 1000;
+    const mosuValidation = validateATSMosu({
+      rcvType: rcvType,
+      sndGoalCnt: sndGoalCnt,
+      sndMosu: campaign.sndMosu,
+      sndMosuFlag: 0, // 기본: 150% 체크 사용
+    });
+    if (!mosuValidation.valid) {
+      console.error('[Submit] ATS mosu validation failed:', mosuValidation.error);
+      return res.status(400).json({ 
+        error: mosuValidation.error,
+        hint: '발송 목표 건수를 줄이거나 타겟팅 조건을 조정하여 발송 대상 모수를 늘려주세요.'
+      });
+    }
+    if (mosuValidation.warning) {
+      console.warn('[Submit] ATS mosu warning:', mosuValidation.warning);
+    }
+
+    // ========== Maptics collStartDate 검증 ==========
+    // BizChat API 규격 v0.29.0: 수집 시작일은 1시간 이후, 24시간 전 생성 권장
+    const mapticsValidation = validateMapticsCollStartDate({
+      rcvType: rcvType,
+      collStartDate: (campaign as any).collStartDate,
+    });
+    if (!mapticsValidation.valid) {
+      console.error('[Submit] Maptics collStartDate validation failed:', mapticsValidation.error);
+      return res.status(400).json({ 
+        error: mapticsValidation.error,
+        hint: 'Maptics 캠페인은 수집 시작일 최소 24시간 전에 생성하시는 것을 권장합니다.'
+      });
+    }
+    if (mapticsValidation.warning) {
+      console.warn('[Submit] Maptics collStartDate warning:', mapticsValidation.warning);
     }
 
     if (!campaign.bizchatCampaignId) {
