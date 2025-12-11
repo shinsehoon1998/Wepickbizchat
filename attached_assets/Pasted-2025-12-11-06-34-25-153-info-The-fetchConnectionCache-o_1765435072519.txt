@@ -1,0 +1,63 @@
+2025-12-11 06:34:25.153 [info] The `fetchConnectionCache` option is deprecated (now always `true`)
+2025-12-11 06:34:25.362 [info] [BizChat Submit] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-11 06:34:25.362 [info] [BizChat Submit] Environment: DEVELOPMENT (VERCEL_ENV=production)
+2025-12-11 06:34:25.378 [error] (node:4) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2025-12-11 06:34:26.418 [info] [Submit] No scheduledAt provided, using default send date for rcvType 0: 2025-12-11T07:40:00.000Z
+2025-12-11 06:34:26.445 [info] [Submit Update] Using sndMosu: 260,615 (from campaign)
+2025-12-11 06:34:26.446 [info] [Submit] Detected legacy SQL format in sndMosuQuery, returning as-is
+2025-12-11 06:34:26.446 [info] [Submit Update] Using legacy SQL query directly (skipping ATS mosu API)
+2025-12-11 06:34:26.446 [info] [Submit] Updating existing BizChat campaign...
+2025-12-11 06:34:26.446 [info] [Submit] Update payload: {
+  "name": "테스트251211",
+  "tgtCompanyName": "위픽",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "settleCnt": 100,
+  "sndMosu": 260615,
+  "sndMosuFlag": 0,
+  "isTmp": 0,
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트"
+  },
+  "atsSndStartDate": 1765438800,
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 50) ) AND ( (home_location like '48%' or home_location like '%,48%') ) ) and indv_info_use_agree_yn = 'Y'",
+  "sndMosuDesc": "<table><tr><td id='oper0' rowspan='2' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>회선특성-연령: 20세 ~ 50세</td></tr></tr><tr><td id='oper2' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>위치/이동특성-추정 집주소: 경남</td></tr></tr></table>"
+}
+2025-12-11 06:34:26.447 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-11 06:34:26.447 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-11 06:34:26.447 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-11 06:34:26.447 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-11 06:34:26.447 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/update?id=e7948d7452ca3ed3b6335e3da262636a&tid=1765434866446
+2025-12-11 06:34:26.447 [info] [BizChat] Request body: {
+  "name": "테스트251211",
+  "tgtCompanyName": "위픽",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "settleCnt": 100,
+  "sndMosu": 260615,
+  "sndMosuFlag": 0,
+  "isTmp": 0,
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트"
+  },
+  "atsSndStartDate": 1765438800,
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 50) ) AND ( (home_location like '48%' or home_location like '%,48%') ) ) and indv_info_use_agree_yn = 'Y'",
+  "sndMosuDesc": "<table><tr><td id='oper0' rowspan='2' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>회선특성-연령: 20세 ~ 50세</td></tr></tr><tr><td id='oper2' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>위치/이동특성-추정 집주소: 경남</td></tr></tr></table>"
+}
+2025-12-11 06:34:29.085 [info] [BizChat] Response: 200 - {"tid":"1765434866446","code":"S000001","msg":"Success","data":{"id":"e7948d7452ca3ed3b6335e3da262636a"}}
+2025-12-11 06:34:29.085 [info] [Submit] BizChat campaign updated successfully
+2025-12-11 06:34:29.256 [info] [Submit] Requesting approval...
+2025-12-11 06:34:29.256 [info] [BizChat Submit] Environment: DEVELOPMENT
+2025-12-11 06:34:29.256 [info] [BizChat Submit] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-11 06:34:29.256 [info] [BizChat Submit] API key exists: true, length: 64
+2025-12-11 06:34:29.257 [info] [BizChat Submit] VERCEL_ENV: production, NODE_ENV: production
+2025-12-11 06:34:29.257 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/appr/req?id=e7948d7452ca3ed3b6335e3da262636a&tid=1765434869256
+2025-12-11 06:34:29.257 [info] [BizChat] Request body: {}
+2025-12-11 06:34:29.333 [info] [BizChat] Response: 200 - {"tid":"1765434869256","code":"S000001","msg":"Success"}
+2025-12-11 06:34:29.504 [info] [Submit] Approval requested for campaign: 08a2dd50-94cd-4b4f-8d5c-12fbfc9a1823

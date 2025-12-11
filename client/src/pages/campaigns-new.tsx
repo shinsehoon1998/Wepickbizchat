@@ -352,7 +352,7 @@ export default function CampaignsNew() {
         scheduledAt: hasScheduledAt && scheduledDate ? scheduledDate.toISOString() : undefined,
       });
       
-      // 기존 sndMosu 데이터를 advancedTargeting에 설정
+      // 기존 sndMosu 데이터를 advancedTargeting과 atsData에 설정
       const campaign = existingCampaign as any;
       if (campaign.sndMosu || campaign.sndMosuQuery || campaign.sndMosuDesc) {
         setAdvancedTargeting(prev => ({
@@ -361,6 +361,12 @@ export default function CampaignsNew() {
           sndMosuQuery: campaign.sndMosuQuery || undefined,
           sndMosuDesc: campaign.sndMosuDesc || undefined,
         }));
+        // atsData에도 초기화 (캠페인 저장 시 사용)
+        setAtsData({
+          sndMosu: campaign.sndMosu || undefined,
+          sndMosuQuery: campaign.sndMosuQuery || undefined,
+          sndMosuDesc: campaign.sndMosuDesc || undefined,
+        });
       }
     }
   }, [isEditMode, existingCampaign, form]);
@@ -380,6 +386,22 @@ export default function CampaignsNew() {
     estimated: 1000000,
     max: 1100000,
     reachRate: 90,
+  });
+
+  // ATS 모수 정보를 별도 상태로 관리 (무한 루프 방지)
+  const [atsData, setAtsData] = useState<{
+    sndMosu?: number;
+    sndMosuQuery?: string;
+    sndMosuDesc?: string;
+  }>({});
+  
+  // 고급 타겟팅 조건 변경 감지를 위한 키 생성 (객체 비교 대신 문자열 비교)
+  const advancedTargetingKey = JSON.stringify({
+    shopping11stCategories: advancedTargeting.shopping11stCategories,
+    webappCategories: advancedTargeting.webappCategories,
+    callCategories: advancedTargeting.callCategories,
+    locations: advancedTargeting.locations,
+    profiling: advancedTargeting.profiling,
   });
 
   useEffect(() => {
@@ -411,15 +433,14 @@ export default function CampaignsNew() {
           reachRate: data.reachRate,
         });
         
-        // ATS 모수 정보를 advancedTargeting에도 업데이트 (캠페인 저장 시 사용)
+        // ATS 모수 정보를 별도 상태에 저장 (무한 루프 방지)
         if (data.estimatedCount > 0) {
           console.log('[Campaign Form] Updating ATS mosu from estimate:', data.estimatedCount);
-          setAdvancedTargeting(prev => ({
-            ...prev,
+          setAtsData({
             sndMosu: data.estimatedCount,
-            sndMosuQuery: data.sndMosuQuery || data.query || prev.sndMosuQuery,
-            sndMosuDesc: data.sndMosuDesc || data.description || prev.sndMosuDesc,
-          }));
+            sndMosuQuery: data.sndMosuQuery || data.query,
+            sndMosuDesc: data.sndMosuDesc || data.description,
+          });
         }
       } catch (error) {
         console.error("Failed to fetch targeting estimate:", error);
@@ -429,7 +450,7 @@ export default function CampaignsNew() {
     if (currentStep === 2) {
       fetchEstimate();
     }
-  }, [currentStep, watchGender, watchAgeMin, watchAgeMax, watchRegions, isMaptics, advancedTargeting.shopping11stCategories, advancedTargeting.webappCategories, advancedTargeting.callCategories, advancedTargeting.locations, advancedTargeting.profiling]);
+  }, [currentStep, watchGender, watchAgeMin, watchAgeMax, watchRegions, isMaptics, advancedTargetingKey]);
 
   const costPerMessage = 50;
   const estimatedCost = watchTargetCount * costPerMessage;
@@ -492,10 +513,10 @@ export default function CampaignsNew() {
         scheduledAt: data.scheduledAt || undefined,
         // 고급 타겟팅 옵션
         ...advancedTargeting,
-        // ATS 모수 정보 명시적 포함 (캠페인 수정 시 누락 방지)
-        sndMosu: advancedTargeting.sndMosu || null,
-        sndMosuQuery: advancedTargeting.sndMosuQuery || null,
-        sndMosuDesc: advancedTargeting.sndMosuDesc || null,
+        // ATS 모수 정보: atsData 우선, 없으면 advancedTargeting에서 가져옴
+        sndMosu: atsData.sndMosu || advancedTargeting.sndMosu || null,
+        sndMosuQuery: atsData.sndMosuQuery || advancedTargeting.sndMosuQuery || null,
+        sndMosuDesc: atsData.sndMosuDesc || advancedTargeting.sndMosuDesc || null,
         // 발송 목표 건수
         sndGoalCnt: data.targetCount,
       };
