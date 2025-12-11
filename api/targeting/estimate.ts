@@ -333,14 +333,20 @@ function buildATSMosuPayload(params: TargetingParams): { payload: { '$and': ATSF
   };
 }
 
+// ATS mosu API 응답 결과
+interface ATSMosuResult {
+  estimatedCount: number;
+  sndMosuQuery?: string;  // BizChat API에서 반환하는 SQL 형식 query
+}
+
 // BizChat ATS mosu API 호출
-async function callATSMosuAPI(mosuQuery: { '$and': ATSFilterCondition[] }): Promise<number> {
+async function callATSMosuAPI(mosuQuery: { '$and': ATSFilterCondition[] }): Promise<ATSMosuResult> {
   const tid = generateTid();
   const apiKey = getBizChatApiKey();
   
   if (!apiKey) {
     console.log('[Estimate] BizChat API key not configured, returning mock data');
-    return 500000;
+    return { estimatedCount: 500000 };
   }
 
   const url = `${getBizChatUrl()}/api/v1/ats/mosu?tid=${tid}`;
@@ -361,18 +367,24 @@ async function callATSMosuAPI(mosuQuery: { '$and': ATSFilterCondition[] }): Prom
     }
 
     const data = await response.json();
-    console.log('[Estimate] ATS mosu response:', JSON.stringify(data).substring(0, 500));
+    console.log('[Estimate] ATS mosu response:', JSON.stringify(data).substring(0, 1000));
 
     if (data.code === 'S000001') {
-      return data.data?.sndMosu || data.data?.cnt || 0;
+      // BizChat ATS mosu API 응답에서 sndMosu와 query 추출
+      const estimatedCount = data.data?.sndMosu || data.data?.cnt || 0;
+      const sndMosuQuery = data.data?.query || undefined;  // SQL 형식 query
+      
+      console.log('[Estimate] Extracted sndMosu:', estimatedCount, 'sndMosuQuery:', sndMosuQuery?.substring(0, 200));
+      
+      return { estimatedCount, sndMosuQuery };
     } else {
       console.error('[Estimate] ATS mosu API error:', data.code, data.msg);
       // 에러 발생 시 추정값 반환
-      return 500000;
+      return { estimatedCount: 500000 };
     }
   } catch (error) {
     console.error('[Estimate] ATS mosu API call failed:', error);
-    return 500000;
+    return { estimatedCount: 500000 };
   }
 }
 
@@ -394,13 +406,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { payload, desc } = buildATSMosuPayload(params);
     console.log('[Estimate] Built payload:', JSON.stringify(payload));
 
-    // ATS mosu API 호출
-    const estimatedCount = await callATSMosuAPI(payload);
+    // ATS mosu API 호출 - sndMosu와 SQL query 모두 추출
+    const result = await callATSMosuAPI(payload);
 
     return res.status(200).json({
-      estimatedCount,
+      estimatedCount: result.estimatedCount,
+      // BizChat API 규격: sndMosuQuery는 SQL 형식이어야 함
+      sndMosuQuery: result.sndMosuQuery || JSON.stringify(payload),  // SQL query 또는 fallback으로 JSON
+      sndMosuDesc: desc,
+      // 기존 호환성 유지
       mosuQuery: payload,
       mosuDesc: desc,
+      // 추가 정보
+      minCount: Math.floor(result.estimatedCount * 0.8),
+      maxCount: Math.ceil(result.estimatedCount * 1.2),
+      reachRate: 85,
     });
   } catch (error: any) {
     console.error('[Estimate] Error:', error);
