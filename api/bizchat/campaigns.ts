@@ -620,6 +620,67 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
+      // list 액션은 campaignId 없이 BizChat 전체 캠페인 목록 조회 (연동규격서 7.6)
+      // URL: /api/v1/cmpn/list
+      // Method: POST
+      // Query Parameter: tid (Y)
+      // Body: pageNumber (Y), pageSize (Y), tgtCompanyName (N), name (N), states (N), isTmp (N)
+      if (action === 'list') {
+        const pageNumber = typeof req.body.pageNumber === 'number' ? req.body.pageNumber : 0;
+        let pageSize = typeof req.body.pageSize === 'number' ? req.body.pageSize : 10;
+        
+        // pageSize 검증: 0보다 크고 20보다 작은 정수
+        if (pageSize <= 0 || pageSize >= 20) {
+          console.warn(`[BizChat List] Invalid pageSize ${pageSize}, adjusting to 10`);
+          pageSize = 10;
+        }
+        
+        // 선택적 필터 파라미터 구성
+        const filters: { tgtCompanyName?: string; name?: string; states?: number[]; isTmp?: number } = {};
+        
+        if (req.body.tgtCompanyName && typeof req.body.tgtCompanyName === 'string') {
+          filters.tgtCompanyName = req.body.tgtCompanyName;
+        }
+        if (req.body.name && typeof req.body.name === 'string') {
+          filters.name = req.body.name;
+        }
+        if (req.body.states && Array.isArray(req.body.states)) {
+          filters.states = req.body.states.filter((s: unknown) => typeof s === 'number');
+        }
+        if (typeof req.body.isTmp === 'number' && (req.body.isTmp === 0 || req.body.isTmp === 1)) {
+          filters.isTmp = req.body.isTmp;
+        }
+        
+        console.log(`[BizChat List] pageNumber=${pageNumber}, pageSize=${pageSize}, filters=`, JSON.stringify(filters));
+        
+        const result = await getCampaignList(pageNumber, pageSize, filters, useProduction);
+        
+        if (result.data.code !== 'S000001') {
+          return res.status(400).json({
+            success: false,
+            action: 'list',
+            error: 'Failed to get campaign list from BizChat',
+            bizchatCode: result.data.code,
+            bizchatMessage: result.data.msg,
+            bizchatError: result.data,
+          });
+        }
+
+        // 응답 구조 (연동규격서):
+        // data.pageNumber, data.pageSize, data.totalPage, data.totalAmount, data.list
+        return res.status(200).json({
+          success: true,
+          action: 'list',
+          tid: result.data.tid,
+          pageNumber: result.data.data?.pageNumber ?? pageNumber,
+          pageSize: result.data.data?.pageSize ?? pageSize,
+          totalPage: result.data.data?.totalPage ?? 0,
+          totalAmount: result.data.data?.totalAmount ?? 0,
+          campaigns: result.data.data?.list ?? [],
+          result: result.data,
+        });
+      }
+
       if (!campaignId) {
         return res.status(400).json({ error: 'campaignId is required' });
       }
@@ -1035,39 +1096,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({
             success: true,
             action: 'verifyMdn',
-            result: result.data,
-          });
-        }
-
-        case 'list': {
-          // BizChat측 캠페인 목록 조회 (동기화용)
-          const pageNumber = req.body.pageNumber || 0;
-          const pageSize = req.body.pageSize || 10;
-          const filters = {
-            tgtCompanyName: req.body.tgtCompanyName,
-            name: req.body.name,
-            states: req.body.states,
-            isTmp: req.body.isTmp,
-          };
-          
-          const result = await getCampaignList(pageNumber, pageSize, filters, useProduction);
-          
-          if (result.data.code !== 'S000001') {
-            return res.status(400).json({
-              success: false,
-              action: 'list',
-              error: 'Failed to get campaign list',
-              bizchatCode: result.data.code,
-              bizchatMessage: result.data.msg,
-              bizchatError: result.data,
-            });
-          }
-
-          return res.status(200).json({
-            success: true,
-            action: 'list',
-            pageNumber,
-            pageSize,
             result: result.data,
           });
         }
