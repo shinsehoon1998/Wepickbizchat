@@ -128,6 +128,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         goodsAmt: amt,
         ediDate: paymentEdiDate,
         encData: paymentEncData,
+        charset: 'UTF-8',
       }),
     });
 

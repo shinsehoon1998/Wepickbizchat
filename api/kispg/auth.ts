@@ -21,7 +21,7 @@ async function verifyAuth(req: VercelRequest) {
 
 function generateEncData(mid: string, ediDate: string, goodsAmt: string, merchantKey: string): string {
   const data = mid + ediDate + goodsAmt + merchantKey;
-  return createHash('sha256').update(data).digest('hex').toUpperCase();
+  return createHash('sha256').update(data).digest('hex');
 }
 
 function getEdiDate(): string {
@@ -89,11 +89,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const userAgent = req.headers['user-agent'] || '';
     const isMobile = /Mobile|Android|iPhone|iPad/i.test(userAgent);
 
+    const mallNm = '(주)위픽코퍼레이션';
+    const mchtNm = mallNm;
+
     const authParams = {
       payMethod: 'CARD',
       model: isMobile ? 'MOB' : 'WEB',
       trxCd: '0',
       mid,
+      mallNm,
+      mchtNm,
       goodsNm: 'BizChat 잔액 충전',
       currencyType: 'KRW',
       ordNo,
@@ -105,6 +110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       encData,
       returnUrl,
       payReqType: '1',
+      charset: 'UTF-8',
     };
 
     return res.status(200).json({

@@ -1,0 +1,119 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
+import * as crypto from 'crypto';
+
+@Injectable()
+export class KispgService {
+  private readonly isProd: boolean;
+  private readonly base: string;
+  private readonly mid: string;
+  private readonly merchantKey: string;
+
+  constructor(private readonly config: ConfigService) {
+    this.isProd = (this.config.get('KISPG_ENV') || 'TEST').toUpperCase() === 'PROD';
+    this.base = this.isProd ? 'https://api.kispg.co.kr' : 'https://testapi.kispg.co.kr';
+    this.mid = this.config.get<string>('KISPG_MID') || '';
+    this.merchantKey = this.config.get<string>('KISPG_MERCHANT_KEY') || '';
+  }
+
+  private url(path: string): string { return `${this.base}${path}`; }
+
+  nowEdiDate(): string {
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  }
+
+  encForPayment(ediDate: string, goodsAmt: string): string {
+    return crypto.createHash('sha256').update(this.mid + ediDate + goodsAmt + this.merchantKey).digest('hex');
+  }
+
+  encForCancel(ediDate: string, canAmt: string): string {
+    return crypto.createHash('sha256').update(this.mid + ediDate + canAmt + this.merchantKey).digest('hex');
+  }
+
+  encForBillingDelete(ediDate: string, bid: string): string {
+    return crypto.createHash('sha256').update(this.mid + ediDate + bid + this.merchantKey).digest('hex');
+  }
+
+  buildAuthAutoPostForm(params: Record<string, string>, target = 'KISPG_AUTH') {
+    const action = this.url('/v2/auth'); // https://testapi... or 운영
+    const inputs = Object.entries(params)
+      .map(
+        ([k, v]) =>
+          `<input type="hidden" name="${k}" value="${String(v).replace(/"/g, '&quot;')}" />`
+      )
+      .join('\n');
+  
+    // returnUrl 필수 방어
+    if (!('returnUrl' in params)) throw new Error('returnUrl is required');
+  
+    const mallNm = process.env.KISPG_MALL_NAME || '(주)위픽코퍼레이션';
+    const mchtNm = mallNm;
+
+    return `<form id="pgForm" method="post" action="${action}" accept-charset="UTF-8" target="${target}">
+  <input type="hidden" name="mallNm" value="${mallNm.replace(/"/g, '&quot;')}" />
+  <input type="hidden" name="mchtNm" value="${mchtNm.replace(/"/g, '&quot;')}" />
+  ${inputs}
+  </form>`;
+  }  
+
+  async approvePayment(tid: string, goodsAmt: string) {
+    const ediDate = this.nowEdiDate();
+    const encData = this.encForPayment(ediDate, goodsAmt);
+    const payload = { mid: this.mid, tid, goodsAmt, ediDate, encData, charset: 'UTF-8' };
+    const { data } = await axios.post(this.url('/v2/payment'), payload, { headers: { 'Content-Type': 'application/json' } });
+    return data;
+  }
+
+  async cancelPayment(body: { tid: string; ordNo?: string; canAmt: string; canMsg: string; canId?: string; canNm?: string; canIp?: string; partCanFlg?: '0' | '1'; goodsSplAmt?: string; goodsVat?: string; goodsSvsAmt?: string; charset?: string; }) {
+    const ediDate = this.nowEdiDate();
+    const encData = this.encForCancel(ediDate, body.canAmt);
+    const payload = { payMethod: 'CARD', mid: this.mid, ediDate, encData, charset: body.charset || 'UTF-8', ...body };
+    const { data } = await axios.post(this.url('/v2/cancel'), payload, { headers: { 'Content-Type': 'application/json' } });
+    return data;
+  }
+
+  async inquireOrder(body: { tid?: string; ordNo?: string; goodsAmt: string; }) {
+    const ediDate = this.nowEdiDate();
+    const encData = this.encForPayment(ediDate, body.goodsAmt);
+    const payload = { mid: this.mid, ediDate, encData, ...body };
+    const { data } = await axios.post(this.url('/v2/order'), payload, { headers: { 'Content-Type': 'application/json' } });
+    return data;
+  }
+
+  async billingPay(body: { bid: string; ordNo: string; goodsNm: string; goodsAmt: string; goodsSplAmt?: string; goodsVat?: string; goodsSvsAmt?: string; quota?: string; mbsReserved?: string; }) {
+    const ediDate = this.nowEdiDate();
+    const encData = this.encForPayment(ediDate, body.goodsAmt);
+    const payload = { payMethod: 'CARD', mid: this.mid, ediDate, encData, charSet: 'UTF-8', ...body } as any;
+    const { data } = await axios.post(this.url('/v2/billing/payment'), payload, { headers: { 'Content-Type': 'application/json' } });
+    return data;
+  }
+
+  async billingDelete(bid: string) {
+    const ediDate = this.nowEdiDate();
+    const encData = this.encForBillingDelete(ediDate, bid);
+    const payload = { bid, mid: this.mid, ediDate, encData };
+    const { data } = await axios.post(this.url('/v2/billing/delete'), payload, { headers: { 'Content-Type': 'application/json' } });
+    return data;
+  }
+
+  async billingCancel(body: { tid: string; ordNo?: string; canAmt: string; canMsg: string; canId?: string; canNm?: string; canIp?: string; partCanFlg?: '0' | '1'; goodsSplAmt?: string; goodsVat?: string; goodsSvsAmt?: string; charSet?: string; }) {
+    const ediDate = this.nowEdiDate();
+    const encData = this.encForCancel(ediDate, body.canAmt);
+    const payload = { payMethod: 'CARD', mid: this.mid, ediDate, encData, charSet: body.charSet || 'UTF-8', ...body } as any;
+    const { data } = await axios.post(this.url('/v2/billing/cancel'), payload, { headers: { 'Content-Type': 'application/json' } });
+    return data;
+  }
+
+  async billingValidate(bid: string) {
+    const ediDate = this.nowEdiDate();
+    const encData = this.encForPayment(ediDate, '0');
+    const payload = { bid, mid: this.mid, ediDate, encData };
+    const { data } = await axios.post(this.url('/v2/billing/validate'), payload, { headers: { 'Content-Type': 'application/json' } });
+    return data;
+  }
+}
+
+
