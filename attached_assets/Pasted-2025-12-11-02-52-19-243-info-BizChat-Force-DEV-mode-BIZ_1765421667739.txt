@@ -1,0 +1,90 @@
+2025-12-11 02:52:19.243 [info] [BizChat] Force DEV mode: BIZCHAT_USE_PROD is not set to "true"
+2025-12-11 02:52:19.243 [info] [Campaign] Environment: DEVELOPMENT
+2025-12-11 02:52:24.713 [info] [Campaign] rcvType=0, hasGeofence=false
+2025-12-11 02:52:24.714 [info] [Campaign] Calling ATS mosu API to get SQL query...
+2025-12-11 02:52:24.714 [info] [ATS Mosu] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/ats/mosu?tid=1765421544713
+2025-12-11 02:52:24.714 [info] [ATS Mosu] Payload: {
+  "$and": [
+    {
+      "data": {
+        "gt": 20,
+        "lt": 60
+      },
+      "dataType": "number",
+      "metaType": "svc",
+      "code": "cust_age_cd",
+      "desc": "연령: 20세 ~ 60세",
+      "not": false
+    },
+    {
+      "data": [
+        {
+          "cat1": "가구/인테리어",
+          "cat2": "DIY자재/용품",
+          "cat3": "벽지"
+        },
+        {
+          "cat1": "가구/인테리어",
+          "cat2": "DIY자재/용품",
+          "cat3": "자재"
+        },
+        {
+          "cat1": "디지털/가전/컴퓨터",
+          "cat2": "PC부품",
+          "cat3": "CPU"
+        }
+      ],
+      "dataType": "cate",
+      "metaType": "STREET",
+      "code": "",
+      "desc": "11번가: 가구/인테리어 > DIY자재/용품 > 벽지, 가구/인테리어 > DIY자재/용품 > 자재, 디지털/가전/컴퓨터 > PC부품 > CPU",
+      "not": false
+    }
+  ]
+}
+2025-12-11 02:52:26.036 [info] [ATS Mosu] Response: 200 - {"tid":"1765421544713","code":"S000001","msg":"Success","data":{"cnt":53,"filterStr":"<table><tr><td id='oper0' rowspan='2' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:
+2025-12-11 02:52:26.037 [info] [ATS Mosu] Success - query: ( ( (cust_age_cd >= 20 and cust_age_cd <= 60) ) AND ( ((street like '010103%' or street like '%,010103%') or (street like '010105%' or street like '%,010105%') or (street like '030101%' or street like...
+2025-12-11 02:52:26.037 [info] [Campaign] ATS mosu API success - SQL query obtained, count: 53
+2025-12-11 02:52:26.603 [info] [Campaign] ATS atsSndStartDate (KST adjusted): 2025-12-11T04:00:00.000Z
+2025-12-11 02:52:26.603 [info] [Campaign] Maptics dates (KST adjusted) - collStartDate: 2025-12-11T04:00:00.000Z, collEndDate: 2025-12-11T04:30:00.000Z, collSndDate: 2025-12-11T05:00:00.000Z
+2025-12-11 02:52:26.604 [info] [BizChat] Environment: DEVELOPMENT
+2025-12-11 02:52:26.604 [info] [BizChat] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-11 02:52:26.604 [info] [BizChat] API key exists: true, length: 64
+2025-12-11 02:52:26.604 [info] [BizChat] VERCEL_ENV: production, NODE_ENV: production
+2025-12-11 02:52:26.604 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/create?tid=1765421546603
+2025-12-11 02:52:26.605 [info] [BizChat] Request body: {
+  "tgtCompanyName": "위픽",
+  "name": "플로우테스트",
+  "sndNum": "001001",
+  "rcvType": 0,
+  "sndGoalCnt": 100,
+  "billingType": 0,
+  "isTmp": 0,
+  "settleCnt": 100,
+  "sndMosu": 150,
+  "sndMosuFlag": 0,
+  "adverDeny": "1504",
+  "atsSndStartDate": 1765425600,
+  "cb": {
+    "state": "https://wepickbizchat-lfmd83xhc-wepick-s-bizchat.vercel.app/api/bizchat/callback/state"
+  },
+  "mms": {
+    "title": "테스트",
+    "msg": "테스트",
+    "fileInfo": {},
+    "urlLink": {}
+  },
+  "sndMosuDesc": "<table><tr><td id='oper0' rowspan='2' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>회선특성-연령: 20세 ~ 60세</td></tr></tr><tr><td id='oper2' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>AND</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>11번가-11번가: 가구/인테리어 &gt; DIY자재/용품 > 벽지, 가구/인테리어 > DIY자재/용품 > 자재, 디지털/가전/컴퓨터 > PC부품 > CPU</td></tr></tr></table>",
+  "sndMosuQuery": "( ( (cust_age_cd >= 20 and cust_age_cd <= 60) ) AND ( ((street like '010103%' or street like '%,010103%') or (street like '010105%' or street like '%,010105%') or (street like '030101%' or street like '%,030101%')) ) ) and indv_info_use_agree_yn = 'Y'"
+}
+2025-12-11 02:52:32.371 [info] [BizChat] Response: 200 - {"tid":"1765421546603","code":"S000001","msg":"Success","data":{"id":"a2db9e4b1c87373495623523253d5945"}}
+2025-12-11 02:52:32.371 [info] [Campaign] Created in BizChat: a2db9e4b1c87373495623523253d5945
+2025-12-11 02:52:32.371 [info] [Campaign] Requesting approval...
+2025-12-11 02:52:32.371 [info] [BizChat] Environment: DEVELOPMENT
+2025-12-11 02:52:32.371 [info] [BizChat] Looking for env var: BIZCHAT_DEV_API_KEY
+2025-12-11 02:52:32.371 [info] [BizChat] API key exists: true, length: 64
+2025-12-11 02:52:32.371 [info] [BizChat] VERCEL_ENV: production, NODE_ENV: production
+2025-12-11 02:52:32.371 [info] [BizChat] POST https://gw-dev.bizchat1.co.kr:8443/api/v1/cmpn/appr/req?id=a2db9e4b1c87373495623523253d5945&tid=1765421552371
+2025-12-11 02:52:32.371 [info] [BizChat] Request body: {}
+2025-12-11 02:52:32.456 [info] [BizChat] Response: 200 - {"tid":"1765421552371","code":"S000001","msg":"Success"}
+2025-12-11 02:52:32.456 [info] [Campaign] Approval requested successfully
