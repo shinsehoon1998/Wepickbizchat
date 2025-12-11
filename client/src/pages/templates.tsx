@@ -32,6 +32,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Template } from "@shared/schema";
 
 interface TemplateWithStats extends Template {
+  isSystem?: boolean;
   sendHistory: {
     campaignCount: number;
     totalSent: number;
@@ -138,6 +139,11 @@ export default function Templates() {
                       <span className="font-medium truncate" data-testid={`text-template-name-${template.id}`}>
                         {template.name}
                       </span>
+                      {template.isSystem && (
+                        <Badge variant="secondary" className="text-tiny shrink-0 bg-amber-100 text-amber-800 border-amber-200" data-testid={`badge-recommended-${template.id}`}>
+                          추천템플릿
+                        </Badge>
+                      )}
                       <Badge variant="outline" className="text-tiny shrink-0">
                         {getMessageTypeLabel(template.messageType)}
                       </Badge>
@@ -186,23 +192,27 @@ export default function Templates() {
                           <Eye className="h-4 w-4" />
                           상세 보기
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="cursor-pointer gap-2"
-                          onClick={() => setLocation(`/templates/${template.id}/edit`)}
-                          data-testid={`button-edit-template-${template.id}`}
-                        >
-                          <Pencil className="h-4 w-4" />
-                          수정하기
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                          onClick={() => handleDelete(template.id)}
-                          data-testid={`button-delete-template-${template.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          삭제하기
-                        </DropdownMenuItem>
+                        {!template.isSystem && (
+                          <>
+                            <DropdownMenuItem
+                              className="cursor-pointer gap-2"
+                              onClick={() => setLocation(`/templates/${template.id}/edit`)}
+                              data-testid={`button-edit-template-${template.id}`}
+                            >
+                              <Pencil className="h-4 w-4" />
+                              수정하기
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="cursor-pointer gap-2 text-destructive focus:text-destructive"
+                              onClick={() => handleDelete(template.id)}
+                              data-testid={`button-delete-template-${template.id}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              삭제하기
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
