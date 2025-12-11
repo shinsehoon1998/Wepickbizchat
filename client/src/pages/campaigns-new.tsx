@@ -276,13 +276,9 @@ export default function CampaignsNew() {
     enabled: isEditMode,
   });
 
-  const { data: templatesResponse, isLoading: templatesLoading } = useQuery<{
-    templates: Template[];
-    meta: { localCount: number; bizchatCount: number; bizchatError: string | null };
-  }>({
+  const { data: approvedTemplates, isLoading: templatesLoading } = useQuery<Template[]>({
     queryKey: ["/api/templates/approved"],
   });
-  const approvedTemplates = templatesResponse?.templates || [];
 
   const [senderNumbers, setSenderNumbers] = useState<BizChatSenderNumber[]>([]);
   const [senderNumbersLoading, setSenderNumbersLoading] = useState(true);

@@ -246,14 +246,12 @@ export async function registerRoutes(
         }
       }
       
-      res.json({
-        templates: allTemplates,
-        meta: {
-          localCount: localTemplates.length,
-          bizchatCount: bizchatTemplates.length,
-          bizchatError,
-        }
-      });
+      // 배열 형태로 반환 (프론트엔드 호환성)
+      console.log(`[Templates/approved] 반환: 로컬 ${localTemplates.length}개, BizChat ${bizchatTemplates.length}개, 총 ${allTemplates.length}개`);
+      if (bizchatError) {
+        console.warn(`[Templates/approved] BizChat 오류: ${bizchatError}`);
+      }
+      res.json(allTemplates);
     } catch (error) {
       console.error("Error fetching templates:", error);
       res.status(500).json({ error: "Failed to fetch templates" });
