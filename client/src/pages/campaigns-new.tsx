@@ -396,6 +396,12 @@ export default function CampaignsNew() {
           ageMin: watchAgeMin,
           ageMax: watchAgeMax,
           regions: watchRegions,
+          // 고급 타겟팅 조건도 포함
+          shopping11stCategories: advancedTargeting.shopping11stCategories,
+          webappCategories: advancedTargeting.webappCategories,
+          callCategories: advancedTargeting.callCategories,
+          locations: advancedTargeting.locations,
+          profiling: advancedTargeting.profiling,
         });
         const data = await res.json();
         setEstimatedAudience({
@@ -404,6 +410,17 @@ export default function CampaignsNew() {
           max: data.maxCount,
           reachRate: data.reachRate,
         });
+        
+        // ATS 모수 정보를 advancedTargeting에도 업데이트 (캠페인 저장 시 사용)
+        if (data.estimatedCount > 0) {
+          console.log('[Campaign Form] Updating ATS mosu from estimate:', data.estimatedCount);
+          setAdvancedTargeting(prev => ({
+            ...prev,
+            sndMosu: data.estimatedCount,
+            sndMosuQuery: data.sndMosuQuery || data.query || prev.sndMosuQuery,
+            sndMosuDesc: data.sndMosuDesc || data.description || prev.sndMosuDesc,
+          }));
+        }
       } catch (error) {
         console.error("Failed to fetch targeting estimate:", error);
       }
@@ -412,7 +429,7 @@ export default function CampaignsNew() {
     if (currentStep === 2) {
       fetchEstimate();
     }
-  }, [currentStep, watchGender, watchAgeMin, watchAgeMax, watchRegions, isMaptics]);
+  }, [currentStep, watchGender, watchAgeMin, watchAgeMax, watchRegions, isMaptics, advancedTargeting.shopping11stCategories, advancedTargeting.webappCategories, advancedTargeting.callCategories, advancedTargeting.locations, advancedTargeting.profiling]);
 
   const costPerMessage = 50;
   const estimatedCost = watchTargetCount * costPerMessage;
