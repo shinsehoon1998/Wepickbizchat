@@ -42,8 +42,8 @@ async function verifyAuth(req: VercelRequest) {
 
 // 캠페인 취소 가능 상태 코드 (BizChat API 기준 + 로컬 상태)
 // BizChat: 검수요청(1), 검수완료(2), 승인요청(10), 승인완료(11), 반려(17), 발송준비(20)
-// 로컬: 초안(5)도 취소 가능 (BizChat 등록 전 캠페인)
-const CANCELLABLE_STATUS_CODES = [1, 2, 5, 10, 11, 17, 20];
+// 로컬: 임시등록(0), 초안(5)도 취소 가능 (BizChat 등록 전 캠페인)
+const CANCELLABLE_STATUS_CODES = [0, 1, 2, 5, 10, 11, 17, 20];
 
 // 상태 코드별 한글 명칭
 const STATUS_NAMES: Record<number, string> = {
@@ -143,24 +143,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!CANCELLABLE_STATUS_CODES.includes(currentStatusCode)) {
       const statusName = STATUS_NAMES[currentStatusCode] || `상태코드 ${currentStatusCode}`;
       return res.status(400).json({ 
-        error: `현재 상태(${statusName})에서는 취소할 수 없습니다. 취소 가능 상태: 검수요청, 검수완료, 승인요청, 승인완료, 반려, 발송준비` 
+        error: `현재 상태(${statusName})에서는 취소할 수 없습니다. 취소 가능 상태: 임시등록, 검수요청, 검수완료, 임시저장, 승인요청, 승인완료, 반려, 발송준비` 
       });
     }
 
-    // BizChat API 호출
-    if (campaign.bizchatCampaignId) {
+    // BizChat API 호출 (임시등록 상태(0)나 로컬 임시저장(5)은 BizChat 취소 불필요)
+    if (campaign.bizchatCampaignId && currentStatusCode !== 0 && currentStatusCode !== 5) {
       const useProduction = process.env.BIZCHAT_USE_PROD === 'true';
       console.log(`[Cancel] Calling BizChat cancel API for campaign: ${campaign.bizchatCampaignId}`);
       
-      const bizchatResult = await callBizChatCancelAPI(campaign.bizchatCampaignId, useProduction);
-      
-      if (bizchatResult.data.code !== 'S000001') {
-        console.error('[Cancel] BizChat API error:', bizchatResult.data);
-        return res.status(400).json({ 
-          error: `BizChat 취소 실패: ${bizchatResult.data.msg || '알 수 없는 오류'}`,
-          bizchatError: bizchatResult.data
-        });
+      try {
+        const bizchatResult = await callBizChatCancelAPI(campaign.bizchatCampaignId, useProduction);
+        
+        if (bizchatResult.data.code !== 'S000001') {
+          console.error('[Cancel] BizChat API error:', bizchatResult.data);
+          // BizChat 오류가 발생해도 로컬 취소는 진행 (로그만 남김)
+          console.warn(`[Cancel] BizChat cancel failed but proceeding with local cancellation`);
+        }
+      } catch (bizchatError) {
+        console.error('[Cancel] BizChat API call failed:', bizchatError);
+        // API 호출 실패해도 로컬 취소는 진행
+        console.warn(`[Cancel] BizChat API error but proceeding with local cancellation`);
       }
+    } else {
+      console.log(`[Cancel] Skipping BizChat API call - statusCode: ${currentStatusCode}`);
     }
 
     // 로컬 DB 상태 업데이트
