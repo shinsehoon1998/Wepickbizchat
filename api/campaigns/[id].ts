@@ -303,25 +303,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               bizchatUpdatePayload.atsSndStartDate = existingBizchatData.atsSndStartDate;
             }
             
-            // sndMosu 검증: 최소값은 sndGoalCnt의 150%, 최대값은 400,000
-            const sndMosu = updatedCampaign.sndMosu || campaign.sndMosu || (existingBizchatData?.sndMosu as number) || 0;
+            // sndMosu: 최소값은 sndGoalCnt의 150%, 최대값은 400,000으로 자동 조정
+            const rawSndMosu = updatedCampaign.sndMosu || campaign.sndMosu || (existingBizchatData?.sndMosu as number) || 0;
             const minSndMosu = Math.ceil(sndGoalCnt * 1.5);
             const maxSndMosu = 400000;
             
+            // 최대값 초과 시 자동으로 400,000으로 제한 (에러 대신 자동 조정)
+            const sndMosu = Math.min(rawSndMosu, maxSndMosu);
+            if (rawSndMosu > maxSndMosu) {
+              console.log(`[Campaign PATCH] sndMosu capped from ${rawSndMosu.toLocaleString()} to ${maxSndMosu.toLocaleString()} (max limit)`);
+            }
+            
+            // 최소값 미달 시 에러 반환 (타겟팅 조건 조정 필요)
             if (sndMosu < minSndMosu) {
               return res.status(400).json({
                 error: `발송 모수가 최소값(${minSndMosu.toLocaleString()})보다 작습니다. 발송 목표(${sndGoalCnt.toLocaleString()})의 150% 이상이어야 합니다.`,
                 currentSndMosu: sndMosu,
                 minSndMosu,
                 sndGoalCnt,
-                ...updatedCampaign,
-              });
-            }
-            if (sndMosu > maxSndMosu) {
-              return res.status(400).json({
-                error: `발송 모수가 최대값(${maxSndMosu.toLocaleString()})을 초과합니다.`,
-                currentSndMosu: sndMosu,
-                maxSndMosu,
                 ...updatedCampaign,
               });
             }

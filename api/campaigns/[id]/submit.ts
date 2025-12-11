@@ -458,11 +458,11 @@ function validateATSMosu(data: {
     };
   }
   
-  // 최대값 체크: 400,000
+  // 최대값 체크: 400,000 (자동으로 제한됨, 경고만 표시)
   if (sndMosu > 400000) {
     return { 
-      valid: false, 
-      error: `발송 모수가 최대값(400,000명)을 초과했습니다. 현재: ${sndMosu.toLocaleString()}명` 
+      valid: true, // 에러 대신 경고로 처리 - 실제 API 호출 시 400,000으로 제한됨
+      warning: `발송 모수(${sndMosu.toLocaleString()}명)가 최대값(400,000명)을 초과하여 자동으로 제한됩니다.` 
     };
   }
   
@@ -844,7 +844,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // else: LMS (0)
 
       const sndGoalCnt = campaign.sndGoalCnt || campaign.targetCount || 1000;
-      const sndMosu = campaign.sndMosu || Math.min(Math.ceil(sndGoalCnt * 1.5), 400000);
+      // sndMosu: 캠페인 값 또는 sndGoalCnt의 150%, 최대 400,000으로 제한
+      const rawSndMosu = campaign.sndMosu || Math.ceil(sndGoalCnt * 1.5);
+      const sndMosu = Math.min(rawSndMosu, 400000);
+      if (rawSndMosu > 400000) {
+        console.log(`[Submit] sndMosu capped from ${rawSndMosu.toLocaleString()} to 400,000 (max limit)`);
+      }
 
       // BizChat API 규격 v0.29.0: billingType별 mms/rcs 구성
       // - LMS(0): mms만, fileInfo 없음, rcs 빈 배열
@@ -1040,7 +1045,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       // 타겟팅/발송 수량 재계산
       const sndGoalCnt = campaign.sndGoalCnt || campaign.targetCount || 1000;
-      const sndMosu = campaign.sndMosu || Math.min(Math.ceil(sndGoalCnt * 1.5), 400000);
+      // sndMosu: 캠페인 값 또는 sndGoalCnt의 150%, 최대 400,000으로 제한
+      const rawSndMosu = campaign.sndMosu || Math.ceil(sndGoalCnt * 1.5);
+      const sndMosu = Math.min(rawSndMosu, 400000);
+      if (rawSndMosu > 400000) {
+        console.log(`[Submit] sndMosu capped from ${rawSndMosu.toLocaleString()} to 400,000 (max limit)`);
+      }
       
       // URL 리스트 추출
       const updateMmsUrlList: string[] = (message as any)?.urlLinks || (message as any)?.urls || [];
