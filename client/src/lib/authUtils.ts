@@ -3,28 +3,39 @@ export function isUnauthorizedError(error: Error): boolean {
 }
 
 export const CAMPAIGN_STATUS = {
+  TEMP_REGISTERED: 0,
+  INSPECTION_REQUESTED: 1,
+  INSPECTION_COMPLETED: 2,
   DRAFT: 5,
   APPROVAL_REQUESTED: 10,
   APPROVED: 11,
   REJECTED: 17,
   SEND_PREPARATION: 20,
-  CANCELLED: 25,
   IN_PROGRESS: 30,
-  STOPPED: 35,
   COMPLETED: 40,
+  CANCELLED: 90,
+  STOPPED: 91,
 } as const;
+
+// 취소 가능 상태: 검수요청(1), 검수완료(2), 승인요청(10), 승인완료(11), 반려(17), 발송준비(20)
+export const CANCELLABLE_STATUS_CODES = [1, 2, 10, 11, 17, 20];
+// 중단 가능 상태: 발송중(30)
+export const STOPPABLE_STATUS_CODES = [30];
 
 export function getStatusCodeLabel(statusCode: number): string {
   const labels: Record<number, string> = {
+    [CAMPAIGN_STATUS.TEMP_REGISTERED]: '임시등록',
+    [CAMPAIGN_STATUS.INSPECTION_REQUESTED]: '검수요청',
+    [CAMPAIGN_STATUS.INSPECTION_COMPLETED]: '검수완료',
     [CAMPAIGN_STATUS.DRAFT]: '초안',
     [CAMPAIGN_STATUS.APPROVAL_REQUESTED]: '승인 대기',
     [CAMPAIGN_STATUS.APPROVED]: '발송 대기',
     [CAMPAIGN_STATUS.REJECTED]: '반려됨',
     [CAMPAIGN_STATUS.SEND_PREPARATION]: '발송 준비중',
-    [CAMPAIGN_STATUS.CANCELLED]: '취소됨',
     [CAMPAIGN_STATUS.IN_PROGRESS]: '발송 중',
-    [CAMPAIGN_STATUS.STOPPED]: '발송 중단',
     [CAMPAIGN_STATUS.COMPLETED]: '발송 완료',
+    [CAMPAIGN_STATUS.CANCELLED]: '취소됨',
+    [CAMPAIGN_STATUS.STOPPED]: '발송 중단',
   };
   return labels[statusCode] || `상태 ${statusCode}`;
 }

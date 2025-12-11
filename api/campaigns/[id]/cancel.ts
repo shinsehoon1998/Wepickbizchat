@@ -1,0 +1,190 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { createClient } from '@supabase/supabase-js';
+import { neon, neonConfig } from '@neondatabase/serverless';
+import { drizzle } from 'drizzle-orm/neon-http';
+import { eq } from 'drizzle-orm';
+import { pgTable, text, integer, timestamp, numeric } from 'drizzle-orm/pg-core';
+
+neonConfig.fetchConnectionCache = true;
+
+const campaigns = pgTable('campaigns', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  statusCode: integer('status_code').default(0),
+  status: text('status').default('draft'),
+  bizchatCampaignId: text('bizchat_campaign_id'),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+function getDb() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) throw new Error('DATABASE_URL is not set');
+  return drizzle(neon(dbUrl));
+}
+
+function getSupabaseAdmin() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Supabase configuration is missing');
+  return createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+}
+
+async function verifyAuth(req: VercelRequest) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const { data: { user }, error } = await getSupabaseAdmin().auth.getUser(authHeader.replace('Bearer ', ''));
+    if (error || !user) return null;
+    return { userId: user.id, email: user.email || '' };
+  } catch { return null; }
+}
+
+// 캠페인 취소 가능 상태 코드
+// 검수요청(1), 검수완료(2), 승인요청(10), 승인완료(11), 반려(17), 발송준비(20)
+const CANCELLABLE_STATUS_CODES = [1, 2, 10, 11, 17, 20];
+
+// 상태 코드별 한글 명칭
+const STATUS_NAMES: Record<number, string> = {
+  0: '임시등록',
+  1: '검수요청',
+  2: '검수완료',
+  5: '임시저장',
+  10: '승인요청',
+  11: '승인완료',
+  17: '반려',
+  20: '발송준비',
+  30: '발송중',
+  40: '발송완료',
+  90: '취소',
+};
+
+// BizChat API 호출
+async function callBizChatCancelAPI(bizchatCampaignId: string, useProduction: boolean = false) {
+  const BIZCHAT_DEV_URL = process.env.BIZCHAT_DEV_API_URL || 'https://gw-dev.bizchat1.co.kr:8443';
+  const BIZCHAT_PROD_URL = process.env.BIZCHAT_PROD_API_URL || 'https://gw.bizchat1.co.kr';
+  
+  const baseUrl = useProduction ? BIZCHAT_PROD_URL : BIZCHAT_DEV_URL;
+  const apiKey = useProduction 
+    ? process.env.BIZCHAT_PROD_API_KEY 
+    : process.env.BIZCHAT_DEV_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('BizChat API key not configured');
+  }
+
+  const tid = Date.now().toString();
+  const url = `${baseUrl}/api/v1/cmpn/cancel?tid=${tid}&id=${bizchatCampaignId}`;
+  
+  console.log(`[BizChat Cancel] POST ${url}`);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': apiKey,
+    },
+  });
+
+  const responseText = await response.text();
+  console.log(`[BizChat Cancel] Response: ${response.status} - ${responseText}`);
+
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    data = { code: response.status.toString(), msg: responseText };
+  }
+
+  return { status: response.status, data };
+}
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const auth = await verifyAuth(req);
+  if (!auth) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { id } = req.query;
+  if (typeof id !== 'string') {
+    return res.status(400).json({ error: 'Invalid campaign ID' });
+  }
+
+  const db = getDb();
+
+  try {
+    // 캠페인 조회
+    const campaignResult = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    const campaign = campaignResult[0];
+    
+    if (!campaign) {
+      return res.status(404).json({ error: '캠페인을 찾을 수 없습니다' });
+    }
+
+    if (campaign.userId !== auth.userId) {
+      return res.status(403).json({ error: '권한이 없습니다' });
+    }
+
+    // 상태 검증
+    const currentStatusCode = campaign.statusCode || 0;
+    if (!CANCELLABLE_STATUS_CODES.includes(currentStatusCode)) {
+      const statusName = STATUS_NAMES[currentStatusCode] || `상태코드 ${currentStatusCode}`;
+      return res.status(400).json({ 
+        error: `현재 상태(${statusName})에서는 취소할 수 없습니다. 취소 가능 상태: 검수요청, 검수완료, 승인요청, 승인완료, 반려, 발송준비` 
+      });
+    }
+
+    // BizChat API 호출
+    if (campaign.bizchatCampaignId) {
+      const useProduction = process.env.BIZCHAT_USE_PROD === 'true';
+      console.log(`[Cancel] Calling BizChat cancel API for campaign: ${campaign.bizchatCampaignId}`);
+      
+      const bizchatResult = await callBizChatCancelAPI(campaign.bizchatCampaignId, useProduction);
+      
+      if (bizchatResult.data.code !== 'S000001') {
+        console.error('[Cancel] BizChat API error:', bizchatResult.data);
+        return res.status(400).json({ 
+          error: `BizChat 취소 실패: ${bizchatResult.data.msg || '알 수 없는 오류'}`,
+          bizchatError: bizchatResult.data
+        });
+      }
+    }
+
+    // 로컬 DB 상태 업데이트
+    const updatedResult = await db.update(campaigns)
+      .set({ 
+        statusCode: 90, 
+        status: 'cancelled',
+        updatedAt: new Date()
+      })
+      .where(eq(campaigns.id, id))
+      .returning();
+
+    console.log(`[Cancel] Campaign ${id} cancelled successfully`);
+
+    return res.status(200).json({
+      success: true,
+      message: '캠페인이 취소되었습니다',
+      campaign: updatedResult[0]
+    });
+
+  } catch (error) {
+    console.error('[Cancel] Error:', error);
+    return res.status(500).json({ 
+      error: '캠페인 취소 중 오류가 발생했습니다',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+}

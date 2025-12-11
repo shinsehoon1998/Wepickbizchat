@@ -14,9 +14,11 @@ import {
   Play,
   FileCheck,
   TestTube,
+  Ban,
+  StopCircle,
 } from "lucide-react";
 import { useState } from "react";
-import { formatCurrency, formatNumber, formatDateTime, getMessageTypeLabel, CAMPAIGN_STATUS } from "@/lib/authUtils";
+import { formatCurrency, formatNumber, formatDateTime, getMessageTypeLabel, CAMPAIGN_STATUS, CANCELLABLE_STATUS_CODES, STOPPABLE_STATUS_CODES } from "@/lib/authUtils";
 import { CampaignStatusBadge } from "@/components/campaign-status-badge";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
@@ -72,6 +74,10 @@ export default function Campaigns() {
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("");
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [campaignToCancel, setCampaignToCancel] = useState<Campaign | null>(null);
+  const [stopDialogOpen, setStopDialogOpen] = useState(false);
+  const [campaignToStop, setCampaignToStop] = useState<Campaign | null>(null);
   const { toast } = useToast();
 
   const { data: campaigns, isLoading } = useQuery<Campaign[]>({
@@ -129,6 +135,52 @@ export default function Campaigns() {
     },
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("POST", `/api/campaigns/${id}/cancel`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({
+        title: "캠페인 취소 완료",
+        description: "캠페인이 성공적으로 취소되었어요.",
+      });
+      setCancelDialogOpen(false);
+      setCampaignToCancel(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "취소 실패",
+        description: error.message || "캠페인 취소에 실패했어요.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const stopMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("POST", `/api/campaigns/${id}/stop`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+      toast({
+        title: "발송 중단 완료",
+        description: "캠페인 발송이 중단되었어요.",
+      });
+      setStopDialogOpen(false);
+      setCampaignToStop(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "중단 실패",
+        description: error.message || "캠페인 발송 중단에 실패했어요.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleDeleteClick = (campaign: Campaign) => {
     setCampaignToDelete(campaign);
     setDeleteDialogOpen(true);
@@ -139,6 +191,16 @@ export default function Campaigns() {
     setSendDialogOpen(true);
   };
 
+  const handleCancelClick = (campaign: Campaign) => {
+    setCampaignToCancel(campaign);
+    setCancelDialogOpen(true);
+  };
+
+  const handleStopClick = (campaign: Campaign) => {
+    setCampaignToStop(campaign);
+    setStopDialogOpen(true);
+  };
+
   // 바로 승인요청 (다이얼로그 없이)
   const handleApprovalRequest = (campaign: Campaign) => {
     sendMutation.mutate({ id: campaign.id });
@@ -147,6 +209,18 @@ export default function Campaigns() {
   const confirmDelete = () => {
     if (campaignToDelete) {
       deleteMutation.mutate(campaignToDelete.id);
+    }
+  };
+
+  const confirmCancel = () => {
+    if (campaignToCancel) {
+      cancelMutation.mutate(campaignToCancel.id);
+    }
+  };
+
+  const confirmStop = () => {
+    if (campaignToStop) {
+      stopMutation.mutate(campaignToStop.id);
     }
   };
 
@@ -296,6 +370,38 @@ export default function Campaigns() {
                             <span>상세 보기</span>
                           </Link>
                         </DropdownMenuItem>
+                        {CANCELLABLE_STATUS_CODES.includes(campaign.statusCode || 0) && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-warning flex items-center gap-2"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleCancelClick(campaign);
+                              }}
+                              data-testid={`menu-cancel-${campaign.id}`}
+                            >
+                              <Ban className="h-4 w-4" />
+                              <span>캠페인 취소</span>
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                        {STOPPABLE_STATUS_CODES.includes(campaign.statusCode || 0) && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-destructive flex items-center gap-2"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleStopClick(campaign);
+                              }}
+                              data-testid={`menu-stop-${campaign.id}`}
+                            >
+                              <StopCircle className="h-4 w-4" />
+                              <span>발송 중단</span>
+                            </DropdownMenuItem>
+                          </>
+                        )}
                         {(campaign.statusCode === CAMPAIGN_STATUS.DRAFT || campaign.statusCode === CAMPAIGN_STATUS.APPROVAL_REQUESTED) && (
                           <>
                             <DropdownMenuSeparator />
@@ -352,6 +458,50 @@ export default function Campaigns() {
               data-testid="button-confirm-delete"
             >
               {deleteMutation.isPending ? "삭제 중..." : "삭제하기"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>캠페인을 취소할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{campaignToCancel?.name}" 캠페인을 취소하면 더 이상 진행되지 않아요. 이 작업은 되돌릴 수 없어요.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-cancel">닫기</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCancel}
+              className="bg-warning text-warning-foreground hover:bg-warning/90"
+              disabled={cancelMutation.isPending}
+              data-testid="button-confirm-cancel"
+            >
+              {cancelMutation.isPending ? "취소 중..." : "캠페인 취소"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={stopDialogOpen} onOpenChange={setStopDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>발송을 중단할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{campaignToStop?.name}" 캠페인의 발송을 중단하면 남은 메시지가 발송되지 않아요. 이미 발송된 메시지는 취소되지 않아요.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-stop">닫기</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmStop}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={stopMutation.isPending}
+              data-testid="button-confirm-stop"
+            >
+              {stopMutation.isPending ? "중단 중..." : "발송 중단"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
