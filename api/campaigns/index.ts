@@ -944,7 +944,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const templateResult = await db.select().from(templates).where(eq(templates.id, data.templateId));
       const template = templateResult[0];
       if (!template) return res.status(404).json({ error: 'Template not found' });
-      if (template.userId !== userId) return res.status(403).json({ error: 'Access denied to template' });
+      // 시스템 템플릿(추천 템플릿)은 모든 사용자가 사용 가능
+      const SYSTEM_USER_ID = 'system';
+      if (template.userId !== userId && template.userId !== SYSTEM_USER_ID) {
+        return res.status(403).json({ error: 'Access denied to template' });
+      }
       if (template.status !== 'approved') return res.status(400).json({ error: 'Template must be approved' });
 
       const userBalance = parseFloat(user.balance || '0');
