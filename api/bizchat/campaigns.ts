@@ -215,6 +215,171 @@ interface RcsButton {
   reward?: string;  // 리워드 버튼 여부 ('1'=리워드)
 }
 
+// RCS 타입별 제한 사항 (BizChat API v0.29.0 규격)
+const RCS_TYPE_LIMITS: Record<number, {
+  name: string;
+  maxMsgLength: number;
+  maxButtonTextLength: number;
+  maxUrlCount: number;
+  requiresImage: boolean;
+  imageMaxSize: string;
+  imageResolution: string;
+}> = {
+  0: { // 스탠다드
+    name: '스탠다드',
+    maxMsgLength: 1100,
+    maxButtonTextLength: 17,
+    maxUrlCount: 3,
+    requiresImage: false,
+    imageMaxSize: '0.3MB',
+    imageResolution: '400x240, 500x300',
+  },
+  1: { // LMS
+    name: 'LMS',
+    maxMsgLength: 1100,
+    maxButtonTextLength: 17,
+    maxUrlCount: 3,
+    requiresImage: false,
+    imageMaxSize: '',
+    imageResolution: '',
+  },
+  2: { // 슬라이드
+    name: '슬라이드',
+    maxMsgLength: 300, // 슬라이드당 300자, 모든 슬라이드 합산 1300자
+    maxButtonTextLength: 13,
+    maxUrlCount: 1, // 슬라이드당 1개
+    requiresImage: true,
+    imageMaxSize: '1MB (장당 300KB)',
+    imageResolution: '464x336',
+  },
+  3: { // 이미지 강조 A (3:4)
+    name: '이미지 강조 A (3:4)',
+    maxMsgLength: 1100,
+    maxButtonTextLength: 16,
+    maxUrlCount: 3,
+    requiresImage: true,
+    imageMaxSize: '1MB',
+    imageResolution: '900x1200',
+  },
+  4: { // 이미지 강조 B (1:1)
+    name: '이미지 강조 B (1:1)',
+    maxMsgLength: 1100,
+    maxButtonTextLength: 16,
+    maxUrlCount: 3,
+    requiresImage: true,
+    imageMaxSize: '1MB',
+    imageResolution: '900x900',
+  },
+  5: { // 상품 소개 세로
+    name: '상품 소개 세로',
+    maxMsgLength: 1100,
+    maxButtonTextLength: 16,
+    maxUrlCount: 3,
+    requiresImage: true,
+    imageMaxSize: '1MB',
+    imageResolution: '900x560',
+  },
+};
+
+// BizChat 파일 ID 형식 검증 (38자리)
+function isBizChatFileId(id: string | undefined | null): boolean {
+  if (!id) return false;
+  // BizChat 파일 ID: 38자리 영숫자 (예: 19ca34b180394f15a9c66f798b65df95404202)
+  return /^[a-f0-9]{38}$/i.test(id);
+}
+
+// RCS 메시지 검증
+interface RcsValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+function validateRcsMessage(
+  rcsType: number,
+  slides: Array<{
+    msg?: string;
+    imgOrigId?: string;
+    buttons?: Array<{ name: string }>;
+    urls?: string[];
+  }>,
+  slideCnt?: number
+): RcsValidationResult {
+  const result: RcsValidationResult = { valid: true, errors: [], warnings: [] };
+  const limits = RCS_TYPE_LIMITS[rcsType];
+  
+  if (!limits) {
+    result.errors.push(`지원되지 않는 RCS 타입입니다: ${rcsType}`);
+    result.valid = false;
+    return result;
+  }
+
+  // 슬라이드 템플릿 검증
+  if (rcsType === 2) {
+    const actualSlideCnt = slideCnt || slides.length;
+    if (actualSlideCnt < 1 || actualSlideCnt > 6) {
+      result.errors.push(`슬라이드 개수는 1~6개여야 합니다 (현재: ${actualSlideCnt}개)`);
+      result.valid = false;
+    }
+    
+    // 전체 메시지 길이 합산 (최대 1300자)
+    const totalMsgLength = slides.reduce((sum, s) => sum + (s.msg?.length || 0), 0);
+    if (totalMsgLength > 1300) {
+      result.errors.push(`슬라이드 전체 메시지 길이가 1300자를 초과합니다 (현재: ${totalMsgLength}자)`);
+      result.valid = false;
+    }
+  }
+
+  // 각 슬라이드/메시지 검증
+  slides.forEach((slide, idx) => {
+    const slidePrefix = slides.length > 1 ? `슬라이드 ${idx + 1}: ` : '';
+    
+    // 메시지 길이 검증
+    const msgLength = slide.msg?.length || 0;
+    if (msgLength > limits.maxMsgLength) {
+      result.errors.push(
+        `${slidePrefix}메시지 길이가 ${limits.maxMsgLength}자를 초과합니다 (현재: ${msgLength}자)`
+      );
+      result.valid = false;
+    }
+
+    // 이미지 필수 여부 검증 (경고만)
+    if (limits.requiresImage && !slide.imgOrigId) {
+      result.warnings.push(
+        `${slidePrefix}${limits.name} 템플릿은 이미지가 필요합니다 (권장 해상도: ${limits.imageResolution})`
+      );
+    }
+
+    // 이미지 파일 ID 형식 검증 (URL 사용 시 경고)
+    if (slide.imgOrigId && !isBizChatFileId(slide.imgOrigId)) {
+      result.warnings.push(
+        `${slidePrefix}이미지는 BizChat 파일 ID(38자리) 형식이어야 합니다. URL 직접 사용 시 오류가 발생할 수 있습니다.`
+      );
+    }
+
+    // URL 개수 검증
+    const urlCount = slide.urls?.length || 0;
+    if (urlCount > limits.maxUrlCount) {
+      result.errors.push(
+        `${slidePrefix}URL 개수가 ${limits.maxUrlCount}개를 초과합니다 (현재: ${urlCount}개)`
+      );
+      result.valid = false;
+    }
+
+    // 버튼 텍스트 길이 검증
+    slide.buttons?.forEach((btn, btnIdx) => {
+      if (btn.name && btn.name.length > limits.maxButtonTextLength) {
+        result.errors.push(
+          `${slidePrefix}버튼 ${btnIdx + 1} 텍스트가 ${limits.maxButtonTextLength}자를 초과합니다 (현재: ${btn.name.length}자)`
+        );
+        result.valid = false;
+      }
+    });
+  });
+
+  return result;
+}
+
 // BizChat 캠페인 생성 (POST /api/v1/cmpn/create) - 문서 v0.29.0 규격
 async function createCampaignInBizChat(campaign: any, message: any, useProduction: boolean = false) {
   // billingType: 0=LMS, 1=RCS MMS, 2=MMS, 3=RCS LMS
@@ -391,6 +556,27 @@ async function createCampaignInBizChat(campaign: any, message: any, useProductio
   if (campaign.messageType === 'RCS' || isRcsBilling) {
     const rcsSlides = message?.rcsSlides || [{ slideNum: 1 }];
     const rcsUrlList: string[] = message?.rcsUrls || mmsUrlList;
+
+    // RCS 메시지 검증 (경고 로깅, 에러는 API에서 반환)
+    const rcsValidation = validateRcsMessage(
+      campaign.rcsType ?? 0,
+      rcsSlides.map((s: any) => ({
+        msg: s.msg || s.content || message?.content,
+        imgOrigId: s.imgOrigId || s.imageUrl,
+        buttons: s.buttons || message?.rcsButtons,
+        urls: s.urls || rcsUrlList,
+      })),
+      campaign.slideCnt
+    );
+    
+    if (rcsValidation.warnings.length > 0) {
+      console.log('[BizChat RCS] Warnings:', rcsValidation.warnings.join(', '));
+    }
+    if (!rcsValidation.valid) {
+      console.error('[BizChat RCS] Validation errors:', rcsValidation.errors.join(', '));
+      // 에러가 있어도 BizChat API에서 최종 검증하므로 계속 진행
+      // 클라이언트에서 미리 검증하도록 안내 필요
+    }
     const rcsButtons: RcsButton[] = message?.rcsButtons || [];
     
     payload.rcs = rcsSlides.map((slide: any, idx: number) => {

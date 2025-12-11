@@ -68,12 +68,12 @@ function navigate(href: string) {
 
 
 const RCS_TYPES = [
-  { value: 0, label: "스탠다드", maxChars: 1100, imageSpec: "400x240 또는 500x300, 최대 0.3MB", aspectRatio: "5/3" },
-  { value: 1, label: "LMS", maxChars: 1100, imageSpec: "이미지 없음", aspectRatio: null },
-  { value: 2, label: "슬라이드", maxChars: 300, imageSpec: "464x336, 슬라이드당 최대 300KB (총 1MB)", aspectRatio: "464/336" },
-  { value: 3, label: "이미지 강조 A", maxChars: 1100, imageSpec: "900x1200, 최대 1MB", aspectRatio: "3/4" },
-  { value: 4, label: "이미지 강조 B", maxChars: 1100, imageSpec: "900x900, 최대 1MB", aspectRatio: "1/1" },
-  { value: 5, label: "상품 소개 (세로)", maxChars: 1100, imageSpec: "900x560, 최대 1MB", aspectRatio: "900/560" },
+  { value: 0, label: "스탠다드", maxChars: 1100, imageSpec: "400x240 또는 500x300, 최대 0.3MB", aspectRatio: "5/3", maxButtonTextLen: 17, maxUrlCount: 3 },
+  { value: 1, label: "LMS", maxChars: 1100, imageSpec: "이미지 없음", aspectRatio: null, maxButtonTextLen: 17, maxUrlCount: 3 },
+  { value: 2, label: "슬라이드", maxChars: 300, imageSpec: "464x336, 슬라이드당 최대 300KB (총 1MB)", aspectRatio: "464/336", maxButtonTextLen: 13, maxUrlCount: 1, note: "슬라이드당 300자, 전체 1300자 이내" },
+  { value: 3, label: "이미지 강조 A", maxChars: 1100, imageSpec: "900x1200, 최대 1MB", aspectRatio: "3/4", maxButtonTextLen: 16, maxUrlCount: 3 },
+  { value: 4, label: "이미지 강조 B", maxChars: 1100, imageSpec: "900x900, 최대 1MB", aspectRatio: "1/1", maxButtonTextLen: 16, maxUrlCount: 3 },
+  { value: 5, label: "상품 소개 (세로)", maxChars: 1100, imageSpec: "900x560, 최대 1MB", aspectRatio: "900/560", maxButtonTextLen: 16, maxUrlCount: 3, note: "옵션 이미지 2~3개 필수 (300x300)" },
 ];
 
 const MMS_IMAGE_SPEC = {
@@ -577,11 +577,21 @@ export default function TemplatesNew() {
                             ))}
                           </SelectContent>
                         </Select>
-                        {!isViewMode && (
-                          <FormDescription>
-                            메시지 레이아웃과 이미지 규격이 타입별로 다릅니다
-                          </FormDescription>
-                        )}
+                        {!isViewMode && (() => {
+                          const selectedRcsType = RCS_TYPES.find(t => t.value === watchedValues.rcsType);
+                          return (
+                            <FormDescription>
+                              {selectedRcsType && (
+                                <span className="block space-y-1">
+                                  <span>최대 {selectedRcsType.maxChars}자, 버튼 텍스트 {selectedRcsType.maxButtonTextLen}자, URL {selectedRcsType.maxUrlCount}개</span>
+                                  {selectedRcsType.note && (
+                                    <span className="block text-amber-600 dark:text-amber-400">{selectedRcsType.note}</span>
+                                  )}
+                                </span>
+                              )}
+                            </FormDescription>
+                          );
+                        })()}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -655,6 +665,11 @@ export default function TemplatesNew() {
                         <AlertDescription className="text-xs">
                           <strong>이미지 규격:</strong> {imageSpec.resolution}
                           {imageSpec.format && ` (${imageSpec.format})`}
+                          {watchedValues.messageType === "RCS" && (
+                            <span className="block mt-1 text-muted-foreground">
+                              RCS 이미지는 BizChat 서버에 업로드 후 사용됩니다. 외부 URL은 지원되지 않아요.
+                            </span>
+                          )}
                         </AlertDescription>
                       </Alert>
                     )}
