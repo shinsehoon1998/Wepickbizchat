@@ -1,0 +1,638 @@
+회선 특성	svc	연령	cust_age_cd	"{
+    ""$or"": [
+        {
+            ""data"": {
+                ""gt"": 0,
+                ""lt"": 15
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""svc"",
+            ""code"": ""cust_age_cd"",
+            ""desc"": ""연령: 0세 ~ 15세"",
+            ""not"": false
+        },
+        {
+            ""data"": {
+                ""gt"": 30,
+                ""lt"": 50
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""svc"",
+            ""code"": ""cust_age_cd"",
+            ""desc"": ""연령: 30세 ~ 50세"",
+            ""not"": false
+        }
+    ]
+}"	 "연령: 0세 ~ 15세" OR "연령: 30세 ~ 50세"
+		연령	cust_age_cd	"{
+    ""$and"": [
+        {
+            ""data"": {
+                ""gt"": 0,
+                ""lt"": 15
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""svc"",
+            ""code"": ""cust_age_cd"",
+            ""desc"": ""연령: 0세 ~ 15세 제외"",
+            ""not"": true
+        },
+        {
+            ""data"": {
+                ""gt"": 30,
+                ""lt"": 50
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""svc"",
+            ""code"": ""cust_age_cd"",
+            ""desc"": ""연령: 30세 ~ 50세 제외"",
+            ""not"": true
+        }
+    ]
+}"	"연령: 0세 ~ 15세 제외" AND "연령: 30세 ~ 50세 제외"
+		성별	sex_cd	"{
+    ""$or"": [
+        {
+            ""data"": [""1"", ""2"", ""B""],
+            ""dataType"": ""code"",
+            ""metaType"": ""svc"",
+            ""code"": ""sex_cd"",
+            ""desc"": ""성별: 남자, 여자, 법인"",
+            ""not"": false
+        }
+    ]
+}"	"성별: 남자, 여자, 법인"
+		정보광고 수신 동의	ad_agr_yn	"{
+    ""$or"": [
+        {
+            ""data"": ""Y"",
+            ""dataType"": ""code"",
+            ""metaType"": ""svc"",
+            ""code"": ""ad_agr_yn"",
+            ""desc"": ""정보광고 수신 동의: Y"",
+            ""not"": false
+        }
+    ]
+}"	"정보광고 수신 동의: Y"
+		SMS 수신거부 여부	sms_rejt_yn	"{
+    ""$or"": [
+        {
+            ""data"": ""N"",
+            ""dataType"": ""code"",
+            ""metaType"": ""svc"",
+            ""code"": ""sms_rejt_yn"",
+            ""desc"": ""SMS 수신거부 여부: N"",
+            ""not"": false
+        }
+    ]
+}"	"SMS 수신거부 여부: N"
+		스마일고객 여부	smile_yn	"{
+    ""$or"": [
+        {
+            ""data"": ""Y"",
+            ""dataType"": ""code"",
+            ""metaType"": ""svc"",
+            ""code"": ""smile_yn"",
+            ""desc"": ""스마일고객 여부: Y"",
+            ""not"": false
+        }
+    ]
+}"	"스마일고객 여부: Y"
+		부가 서비스명	prod_scrb	"{
+    ""$or"": [
+        {
+            ""data"": [""NA00006175""],
+            ""dataType"": ""code"",
+            ""metaType"": ""svc"",
+            ""code"": ""prod_scrb"",
+            ""desc"": ""부가 서비스명: 채팅+"",
+            ""not"": false
+        }
+    ]
+}"	"부가 서비스명: 채팅+"
+		멤버십 등급	mbr_card_gr_cd	"{
+    ""$or"": [
+        {
+            ""data"": [""G""],
+            ""dataType"": ""code"",
+            ""metaType"": ""svc"",
+            ""code"": ""mbr_card_gr_cd"",
+            ""desc"": ""멤버십 등급: 골드"",
+            ""not"": false
+        }
+    ]
+}"	"멤버십 등급: 골드"
+앱/웹 Usage	app	-	-	"{
+    ""$or"": [
+        {
+            ""data"": [
+                {
+                    ""cat1"": ""엔터테인먼트"",
+                    ""cat2"": ""라디오"",
+                    ""cat3"": ""FM라디오""
+                },
+                {
+                    ""cat1"": ""교육/학습"",
+                    ""cat2"": ""교육정보"",
+                    ""cat3"": ""국립국어원""
+                }
+            ],
+            ""dataType"": ""cate"",
+            ""metaType"": ""app"",
+            ""code"": """",
+            ""desc"": ""엔터테인먼트: 엔터테인먼트 > 라디오 > FM라디오, 교육/학습 > 교육정보 > 국립국어원"",
+            ""not"": false
+        }
+    ]
+}"	"엔터테인먼트: 엔터테인먼트 > 라디오 > FM라디오, 교육/학습 > 교육정보 > 국립국어원"
+통화 Usage	tel	-	-	"{
+    ""$or"": [
+        {
+            ""data"": [
+                {
+                    ""cat1"": ""공공"",
+                    ""cat2"": ""공공기관"",
+                    ""cat3"": ""법원""
+                },
+                {
+                    ""cat1"": ""금융"",
+                    ""cat2"": ""카드"",
+                    ""cat3"": ""신용카드사""
+                }
+            ],
+            ""dataType"": ""cate"",
+            ""metaType"": ""tel"",
+            ""code"": """",
+            ""desc"": ""공공: 공공 > 공공기관 > 법원, 금융 > 카드 > 신용카드사"",
+            ""not"": false
+        }
+    ]
+}"	"공공: 공공 > 공공기관 > 법원, 금융 > 카드 > 신용카드사"
+위치/이동 특성	loc	추정 집주소	home_location	"{
+    ""$or"": [
+        {
+            ""data"": [
+                ""11680108"",
+                ""26440103""
+            ],
+            ""dataType"": ""code"",
+            ""metaType"": ""loc"",
+            ""code"": ""home_location"",
+            ""desc"": ""추정 집주소: 논현동, 강동동"",
+            ""not"": false
+        }
+    ]
+}"	"추정 집주소: 논현동, 강동동"
+		추정 직장주소	work_location	"{
+    ""$or"": [
+        {
+            ""data"": [
+                ""11740110"",
+                ""29110109""
+            ],
+            ""dataType"": ""code"",
+            ""metaType"": ""loc"",
+            ""code"": ""work_location"",
+            ""desc"": ""추정 직장주소: 강일동, 계림동"",
+            ""not"": false
+        }
+    ]
+}"	"추정 직장주소: 강일동, 계림동"
+		추정 집주소(행정동)	home_location	"{
+    ""$or"": [
+        {
+            ""data"": [
+                ""11680660"",
+                ""11680670""
+            ],
+            ""dataType"": ""code"",
+            ""metaType"": ""loc"",
+            ""code"": ""home_location"",
+            ""desc"": ""추정 집주소: 개포1동, 개포2동 [행정동]"",
+            ""not"": false
+        }
+    ]
+}"	추정 집주소: 개포1동, 개포2동 [행정동]
+		추정 직장주소(행정도)	work_location	"{
+    ""$or"": [
+        {
+            ""data"": [
+                ""11680660"",
+                ""11680670""
+            ],
+            ""dataType"": ""code"",
+            ""metaType"": ""loc"",
+            ""code"": ""work_location"",
+            ""desc"": ""추정 직장주소: 개포1동, 개포2동 [행정동]"",
+            ""not"": false
+        }
+    ]
+}"	추정 직장주소: 개포1동, 개포2동 [행정동]
+에측 모델	pro	MMS 스코어	cpm12	"{
+    ""$or"": [
+        {
+            ""data"": {
+                ""gt"": ""0.5"",
+                ""lt"": ""0.8""
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""pro"",
+            ""code"": ""cpm12"",
+            ""desc"": ""MMS스코어: 0.5 ~ 0.8"",
+            ""not"": false
+        }
+    ]
+}"	"MMS스코어: 0.5 ~ 0.8"
+		이사/출국 확률(이사 확률)	cpm04	"{
+    ""$or"": [
+        {
+            ""data"": {
+                ""gt"": ""0.8"",
+                ""lt"": ""1""
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""pro"",
+            ""code"": ""cpm04"",
+            ""desc"": ""이사 확률: 0.8 ~ 1"",
+            ""not"": false
+        }
+    ]
+}"	"이사 확률: 0.8 ~ 1"
+		이사/출국 확률(출국 확률)	cpm03	"{
+    ""$or"": [
+        {
+            ""data"": {
+                ""gt"": ""0.8"",
+                ""lt"": ""1""
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""pro"",
+            ""code"": ""cpm03"",
+            ""desc"": ""출국 확률: 0.8 ~ 1"",
+            ""not"": false
+        }
+    ]
+}"	"출국 확률: 0.8 ~ 1"
+		레저 관련 방문(골프)	cpm06	"{
+    ""$or"": [
+        {
+            ""data"": ""Y"",
+            ""dataType"": ""boolean"",
+            ""metaType"": ""pro"",
+            ""code"": ""cpm06"",
+            ""desc"": ""레저 관련 방문(골프): Y"",
+            ""not"": false
+        }
+    ]
+}"	"레저 관련 방문(골프): Y"
+		레저 관련 방문(캠핑)	cpm07	"{
+    ""$or"": [
+        {
+            ""data"": ""Y"",
+            ""dataType"": ""boolean"",
+            ""metaType"": ""pro"",
+            ""code"": ""cpm07"",
+            ""desc"": ""레저 관련 방문(캠핑): Y"",
+            ""not"": false
+        }
+    ]
+}"	"레저 관련 방문(캠핑): Y"
+		레저 관련 방문(등산)	cpm08	"{
+    ""$or"": [
+        {
+            ""data"": ""Y"",
+            ""dataType"": ""boolean"",
+            ""metaType"": ""pro"",
+            ""code"": ""cpm08"",
+            ""desc"": ""레저 관련 방문(등산): Y"",
+            ""not"": false
+        }
+    ]
+}"	"레저 관련 방문(등산): Y"
+		레저 관련 방문(스키장)	cpm09	"{
+    ""$or"": [
+        {
+            ""data"": ""Y"",
+            ""dataType"": ""boolean"",
+            ""metaType"": ""pro"",
+            ""code"": ""cpm09"",
+            ""desc"": ""레저 관련 방문(스키장): Y"",
+            ""not"": false
+        }
+    ]
+}"	"레저 관련 방문(스키장): Y"
+		레저 관련 방문(워터파크/놀이공원)	cpm10	"{
+    ""$or"": [
+        {
+            ""data"": ""Y"",
+            ""dataType"": ""boolean"",
+            ""metaType"": ""pro"",
+            ""code"": ""cpm10"",
+            ""desc"": ""레저 관련 방문(워터파크/놀이공원): Y"",
+            ""not"": false
+        }
+    ]
+}"	"레저 관련 방문(워터파크/놀이공원): Y"
+		Life Stage Seg.	life_stage_seg	"{
+    ""$or"": [
+        {
+            ""data"": [
+                ""1_B"",
+                ""2_B"",
+                ""1_D"",
+                ""3_D""
+            ],
+            ""dataType"": ""code"",
+            ""metaType"": ""pro"",
+            ""code"": ""life_stage_seg"",
+            ""desc"": ""Life Stage Seg.: 합리적인 소비층,욜로청춘,쇼핑,지상파 러버,혼자가 좋은 신사"",
+            ""not"": false
+        }
+    ]
+}"	"Life Stage Seg.: 합리적인 소비층,욜로청춘,쇼핑,지상파 러버,혼자가 좋은 신사"
+		자영업자 추정	self_employed_yn	"{
+    ""$or"": [
+        {
+            ""data"": ""Y"",
+            ""dataType"": ""boolean"",
+            ""metaType"": ""pro"",
+            ""code"": ""self_employed_yn"",
+            ""desc"": ""자영업자 추정: Y"",
+            ""not"": false
+        }
+    ]
+}"	"자영업자 추정: Y"
+		직장인 추정	PF00003-s01	"{
+    ""$or"": [
+        {
+            ""data"": ""N"",
+            ""dataType"": ""boolean"",
+            ""metaType"": ""pro"",
+            ""code"": ""PF00003-s01"",
+            ""desc"": ""직장인 추정: N"",
+            ""not"": false
+        }
+    ]
+}"	"직장인 추정: N"
+		1인가구 추정(청년 1인 가구)	OF00026-s01	"{
+    ""$or"": [
+        {
+            ""data"": {
+                ""gt"": ""0"",
+                ""lt"": ""0.2""
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""pro"",
+            ""code"": ""OF00026-s01"",
+            ""desc"": ""1인가구 추정(청년 1인 가구): 0 ~ 0.2"",
+            ""not"": false
+        }
+    ]
+}"	"1인가구 추정(청년 1인 가구): 0 ~ 0.2"
+		1인가구 추정(실버 1인 가구)	OF00025-s01	"{
+    ""$or"": [
+        {
+            ""data"": {
+                ""gt"": ""0.8"",
+                ""lt"": ""1""
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""pro"",
+            ""code"": ""OF00025-s01"",
+            ""desc"": ""1인가구 추정(실버 1인 가구): 0.8 ~ 1"",
+            ""not"": false
+        }
+    ]
+}"	"1인가구 추정(실버 1인 가구): 0.8 ~ 1"
+		부모 추정(초등학생 저학년 부모)	PF00010-s01	"{
+    ""$or"": [
+        {
+            ""data"": {
+                ""gt"": ""0.8"",
+                ""lt"": ""1""
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""pro"",
+            ""code"": ""PF00010-s01"",
+            ""desc"": ""부모 추정(초등학생 저학년 부모): 0.8 ~ 1"",
+            ""not"": false
+        }
+    ]
+}"	"부모 추정(초등학생 저학년 부모): 0.8 ~ 1"
+		부모 추정(초등학생 고학년 부모)	PF00011-s01	"{
+    ""$or"": [
+        {
+            ""data"": {
+                ""gt"": ""0.8"",
+                ""lt"": ""1""
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""pro"",
+            ""code"": ""PF00011-s01"",
+            ""desc"": ""부모 추정(초등학생 고학년 부모): 0.8 ~ 1"",
+            ""not"": false
+        }
+    ]
+}"	"부모 추정(초등학생 고학년 부모): 0.8 ~ 1"
+		부모 추정(중학생 부모)	PF00012-s01	"{
+    ""$or"": [
+        {
+            ""data"": {
+                ""gt"": ""0.8"",
+                ""lt"": ""1""
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""pro"",
+            ""code"": ""PF00012-s01"",
+            ""desc"": ""부모 추정(중학생 부모): 0.8 ~ 1"",
+            ""not"": false
+        }
+    ]
+}"	"부모 추정(중학생 부모): 0.8 ~ 1"
+		부모 추정(고등학생 부모)	PF00013-s01	"{
+    ""$or"": [
+        {
+            ""data"": {
+                ""gt"": ""0.8"",
+                ""lt"": ""1""
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""pro"",
+            ""code"": ""PF00013-s01"",
+            ""desc"": ""부모 추정(고등학생 부모): 0.8 ~ 1"",
+            ""not"": false
+        }
+    ]
+}"	"부모 추정(고등학생 부모): 0.8 ~ 1"
+		부모 추정(대학생 부모)	PF00014-s01	"{
+    ""$or"": [
+        {
+            ""data"": {
+                ""gt"": ""0.8"",
+                ""lt"": ""1""
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""pro"",
+            ""code"": ""PF00014-s01"",
+            ""desc"": ""부모 추정(대학생 부모): 0.8 ~ 1"",
+            ""not"": false
+        }
+    ]
+}"	"부모 추정(대학생 부모): 0.8 ~ 1"
+11번가	street	-	-	"{
+    ""$or"": [
+        {
+            ""data"": [
+                {
+                    ""cat1"": ""가구/인테리어"",
+                    ""cat2"": ""거실가구"",
+                    ""cat3"": ""소파""
+                },
+                {
+                    ""cat1"": ""뷰티"",
+                    ""cat2"": ""바디케어"",
+                    ""cat3"": ""바디워시""
+                }
+            ],
+            ""dataType"": ""cate"",
+            ""metaType"": ""street"",
+            ""code"": """",
+            ""desc"": ""가구/인테리어: 가구/인테리어 > 거실가구 > 소파, 뷰티 > 바디케어 > 바디워시"",
+            ""not"": false
+        }
+    ]
+}"	"가구/인테리어: 가구/인테리어 > 거실가구 > 소파, 뷰티 > 바디케어 > 바디워시"
+복합 예제	-	-	-	"{
+        ""$and"": [
+                {
+                        ""data"": {
+                                ""gt"": ""0.8"",
+                                ""lt"": ""1""
+                        },
+                        ""dataType"": ""number"",
+                        ""metaType"": ""pro"",
+                        ""code"": ""PF00011-s01"",
+                        ""desc"": ""부모 추정(초등학생 고학년 부모): 0.8 ~ 1"",
+                        ""not"": false
+                },
+                {
+                        ""data"": ""Y"",
+                        ""dataType"": ""boolean"",
+                        ""metaType"": ""pro"",
+                        ""code"": ""self_employed_yn"",
+                        ""desc"": ""자영업자 추정: Y"",
+                        ""not"": false
+                },
+                {
+                        ""data"": [""G""],
+                        ""dataType"": ""code"",
+                        ""metaType"": ""svc"",
+                        ""code"": ""mbr_card_gr_cd"",
+                        ""desc"": ""멤버십 등급: 골드"",
+                        ""not"": false
+                }
+        ]
+}"	"부모 추정(초등학생 고학년 부모): 0.8 ~ 1" AND "자영업자 추정: Y" AND "멤버십 등급: 골드"
+				"{
+     ""$or"": [
+         {
+             ""$and"": [
+                 {
+                     ""data"": [""G""],
+                     ""dataType"": ""code"",
+                     ""metaType"": ""svc"",
+                     ""code"": ""mbr_card_gr_cd"",
+                     ""desc"": ""멤버십 등급: 골드"",
+                     ""not"": false
+                 },
+                 {
+                     ""data"": {
+                         ""gt"": 50,
+                         ""lt"": 60
+                     },
+                     ""dataType"": ""number"",
+                     ""metaType"": ""svc"",
+                     ""code"": ""cust_age_cd"",
+                     ""desc"": ""연령: 50세 ~ 60세"",
+                     ""not"": false
+                 }
+             ]
+         },
+         {
+             ""data"": {
+                ""gt"": 10,
+                ""lt"": 11
+             },
+             ""dataType"": ""number"",
+             ""metaType"": ""svc"",
+             ""code"": ""cust_age_cd"",
+             ""desc"": ""연령: 10세 ~ 11세"",
+             ""not"": false
+         }
+     ]
+}"	( "멤버십 등급: 골드" AND "연령: 50세 ~ 60세" ) OR ( "연령: 10세 ~ 11세" )
+				"{
+        ""$or"": [
+                {
+                        ""$and"": [
+                                {
+                                    ""data"": [""G""],
+                                    ""dataType"": ""code"",
+                                    ""metaType"": ""svc"",
+                                    ""code"": ""mbr_card_gr_cd"",
+                                    ""desc"": ""멤버십 등급: 골드"",
+                                    ""not"": false
+                                },
+                                {
+                                    ""data"": {
+                                        ""gt"": 50,
+                                        ""lt"": 51
+                                    },
+                                    ""dataType"": ""number"",
+                                    ""metaType"": ""svc"",
+                                    ""code"": ""cust_age_cd"",
+                                    ""desc"": ""연령: 50세 ~ 51세"",
+                                    ""not"": false
+                                }
+                        ]
+                },
+                {
+                        ""$and"": [
+                                {
+                                    ""data"": [""G""],
+                                    ""dataType"": ""code"",
+                                    ""metaType"": ""svc"",
+                                    ""code"": ""mbr_card_gr_cd"",
+                                    ""desc"": ""멤버십 등급: 골드"",
+                                    ""not"": false
+                                },
+                                {
+                                    ""data"": {
+                                        ""gt"": 10,
+                                        ""lt"": 11
+                                    },
+                                    ""dataType"": ""number"",
+                                    ""metaType"": ""svc"",
+                                    ""code"": ""cust_age_cd"",
+                                    ""desc"": ""연령: 10세 ~ 11세"",
+                                    ""not"": false
+                                }
+                        ]
+                }
+        ]
+}"	( "멤버십 등급: 골드" AND "연령: 50세 ~ 51세" ) OR ( "멤버십 등급: 골드" AND "연령: 10세 ~ 11세" )
+통화분석	callcustom	EBS, KB국민은행 통화/문자 분석	custom_call_summary	"{
+    ""$or"": [
+        {
+            ""data"": [
+                ""EBS"", 
+                ""KB국민은행""
+            ],
+            ""dataType"": ""code"",
+            ""metaType"": ""callcustom"",
+            ""code"": ""custom_call_summary"",
+            ""desc"": ""EBS, KB국민은행"",
+            ""not"": false
+        }
+    ]
+}"	통화분석

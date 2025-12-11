@@ -1,0 +1,110 @@
+URL	/api/v1/ats/mosu				
+Description	ATS 발송 모수 확인				
+Method	POST				
+Header	Authorization: {token}				
+					
+Request					
+In Type	Parameter	Mandatory	Data Type	Value(Example)	Description
+Query Parameter	tid	Y	string	"1705298638704"	transaction ID
+Body	"- REST API - ATS 발송모수 필터 샘플 참고 
+- $and / $or 조건은 동시에 사용 할 수 없다. 즉 { $and: [...], $or: [...] } 형태는 사용 불가능 하다.
+- $and/$or 조건의 단계는 최대 2단계 까지만 지원 한다. 즉, $and.$or 는 사용 가능 하지만, $and.$or.$and 형태로 2단계 이상으로 사용 할 수 없다.
+
+[기존 비즈챗 OTP 와 차이점]
+필터링 시 다음 항목은 ATS 에서 기본으로 적용 되기 때문에, 필터링 조건에서 제외 하고 Request 한다.
+
+- 정보광고 수신 동의 
+- SMS 수신거부 여부 
+- 스마일고객 여부 
+- SKT 구성원 여부
+
+[desc 값 주의 사항]
+- 행정동 일때는 뒤에 ""[행정동]"" 을 넣어야 한다. ""REST API - ATS 발송모수 필터샘플"" 13번, 14번 항목 참고 
+- not 이 true 일때는 desc 제일 뒤에 ""제외"" 를 넣어야 한다. 행정동과 같이 사용 한다면, ""제외""가 제일 뒤에 위치 한다.
+
+[행정동 사용시 참고 사항]
+- 행정동, 법정동은 mix 해서 사용 하지 않도록 한다."				
+Example(Query parameter)	tid=1706078226511				
+Example1(body)	"{
+    ""$and"": [
+        {
+            ""data"": [
+                {
+                    ""cat1"": ""게임"",
+                    ""cat2"": ""VR/AR게임"",
+                    ""cat3"": ""포켓몬 고(Pokemon Go)""
+                }
+            ],
+            ""dataType"": ""cate"",
+            ""metaType"": ""app"",
+            ""code"": """",
+            ""desc"": ""게임: 게임 > VR/AR게임 > 포켓몬 고(Pokemon Go)"",
+            ""not"": true
+        },
+        {
+            ""data"": {
+                ""gt"": 30,
+                ""lt"": 50
+            },
+            ""dataType"": ""number"",
+            ""metaType"": ""svc"",
+            ""code"": ""cust_age_cd"",
+            ""desc"": ""연령: 30세 ~ 50세"",
+            ""not"": false
+        }
+    ]
+}"				
+Example2(body)	"{
+    ""$or"": [
+        {
+            ""data"": [
+                {
+                    ""cat1"": ""게임"",
+                    ""cat2"": ""VR/AR게임"",
+                    ""cat3"": ""포켓몬 고(Pokemon Go)""
+                }
+            ],
+            ""dataType"": ""cate"",
+            ""metaType"": ""app"",
+            ""dataType"": ""cate"",
+            ""code"": """",
+            ""desc"": ""게임: 게임 > VR/AR게임 > 포켓몬 고(Pokemon Go)"",
+            ""not"": true
+        }
+    ]
+}"				
+Example3(body) - Example2 와 동일한 결과	"{
+    ""data"": [
+        {
+            ""cat1"": ""게임"",
+            ""cat2"": ""VR/AR게임"",
+            ""cat3"": ""포켓몬 고(Pokemon Go)""
+        }
+    ],
+    ""dataType"": ""cate"",
+    ""metaType"": ""app"",
+    ""dataType"": ""cate"",
+    ""code"": """",
+    ""desc"": ""게임: 게임 > VR/AR게임 > 포켓몬 고(Pokemon Go)"",
+    ""not"": true
+}"				
+					
+Response					
+구분	Parameter	Mandatory	Data Type	Value(Example)	Description
+Body	tid	Y	string	"1705298638704"	request 시 사용한 tid 값
+	code	Y	string	"S000001"	API 성공, 실패 코드
+	msg	Y	string	"success"	API 성공, 실패 메시지
+	data	Y	object		발송 모수 정보
+	data.cnt	Y	number	260484	발송 모수
+	data.filterStr	Y	string	"<table....."	발송 모수 필터링 구조 참고
+	data.query	Y	string	"( ( ((app like '01010..."	캠패인 등록시에 전달할 발송 조건
+Example	"{
+    ""tid"": ""1707973674833"",
+    ""code"": ""S000001"",
+    ""msg"": ""Success"",
+    ""data"": {
+        ""cnt"": 11309949,
+        ""filterStr"": ""<table><tr><td id='oper0' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>OR</span></td><td id='oper1' rowspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#eeeeee;padding:5px;'><span style='padding:2px;vertical-align:center;color:#ffffff;background-color:linear-gradient(#ffffff, #efefef);'>OR</span></td><td colspan='1' style='border:1px solid #cccccc;border-collapse:collapse;background:#ffffff;padding:5px;'>앱/웹 Usage-게임: 게임 &gt; VR/AR게임 > 포켓몬 고(Pokemon Go)</td></tr></tr></table>"",
+        ""query"": ""( ( ((app not like '0101002%' and app not like '%,0101002%')) ) ) and indv_info_use_agree_yn = 'Y'""
+    }
+}"				
