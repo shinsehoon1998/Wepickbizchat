@@ -573,6 +573,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const { campaignId, action, mdnList, sendTime } = req.body;
 
+      // delete 액션은 campaignIds (BizChat IDs) 배열을 사용하므로 별도 처리
+      if (action === 'delete') {
+        if (!req.body.campaignIds || !Array.isArray(req.body.campaignIds)) {
+          return res.status(400).json({ error: 'campaignIds array is required' });
+        }
+
+        const bizchatIds: string[] = req.body.campaignIds;
+        
+        // 모든 BizChat ID에 대해 소유자 확인
+        for (const bizchatId of bizchatIds) {
+          const campaignCheck = await db.select()
+            .from(campaigns)
+            .where(eq(campaigns.bizchatCampaignId, bizchatId));
+          
+          if (campaignCheck.length === 0) {
+            return res.status(404).json({ 
+              error: `Campaign with BizChat ID ${bizchatId} not found` 
+            });
+          }
+          
+          if (campaignCheck[0].userId !== auth.userId) {
+            return res.status(403).json({ 
+              error: 'Access denied: You do not own this campaign' 
+            });
+          }
+        }
+
+        const result = await deleteCampaignsInBizChat(bizchatIds, useProduction);
+        
+        if (result.data.code !== 'S000001') {
+          return res.status(400).json({
+            success: false,
+            action: 'delete',
+            error: 'Failed to delete campaign in BizChat',
+            bizchatCode: result.data.code,
+            bizchatMessage: result.data.msg,
+            bizchatError: result.data,
+          });
+        }
+
+        return res.status(200).json({
+          success: true,
+          action: 'delete',
+          result: result.data,
+        });
+      }
+
       if (!campaignId) {
         return res.status(400).json({ error: 'campaignId is required' });
       }
@@ -889,31 +936,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(200).json({
             success: result.data.code === 'S000001',
             action: 'result',
-            result: result.data,
-          });
-        }
-
-        case 'delete': {
-          if (!req.body.campaignIds || !Array.isArray(req.body.campaignIds)) {
-            return res.status(400).json({ error: 'campaignIds array is required' });
-          }
-
-          const result = await deleteCampaignsInBizChat(req.body.campaignIds, useProduction);
-          
-          if (result.data.code !== 'S000001') {
-            return res.status(400).json({
-              success: false,
-              action: 'delete',
-              error: 'Failed to delete campaign in BizChat',
-              bizchatCode: result.data.code,
-              bizchatMessage: result.data.msg,
-              bizchatError: result.data,
-            });
-          }
-
-          return res.status(200).json({
-            success: true,
-            action: 'delete',
             result: result.data,
           });
         }
