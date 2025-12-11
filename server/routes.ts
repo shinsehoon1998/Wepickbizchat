@@ -183,6 +183,7 @@ export async function registerRoutes(
       
       // 2. BizChat 템플릿 조회 (선택적)
       let bizchatTemplates: any[] = [];
+      let bizchatError: string | null = null;
       try {
         const bizchatApiUrl = process.env.BIZCHAT_USE_PROD === 'true'
           ? (process.env.BIZCHAT_PROD_API_URL || 'https://gw.bizchat1.co.kr')
@@ -227,8 +228,9 @@ export async function registerRoutes(
             }
           }
         }
-      } catch (bizchatError) {
-        console.error('[Templates] BizChat API error (non-blocking):', bizchatError);
+      } catch (err) {
+        console.error('[Templates] BizChat API error (non-blocking):', err);
+        bizchatError = err instanceof Error ? err.message : 'BizChat 템플릿 조회 실패';
         // BizChat 오류는 무시하고 로컬 템플릿만 반환
       }
       
@@ -244,7 +246,14 @@ export async function registerRoutes(
         }
       }
       
-      res.json(allTemplates);
+      res.json({
+        templates: allTemplates,
+        meta: {
+          localCount: localTemplates.length,
+          bizchatCount: bizchatTemplates.length,
+          bizchatError,
+        }
+      });
     } catch (error) {
       console.error("Error fetching templates:", error);
       res.status(500).json({ error: "Failed to fetch templates" });
