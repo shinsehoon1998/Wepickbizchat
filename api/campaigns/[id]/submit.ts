@@ -67,7 +67,14 @@ const PROFILING_CODE_MAP: Record<string, { code: string; dataType: 'boolean' | '
 };
 
 // 구형 sndMosuQuery 형식을 BizChat API 규격에 맞게 변환
-function convertLegacySndMosuQuery(queryStr: string): { query: string; desc: string } {
+function convertLegacySndMosuQuery(queryStr: string): { query: string; desc: string; isLegacySql?: boolean } {
+  // 레거시 SQL 형식 감지 (괄호로 시작하는 경우)
+  const trimmed = queryStr.trim();
+  if (trimmed.startsWith('(') || trimmed.startsWith('SELECT') || trimmed.includes('cust_age_cd')) {
+    console.log('[Submit] Detected legacy SQL format in sndMosuQuery, returning as-is');
+    return { query: trimmed, desc: '레거시 SQL 형식', isLegacySql: true };
+  }
+  
   try {
     const parsed = JSON.parse(queryStr);
     
@@ -981,32 +988,53 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           : JSON.stringify(campaign.sndMosuQuery);
         
         // JSON 형식의 필터 조건을 ATS mosu API에 전송하여 SQL query 획득
-        const { query: convertedQuery } = convertLegacySndMosuQuery(queryString);
-        let filterPayload: Record<string, unknown>;
-        try {
-          filterPayload = JSON.parse(convertedQuery);
-        } catch {
-          filterPayload = { '$and': [] };
-        }
+        const convertResult = convertLegacySndMosuQuery(queryString);
         
-        console.log('[Submit Update] Calling ATS mosu API to get SQL query...');
-        console.log('[Submit Update] Filter payload:', JSON.stringify(filterPayload, null, 2));
-        
-        // ATS mosu API 호출하여 SQL 형식의 query 획득
-        const atsResult = await callATSMosuAPI(filterPayload, useProduction);
-        
-        if (atsResult.success && atsResult.query) {
-          // ATS API 응답의 SQL query를 sndMosuQuery로 사용
-          updatePayload.sndMosuQuery = atsResult.query;
-          updateAtsFilterStr = atsResult.filterStr;
-          console.log('[Submit Update] sndMosuQuery (SQL from ATS):', atsResult.query.substring(0, 200) + '...');
+        // 레거시 SQL 형식인 경우 그대로 사용 (ATS mosu API 호출 불필요)
+        if (convertResult.isLegacySql) {
+          console.log('[Submit Update] Using legacy SQL query directly (skipping ATS mosu API)');
+          updatePayload.sndMosuQuery = convertResult.query;
+          updateAtsFilterStr = convertResult.desc;
         } else {
-          // ATS API 실패 시 에러 반환
-          console.error('[Submit Update] ATS mosu API failed:', atsResult.error);
-          return res.status(400).json({
-            error: `ATS 타겟팅 조회 실패: ${atsResult.error || 'Unknown error'}`,
-            hint: 'ATS 발송 모수 API 호출에 실패했습니다. 타겟팅 조건을 확인해주세요.',
-          });
+          // JSON 필터인 경우 ATS mosu API 호출
+          let filterPayload: Record<string, unknown>;
+          try {
+            filterPayload = JSON.parse(convertResult.query);
+          } catch {
+            filterPayload = { '$and': [] };
+          }
+          
+          // 빈 필터 검증 - $and 또는 $or가 비어있으면 오류 반환
+          const hasConditions = (filterPayload['$and'] && Array.isArray(filterPayload['$and']) && filterPayload['$and'].length > 0) ||
+                                (filterPayload['$or'] && Array.isArray(filterPayload['$or']) && filterPayload['$or'].length > 0);
+          
+          if (!hasConditions) {
+            console.error('[Submit Update] Empty filter detected - no targeting conditions');
+            return res.status(400).json({
+              error: '타겟팅 조건이 비어있습니다',
+              hint: '캠페인에 유효한 타겟팅 조건(연령, 성별, 지역 등)을 설정해주세요.',
+            });
+          }
+          
+          console.log('[Submit Update] Calling ATS mosu API to get SQL query...');
+          console.log('[Submit Update] Filter payload:', JSON.stringify(filterPayload, null, 2));
+          
+          // ATS mosu API 호출하여 SQL 형식의 query 획득
+          const atsResult = await callATSMosuAPI(filterPayload, useProduction);
+          
+          if (atsResult.success && atsResult.query) {
+            // ATS API 응답의 SQL query를 sndMosuQuery로 사용
+            updatePayload.sndMosuQuery = atsResult.query;
+            updateAtsFilterStr = atsResult.filterStr;
+            console.log('[Submit Update] sndMosuQuery (SQL from ATS):', atsResult.query.substring(0, 200) + '...');
+          } else {
+            // ATS API 실패 시 에러 반환
+            console.error('[Submit Update] ATS mosu API failed:', atsResult.error);
+            return res.status(400).json({
+              error: `ATS 타겟팅 조회 실패: ${atsResult.error || 'Unknown error'}`,
+              hint: 'ATS 발송 모수 API 호출에 실패했습니다. 타겟팅 조건을 확인해주세요.',
+            });
+          }
         }
       }
       
